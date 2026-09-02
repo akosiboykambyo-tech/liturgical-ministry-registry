@@ -1,2 +1,2 @@
-#LMD
+# LMD
 This is for Diocese of Kalookan Liturgical Ministry Repository.
