@@ -1,0 +1,21 @@
+# Environment variables and secrets
+.env
+.env.local
+*.pem
+
+# Local database dumps and SQLite files
+*.db
+*.sqlite
+*.sql
+
+# Logs and runtime data
+*.log
+logs/
+
+# Dependency directories
+node_modules/
+vendor/
+
+# Operating System clutter
+.DS_Store
+Thumbs.db
