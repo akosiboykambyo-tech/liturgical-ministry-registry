@@ -532,8 +532,8 @@ export default function MembersListPage() {
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto overflow-y-hidden touch-pan-x scrollbar-thin">
+            <table className="w-full min-w-[900px] text-sm">
               <thead className="bg-muted/60 border-b border-border">
                 <tr className="text-left">
                   <th className="px-4 py-3 w-10">
