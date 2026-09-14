@@ -361,14 +361,14 @@ function VerifyPage() {
 
         <div className="mt-8">
           {searching && (
-            <div className="flex flex-col items-center justify-center py-12">
+            <div role="status" className="flex flex-col items-center justify-center py-12">
               <Loader2 className="h-7 w-7 animate-spin text-primary mb-3" />
               <p className="text-sm text-muted-foreground">Searching the registry...</p>
             </div>
           )}
 
           {!searching && searched && results.length === 0 && !error && (
-            <div className="rounded-lg border border-dashed border-border py-12 text-center">
+            <div role="status" className="rounded-lg border border-dashed border-border py-12 text-center">
               <AlertCircle className="mx-auto h-9 w-9 text-muted-foreground/50" />
               <p className="mt-3 text-sm font-medium text-foreground">
                 No matching registry entries found.
@@ -381,7 +381,7 @@ function VerifyPage() {
           )}
 
           {error && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 py-8 text-center">
+            <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 py-8 text-center">
               <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
               <p className="mt-3 text-sm text-destructive">{error}</p>
             </div>
