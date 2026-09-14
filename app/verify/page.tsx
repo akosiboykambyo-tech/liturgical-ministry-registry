@@ -326,12 +326,14 @@ function VerifyPage() {
           <button
             type="submit"
             disabled={searching}
+            aria-label={searching ? "Verifying member" : "Verify member"}
+            aria-busy={searching}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
           >
             {searching ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
             ) : (
-              <><Search className="h-4 w-4" /> Verify</>
+              <><Search aria-hidden="true" className="h-4 w-4" /> Verify</>
             )}
           </button>
         </form>
