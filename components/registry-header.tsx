@@ -17,7 +17,7 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-transform duration-200 group-hover:scale-[1.02] group-active:scale-[0.98]">
             <Church className="h-5 w-5" aria-hidden="true" />
           </span>
-          <span className="min-w-0">
+          <span className="hidden min-w-0 sm:block">
             <span className="block truncate text-sm font-semibold leading-tight sm:text-[15px]">
               Liturgical Ministry Registry
             </span>
