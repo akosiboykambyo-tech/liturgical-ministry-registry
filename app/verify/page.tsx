@@ -60,6 +60,8 @@ function VerifyPage() {
   const [showMinistryDialog, setShowMinistryDialog] = useState(false);
   const [downloadCount, setDownloadCount] = useState(0);
   const certRef = useRef<CertificateDesignHandle>(null);
+  const downloadButtonRef = useRef<HTMLButtonElement>(null);
+  const ministryDialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Load the default certificate template (public). The Admin Console
@@ -193,6 +195,46 @@ function VerifyPage() {
       })();
     }
   }, [results, supabase]);
+
+  useEffect(() => {
+    if (!showMinistryDialog) return;
+
+    const dialog = ministryDialogRef.current;
+    const firstButton = dialog?.querySelector<HTMLButtonElement>("button");
+    firstButton?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowMinistryDialog(false);
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const buttons = Array.from(
+          dialog?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? []
+        );
+        if (buttons.length === 0) return;
+
+        const firstButton = buttons[0];
+        const lastButton = buttons[buttons.length - 1];
+
+        if (event.shiftKey && document.activeElement === firstButton) {
+          event.preventDefault();
+          lastButton.focus();
+        } else if (!event.shiftKey && document.activeElement === lastButton) {
+          event.preventDefault();
+          firstButton.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      downloadButtonRef.current?.focus();
+    };
+  }, [showMinistryDialog]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -504,6 +546,7 @@ function VerifyPage() {
                                 </p>
                               </div>
                               <button
+                                ref={downloadButtonRef}
                                 onClick={handleDownload}
                                 disabled={generating}
                                 className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm w-full sm:w-auto"
@@ -585,7 +628,7 @@ function VerifyPage() {
       {/* Ministry selection dialog for multi-ministry members */}
       {showMinistryDialog && results.length === 1 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div role="dialog" aria-modal="true" aria-labelledby="ministry-dialog-title" className="rounded-xl border border-border bg-card p-6 shadow-xl max-w-md w-full mx-4 animate-in-fade">
+          <div ref={ministryDialogRef} role="dialog" aria-modal="true" aria-labelledby="ministry-dialog-title" className="rounded-xl border border-border bg-card p-6 shadow-xl max-w-md w-full mx-4 animate-in-fade">
             <div className="flex items-center gap-2 mb-4">
               <Award aria-hidden="true" className="h-5 w-5 text-primary" />
               <h3 id="ministry-dialog-title" className="text-lg font-semibold">Select Certificate Ministry</h3>
