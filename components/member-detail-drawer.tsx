@@ -205,7 +205,7 @@ export function MemberDetailDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-2xl overflow-y-auto scrollbar-thin p-0"
+        className="w-full sm:max-w-2xl overflow-hidden p-0"
       >
         {loading ? (
           <div className="flex items-center justify-center h-full min-h-[400px]">
