@@ -220,6 +220,8 @@ export default function MembersListPage() {
 
   const isActiveSearch = search.trim().length > 0;
 
+  const parishOptions = [...PARISHES].sort((a, b) => a.localeCompare(b));
+
   // --- Selection logic ---
   const pageMemberIds = members.map((m) => m.id);
   const allOnPageSelected =
@@ -421,11 +423,11 @@ export default function MembersListPage() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <MultiSelectCombobox
-            options={PARISHES as readonly string[]}
+            options={parishOptions}
             selected={filters.parish}
             onChange={(v) => setFilters((f) => ({ ...f, parish: v }))}
             placeholder="All Parishes"
-            searchPlaceholder="Search parishes..."
+            searchPlaceholder="Type a parish name..."
             emptyText="No parish matches."
             formatBadge={(v) => (v.length > 18 ? `${v.slice(0, 16)}…` : v)}
           />
