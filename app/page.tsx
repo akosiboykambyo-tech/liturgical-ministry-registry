@@ -9,7 +9,7 @@ export default function Home() {
       <RegistryHeader current="home" />
 
       <main className="flex-1">
-        <section className="mx-auto flex min-h-[calc(100svh-8rem)] w-full max-w-6xl items-center px-4 py-12 sm:px-6 sm:py-16 lg:min-h-[calc(100svh-9rem)] lg:py-20">
+        <section className="mx-auto flex w-full max-w-6xl items-center px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
           <div className="mx-auto w-full max-w-3xl text-center">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground ring-1 ring-inset ring-primary/20">
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
@@ -68,6 +68,46 @@ export default function Home() {
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="border-t border-border/70 bg-muted/25">
+          <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-14">
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
+                Public verification
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                How verification works
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
+                Confirm a registered liturgical minister through the official diocesan registry.
+              </p>
+            </div>
+
+            <ol className="mx-auto mt-8 grid max-w-4xl gap-4 md:grid-cols-3">
+              <li className="rounded-xl border border-border/70 bg-background p-5 shadow-sm">
+                <Search className="h-5 w-5 text-primary" aria-hidden="true" />
+                <h3 className="mt-4 font-semibold text-foreground">Search</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Look up a member by name or Registry ID.
+                </p>
+              </li>
+              <li className="rounded-xl border border-border/70 bg-background p-5 shadow-sm">
+                <CheckCircle2 className="h-5 w-5 text-primary" aria-hidden="true" />
+                <h3 className="mt-4 font-semibold text-foreground">Confirm</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Review the member&apos;s standing and registered ministry.
+                </p>
+              </li>
+              <li className="rounded-xl border border-border/70 bg-background p-5 shadow-sm">
+                <QrCode className="h-5 w-5 text-primary" aria-hidden="true" />
+                <h3 className="mt-4 font-semibold text-foreground">Verify</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Use an exact Registry ID or certificate QR code for official verification.
+                </p>
+              </li>
+            </ol>
           </div>
         </section>
       </main>
