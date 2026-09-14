@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { shortMinistry, MINISTRIES, PARISHES } from "@/lib/constants";
 import { Member } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { SearchableSelect } from "@/components/searchable-select";
 import {
   ShieldCheck,
   Check,
@@ -339,16 +340,16 @@ export default function QuickScanMatrixPage() {
           />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
-          <select
+          <SearchableSelect
+            options={PARISHES}
             value={filters.parish}
-            onChange={(e) => setFilters((f) => ({ ...f, parish: e.target.value }))}
-            className="rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring truncate"
-          >
-            <option value="All">All Parishes</option>
-            {PARISHES.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
+            onChange={(value) =>
+              setFilters((f) => ({ ...f, parish: value }))
+            }
+            placeholder="All Parishes"
+            searchPlaceholder="Search parishes..."
+            emptyText="No parish matches."
+          />
           <select
             value={filters.ministry}
             onChange={(e) => setFilters((f) => ({ ...f, ministry: e.target.value }))}
