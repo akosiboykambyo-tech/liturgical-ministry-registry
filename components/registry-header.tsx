@@ -32,10 +32,10 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
             href="/verify"
             aria-current={current === 'verify' ? 'page' : undefined}
             className={[
-              'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-ring',
+              'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-[transform,background-color,box-shadow] duration-150 focus-ring',
               current === 'verify'
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-md active:scale-[0.98]',
             ].join(' ')}
           >
             <Search className="h-4 w-4" aria-hidden="true" />
@@ -44,7 +44,7 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
           </Link>
           <Link
             href="/admin"
-            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-[transform,background-color,box-shadow] duration-150 hover:bg-primary/90 hover:shadow-md active:scale-[0.98] focus-ring sm:px-3.5"
+            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition-[transform,background-color,box-shadow] duration-150 hover:bg-muted hover:shadow-sm active:scale-[0.98] focus-ring sm:px-3.5"
           >
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Admin Portal</span>
