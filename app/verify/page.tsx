@@ -547,6 +547,7 @@ function VerifyPage() {
                                 </p>
                               </div>
                               <button
+                                type="button"
                                 ref={downloadButtonRef}
                                 onClick={handleDownload}
                                 disabled={generating}
@@ -641,6 +642,7 @@ function VerifyPage() {
             <div className="space-y-2">
               {results[0].ministries.map((min) => (
                 <button
+                  type="button"
                   key={min}
                   onClick={() => handleMinistrySelect(min)}
                   className="w-full text-left rounded-md border border-border px-4 py-3 text-sm font-medium hover:bg-primary/5 hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -650,6 +652,7 @@ function VerifyPage() {
               ))}
             </div>
             <button
+              type="button"
               onClick={() => setShowMinistryDialog(false)}
               className="mt-4 w-full rounded-md text-center text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
