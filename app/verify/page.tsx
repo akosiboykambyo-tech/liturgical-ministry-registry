@@ -549,7 +549,7 @@ function VerifyPage() {
                                 ref={downloadButtonRef}
                                 onClick={handleDownload}
                                 disabled={generating}
-                                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm w-full sm:w-auto"
+                                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                               >
                                 {generating ? (
                                   <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
@@ -642,7 +642,7 @@ function VerifyPage() {
                 <button
                   key={min}
                   onClick={() => handleMinistrySelect(min)}
-                  className="w-full text-left rounded-md border border-border px-4 py-3 text-sm font-medium hover:bg-primary/5 hover:border-primary/30 transition-colors"
+                  className="w-full text-left rounded-md border border-border px-4 py-3 text-sm font-medium hover:bg-primary/5 hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   {min}
                 </button>
@@ -650,7 +650,7 @@ function VerifyPage() {
             </div>
             <button
               onClick={() => setShowMinistryDialog(false)}
-              className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground"
+              className="mt-4 w-full rounded-md text-center text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               Cancel
             </button>
