@@ -89,20 +89,20 @@ export default function AdminDashboardPage() {
             href="/admin/import"
             className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted transition-colors"
           >
-            <Upload className="h-4 w-4" />
+            <Upload aria-hidden="true" className="h-4 w-4" />
             Import CSV
           </Link>
           <Link
             href="/admin/members/add"
             className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
           >
-            <UserPlus className="h-4 w-4" />
+            <UserPlus aria-hidden="true" className="h-4 w-4" />
             Add Member
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {cards.map((c) => {
           const Icon = c.icon;
           return (
@@ -112,7 +112,7 @@ export default function AdminDashboardPage() {
             >
               <div className="flex items-center justify-between">
                 <div className={c.color + " flex h-9 w-9 items-center justify-center rounded-md"}>
-                  <Icon className="h-4 w-4" />
+                  <Icon aria-hidden="true" className="h-4 w-4" />
                 </div>
               </div>
               <p className="mt-3 text-3xl font-bold tracking-tight">
@@ -132,7 +132,7 @@ export default function AdminDashboardPage() {
               href="/admin/members"
               className="text-xs text-primary hover:underline inline-flex items-center gap-1"
             >
-              View all <ArrowRight className="h-3 w-3" />
+              View all <ArrowRight aria-hidden="true" className="h-3 w-3" />
             </Link>
           </div>
           {recent.length === 0 && !loading ? (
@@ -168,7 +168,7 @@ export default function AdminDashboardPage() {
               href="/admin/verify"
               className="group rounded-lg border border-border p-4 hover:border-primary/50 hover:bg-accent/40 transition-all"
             >
-              <CheckCheck className="h-5 w-5 text-primary mb-2" />
+              <CheckCheck aria-hidden="true" className="h-5 w-5 text-primary mb-2" />
               <p className="text-sm font-medium">Quick-Scan Verification</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Approve pending members from the physical desk stack.
@@ -178,7 +178,7 @@ export default function AdminDashboardPage() {
               href="/admin/import"
               className="group rounded-lg border border-border p-4 hover:border-primary/50 hover:bg-accent/40 transition-all"
             >
-              <Upload className="h-5 w-5 text-primary mb-2" />
+              <Upload aria-hidden="true" className="h-5 w-5 text-primary mb-2" />
               <p className="text-sm font-medium">Bulk CSV Import</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Import members at the start of the liturgical year.
@@ -189,7 +189,7 @@ export default function AdminDashboardPage() {
               href="/admin/certificates"
               className="group rounded-lg border border-border p-4 hover:border-primary/50 hover:bg-accent/40 transition-all"
             >
-              <ShieldCheck className="h-5 w-5 text-primary mb-2" />
+              <ShieldCheck aria-hidden="true" className="h-5 w-5 text-primary mb-2" />
               <p className="text-sm font-medium">Certificate Template</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Configure the official certificate overlay layout.
