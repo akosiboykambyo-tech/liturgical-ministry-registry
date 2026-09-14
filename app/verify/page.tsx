@@ -526,7 +526,7 @@ function VerifyPage() {
                                 <p className="text-sm font-medium">Certificate Download Unavailable</p>
                                 <p className="text-xs text-muted-foreground">
                                   {!searchedByUid
-                                    ? "Search by UID (e.g., LMD-2026-0001) to download the certificate."
+                                    ? "Certificate download requires the exact Registry ID. Search by UID (e.g., LMD-2026-0001) to unlock the official certificate download."
                                     : results.length > 1
                                     ? "Multiple entries matched this UID. Refine your search to a single record."
                                     : "Download is locked until verification is complete."}
