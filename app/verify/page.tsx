@@ -305,8 +305,10 @@ function VerifyPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="relative">
+          <label htmlFor="member-search" className="sr-only">Member name or Registry ID</label>
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
           <input
+            id="member-search"
             value={query}
             onChange={(e) => {
               const v = e.target.value;
@@ -613,4 +615,3 @@ function VerifyPage() {
     </div>
   );
 }
-
