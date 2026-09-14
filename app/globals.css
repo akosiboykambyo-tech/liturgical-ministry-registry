@@ -43,6 +43,12 @@
 
     --radius: 0.625rem;
 
+    /* Registry design tokens */
+    --content-reading: 42rem;
+    --content-service: 48rem;
+    --content-wide: 72rem;
+    --focus-ring: 0 0 0 3px hsl(var(--primary) / 0.18);
+
     --chart-1: 355 96% 43%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -116,6 +122,53 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  /* Page-level enter transition, used by app/admin/template.tsx and can be
+     applied directly to a page's root wrapper anywhere else in the app. */
+  .animate-page-in {
+    animation: pageIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes pageIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Generic hover-lift for clickable cards (dashboard stat cards, result
+     cards, feature cards, etc.) — subtle raise + shadow on hover/focus. */
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .hover-lift:hover,
+  .hover-lift:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -8px hsl(var(--foreground) / 0.15);
+  }
+
+  .focus-ring:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  .font-display {
+    font-family: var(--font-eb-garamond), Georgia, serif;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
