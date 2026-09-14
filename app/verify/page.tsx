@@ -37,8 +37,9 @@ export default function VerifyPageWrapper() {
 
 function LoadingState() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+    <div role="status" aria-live="polite" className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 aria-hidden="true" className="h-6 w-6 animate-spin text-primary" />
+      <span className="sr-only">Loading verification portal...</span>
     </div>
   );
 }
