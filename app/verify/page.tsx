@@ -585,10 +585,10 @@ function VerifyPage() {
       {/* Ministry selection dialog for multi-ministry members */}
       {showMinistryDialog && results.length === 1 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="rounded-xl border border-border bg-card p-6 shadow-xl max-w-md w-full mx-4 animate-in-fade">
+          <div role="dialog" aria-modal="true" aria-labelledby="ministry-dialog-title" className="rounded-xl border border-border bg-card p-6 shadow-xl max-w-md w-full mx-4 animate-in-fade">
             <div className="flex items-center gap-2 mb-4">
-              <Award className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">Select Certificate Ministry</h3>
+              <Award aria-hidden="true" className="h-5 w-5 text-primary" />
+              <h3 id="ministry-dialog-title" className="text-lg font-semibold">Select Certificate Ministry</h3>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               {results[0].first_name} {results[0].last_name} is registered in
