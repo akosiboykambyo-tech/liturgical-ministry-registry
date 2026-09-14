@@ -348,7 +348,7 @@ function VerifyPage() {
 
         <form onSubmit={handleSubmit} className="relative">
           <label htmlFor="member-search" className="sr-only">Member name or Registry ID</label>
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+          <Search aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
           <input
             id="member-search"
             value={query}
@@ -404,7 +404,7 @@ function VerifyPage() {
         <div className="mt-8">
           {searching && (
             <div role="status" className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="h-7 w-7 animate-spin text-primary mb-3" />
+              <Loader2 aria-hidden="true" className="h-7 w-7 animate-spin text-primary mb-3" />
               <p className="text-sm text-muted-foreground">Searching the registry...</p>
             </div>
           )}
@@ -552,14 +552,14 @@ function VerifyPage() {
                                 className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                               >
                                 {generating ? (
-                                  <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
+                                  <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Generating...</>
                                 ) : (
-                                  <><Download className="h-4 w-4" /> Download Official Certificate</>
+                                  <><Download aria-hidden="true" className="h-4 w-4" /> Download Official Certificate</>
                                 )}
                               </button>
                             </div>
                             <div className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                              <QrCode className="h-3.5 w-3.5" />
+                              <QrCode aria-hidden="true" className="h-3.5 w-3.5" />
                               Verification URL: <code className="font-mono">{`${typeof window !== "undefined" ? window.location.origin : ""}/verify?uid=${member.uid}`}</code>
                             </div>
                           </div>
