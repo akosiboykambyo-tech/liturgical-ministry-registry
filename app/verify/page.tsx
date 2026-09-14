@@ -466,8 +466,8 @@ function VerifyPage() {
                       </div>
 
                       {(status === "New" || status === "Renewed") && (
-                        <div className="mt-4 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
-                          <CheckCircle2 className="h-4 w-4 shrink-0" />
+                        <div role="status" className="mt-4 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
+                          <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />
                           <span className="font-medium">Verified Active Member</span>
                           <span className="text-emerald-700">— authorized to serve in the {settings?.liturgical_year} liturgical year.</span>
                         </div>
@@ -613,3 +613,4 @@ function VerifyPage() {
     </div>
   );
 }
+
