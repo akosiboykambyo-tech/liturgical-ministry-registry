@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/status-badge";
+import VerificationResultStack from "@/components/verification-result-stack";
 import { CertificateDesign } from "@/components/certificate-design";
 import type { CertificateDesignHandle } from "@/components/certificate-design";
 import type { Member, CertificateTemplateSettings, Signatory } from "@/lib/types";
@@ -560,7 +561,12 @@ function VerifyPage() {
                 </div>
               )}
 
-              {results.map((member) => {
+              {results.length > 1 && (
+                <VerificationResultStack results={results} />
+              )}
+
+              <div className={results.length > 1 ? "hidden" : "block"}>
+                {results.map((member) => {
                 const status = member.status;
                 return (
                   <div key={member.id} className="space-y-4">
@@ -704,7 +710,8 @@ function VerifyPage() {
                     </div>
                   </div>
                 );
-              })}
+                })}
+              </div>
 
               <p className="text-center text-xs text-muted-foreground">
                 This public lookup does not expose personal contact details or document links.
