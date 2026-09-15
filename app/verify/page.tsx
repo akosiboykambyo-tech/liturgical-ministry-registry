@@ -44,13 +44,24 @@ function LoadingState() {
   );
 }
 
+interface PublicMember extends Pick<
+  Member,
+  | "id"
+  | "uid"
+  | "first_name"
+  | "last_name"
+  | "parish"
+  | "ministries"
+  | "status"
+  | "service_year"
+> {}
 function VerifyPage() {
   const supabase = getSupabaseBrowserClient();
   const params = useSearchParams();
   const uidParam = params.get("uid");
   const printParam = params.get("print") === "1";
   const [query, setQuery] = useState(uidParam ?? "");
-  const [results, setResults] = useState<Member[]>([]);
+  const [results, setResults] = useState<PublicMember[]>([]);
   const [printReady, setPrintReady] = useState(false);
   const [settings, setSettings] = useState<CertificateTemplateSettings | null>(null);
   const [searching, setSearching] = useState(false);
@@ -117,7 +128,9 @@ function VerifyPage() {
       setError(null);
       setResults([]);
       setSearched(true);
+
       const term = q.trim();
+
       if (!term) {
         setSearching(false);
         setSearchedByUid(false);
@@ -125,50 +138,128 @@ function VerifyPage() {
         return;
       }
 
-      // Check if the search term looks like a UID (starts with LMD-)
-      const isUidSearch = /^LMD-\d{4}-/i.test(term);
-      setSearchedByUid(isUidSearch);
+      // Public verification only needs these fields.
+      // Never expose internal document URLs, notes, or archived documents.
+      const publicFields =
+        "id,uid,first_name,last_name,parish,ministries,status,service_year";
 
-      let found: Member[] = [];
+      // A complete Registry ID must follow LMD-YYYY-NNNN.
+      const isCompleteUid = /^LMD-\d{4}-\d+$/i.test(term);
+      const looksLikeUid = /^LMD-/i.test(term);
 
-      // Try UID match first (exact or prefix match)
-      const uidRes = await supabase
-        .from("members")
-        .select("*")
-        .ilike("uid", term);
+      setSearchedByUid(isCompleteUid);
 
-      if (uidRes.data && uidRes.data.length > 0) {
-        found = uidRes.data as Member[];
-        setSearchedByUid(true);
+      let found: PublicMember[] = [];
+
+      // ------------------------------------------------------------
+      // 1. Exact Registry ID search
+      // ------------------------------------------------------------
+      if (isCompleteUid) {
+        const { data, error: uidError } = await supabase
+          .from("members")
+          .select(publicFields)
+          .ilike("uid", term)
+          .limit(1);
+
+        if (uidError) {
+          setError("Unable to complete the registry search. Please try again.");
+        } else {
+          found = (data as PublicMember[]) ?? [];
+        }
+
+        setResults(found);
+        setSearching(false);
+        return;
       }
 
-      // If UID search didn't find anything, try name search
-      if (found.length === 0) {
-        const parts = term.toLowerCase().split(/\s+/).filter(Boolean);
-        if (parts.length >= 2) {
-          const firstName = parts[0];
-          const lastName = parts.slice(1).join(" ");
-          const nameRes = await supabase
-            .from("members")
-            .select("*")
-            .ilike("first_name", firstName)
-            .ilike("last_name", lastName);
-          found = (nameRes.data as Member[]) ?? [];
-        } else {
-          const anyRes = await supabase
-            .from("members")
-            .select("*")
-            .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%`);
-          found = (anyRes.data as Member[]) ?? [];
+      // ------------------------------------------------------------
+      // 2. Incomplete UID-like input
+      // ------------------------------------------------------------
+      if (looksLikeUid) {
+        setError(
+          "Please enter the complete Registry ID, for example LMD-2027-0001."
+        );
+        setResults([]);
+        setSearching(false);
+        return;
+      }
+
+      // ------------------------------------------------------------
+      // 3. Name search
+      //
+      // Search each word independently, then require every word to
+      // appear somewhere in the member's first/last name.
+      //
+      // This supports:
+      //   Gerarda Pesa
+      //   Pesa Gerarda
+      //   Gerarda
+      //   Pesa
+      // ------------------------------------------------------------
+      const tokens = term
+        .toLowerCase()
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter(Boolean);
+
+      const escapeIlike = (value: string) =>
+        value.replace(/[%_\\]/g, (char) => `\\${char}`);
+
+      const candidateMap = new Map<string, PublicMember>();
+
+      for (const token of tokens) {
+        const safeToken = escapeIlike(token);
+
+        const { data, error: nameError } = await supabase
+          .from("members")
+          .select(publicFields)
+          .or(
+            `first_name.ilike.%${safeToken}%,last_name.ilike.%${safeToken}%`
+          )
+          .limit(100);
+
+        if (nameError) {
+          setError(
+            "Unable to complete the registry search. Please try again."
+          );
+          setResults([]);
+          setSearching(false);
+          return;
+        }
+
+        for (const member of (data as PublicMember[]) ?? []) {
+          candidateMap.set(member.id, member);
         }
       }
+
+      // Require every search token to occur somewhere in the full name.
+      found = Array.from(candidateMap.values()).filter((member) => {
+        const first = member.first_name.toLowerCase().trim();
+        const last = member.last_name.toLowerCase().trim();
+        const fullName = `${first} ${last}`;
+
+        return tokens.every((token) => fullName.includes(token));
+      });
+
+      // Prefer exact full-name matches, then shorter names / alphabetical.
+      found.sort((a, b) => {
+        const aFull = `${a.first_name} ${a.last_name}`.toLowerCase().trim();
+        const bFull = `${b.first_name} ${b.last_name}`.toLowerCase().trim();
+        const normalizedTerm = tokens.join(" ");
+
+        const aExact = aFull === normalizedTerm ? 1 : 0;
+        const bExact = bFull === normalizedTerm ? 1 : 0;
+
+        if (aExact !== bExact) return bExact - aExact;
+
+        return aFull.localeCompare(bFull);
+      });
 
       setResults(found);
       setSearching(false);
     },
     [supabase]
   );
-
   // Auto-search if ?uid= present
   useEffect(() => {
     if (uidParam) {

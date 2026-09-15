@@ -18,6 +18,7 @@ export interface Member {
   last_name: string;
   parish: string;
   ministries: string[];
+  service_year: number;
   status: MemberStatus;
   document_url: string | null;
   notes: string | null;
