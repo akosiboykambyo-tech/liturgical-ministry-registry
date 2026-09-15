@@ -22,6 +22,7 @@ export default function AddMemberPage() {
   const [lastName, setLastName] = useState("");
   const [parish, setParish] = useState("");
   const [customParish, setCustomParish] = useState("");
+  const [serviceYear, setServiceYear] = useState(new Date().getFullYear());
   const [ministries, setMinistries] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -42,6 +43,11 @@ export default function AddMemberPage() {
       setError("First name, last name, and parish are required.");
       return;
     }
+
+    if (!Number.isInteger(serviceYear) || serviceYear < 2000 || serviceYear > 2100) {
+      setError("Please select a valid service year.");
+      return;
+    }
     if (ministries.length === 0) {
       setError("Please select at least one ministry.");
       return;
@@ -53,6 +59,7 @@ export default function AddMemberPage() {
       last_name: lastName.trim(),
       parish: resolvedParish.trim(),
       ministries,
+      service_year: serviceYear,
       notes: notes.trim() || null,
     });
 
@@ -65,6 +72,7 @@ export default function AddMemberPage() {
       setParish("");
       setCustomParish("");
       setMinistries([]);
+      setServiceYear(new Date().getFullYear());
       setNotes("");
     } else if (result.status === "duplicate") {
       setDupeMatch(result.existing);
@@ -211,6 +219,31 @@ export default function AddMemberPage() {
               </button>
             </div>
           )}
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="serviceYear" className="text-sm font-medium">
+            Service Year <span className="text-destructive">*</span>
+          </label>
+          <p className="text-xs text-muted-foreground">
+            The year this member begins or is renewed for service.
+          </p>
+          <select
+            id="serviceYear"
+            value={serviceYear}
+            onChange={(e) => setServiceYear(Number(e.target.value))}
+            required
+            className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {Array.from(
+              { length: 3 },
+              (_, index) => new Date().getFullYear() - 1 + index
+            ).map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-1.5">

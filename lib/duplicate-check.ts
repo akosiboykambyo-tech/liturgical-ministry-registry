@@ -192,6 +192,7 @@ export interface IncomingMemberData {
   last_name: string;
   parish: string;
   ministries: string[];
+  service_year: number;
   notes?: string | null;
 }
 
@@ -243,6 +244,8 @@ export async function importSingleMember(
       last_name: data.last_name,
       parish: data.parish,
       ministries: data.ministries,
+      service_year: data.service_year,
+      notes: data.notes ?? null,
       status: "Pending Verification",
       uid: "PENDING", // trigger overwrites
     })
@@ -329,7 +332,8 @@ function normalizeMinistriesRaw(raw: string): string[] {
  */
 export async function stageBatchRecords(
   records: IncomingRecord[],
-  fileHash?: string
+  fileHash: string | undefined,
+  serviceYear: number
 ): Promise<BatchStagingResult> {
   const supabase = getSupabaseBrowserClient();
   const unique: IncomingMemberData[] = [];
@@ -478,6 +482,7 @@ export async function stageBatchRecords(
       last_name: rec.last_name.trim(),
       parish: rec.parish.trim(),
       ministries,
+      service_year: serviceYear,
     });
   }
 
@@ -497,6 +502,7 @@ function buildInsertRow(data: IncomingMemberData) {
     last_name: (data.last_name ?? "").trim(),
     parish: (data.parish ?? "").trim(),
     ministries: data.ministries,
+    service_year: data.service_year,
     status: "Pending Verification" as const,
     uid: "PENDING", // trigger overwrites with LMD-<year>-####
   };

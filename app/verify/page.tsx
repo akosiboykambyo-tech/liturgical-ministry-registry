@@ -48,8 +48,10 @@ function VerifyPage() {
   const supabase = getSupabaseBrowserClient();
   const params = useSearchParams();
   const uidParam = params.get("uid");
+  const printParam = params.get("print") === "1";
   const [query, setQuery] = useState(uidParam ?? "");
   const [results, setResults] = useState<Member[]>([]);
+  const [printReady, setPrintReady] = useState(false);
   const [settings, setSettings] = useState<CertificateTemplateSettings | null>(null);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -175,6 +177,29 @@ function VerifyPage() {
       doSearch(uidParam);
     }
   }, [uidParam, doSearch]);
+
+  // Print-only flow for the Admin "Print UID Certificate" action.
+  useEffect(() => {
+    if (!printParam || results.length !== 1 || !settings) return;
+
+    setPrintReady(false);
+
+    // Give CertificateDesign time to render the certificate canvas.
+    const timer = window.setTimeout(() => {
+      const canvas = certRef.current?.getCanvas();
+
+      if (!canvas) return;
+
+      setPrintReady(true);
+
+      // Let the print layout paint before opening the browser dialog.
+      window.setTimeout(() => {
+        window.print();
+      }, 150);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [printParam, results, settings]);
 
   // Reset download count and ministry selection when results change
   useEffect(() => {
@@ -398,7 +423,7 @@ function VerifyPage() {
               reprintSuffix,
             }}
             signatories={signatories}
-            className="hidden"
+            className={printParam ? "print-certificate-canvas" : "hidden"}
           />
         )}
 

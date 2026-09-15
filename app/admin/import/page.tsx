@@ -137,6 +137,7 @@ export default function CsvImportPage() {
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>("");
   const [fileHash, setFileHash] = useState<string>("");
+  const [serviceYear, setServiceYear] = useState(new Date().getFullYear());
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<RowResult[]>([]);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
@@ -255,7 +256,11 @@ export default function CsvImportPage() {
     await new Promise((r) => setTimeout(r, 0));
 
     // Step 1: Stage — intercept all records before any DB insertion
-    const stagingResult = await stageBatchRecords(incomingRecords, fileHash);
+    const stagingResult = await stageBatchRecords(
+      incomingRecords,
+      fileHash,
+      serviceYear
+    );
     const { unique, duplicates } = stagingResult;
 
     // Idempotency check — warn if this exact file was already imported
@@ -421,6 +426,7 @@ export default function CsvImportPage() {
       last_name: incoming.last_name.trim(),
       parish: incoming.parish.trim(),
       ministries,
+      service_year: serviceYear,
       status: "Pending Verification",
       uid: "PENDING",
     });
@@ -731,6 +737,32 @@ export default function CsvImportPage() {
           </div>
 
           <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
+            <div className="rounded-md border border-primary/20 bg-primary/5 p-4">
+              <label htmlFor="import-service-year" className="text-sm font-semibold">
+                Service Year <span className="text-destructive">*</span>
+              </label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Select the liturgical service year for all members in this CSV.
+                This year will be recorded on each member and used for UID generation.
+              </p>
+              <select
+                id="import-service-year"
+                value={serviceYear}
+                onChange={(e) => setServiceYear(Number(e.target.value))}
+                disabled={processing}
+                className="mt-3 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              >
+                {Array.from(
+                  { length: 3 },
+                  (_, index) => new Date().getFullYear() - 1 + index
+                ).map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div
               onDragOver={(e) => {
                 e.preventDefault();
