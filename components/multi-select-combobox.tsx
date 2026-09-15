@@ -93,15 +93,14 @@ export function MultiSelectCombobox({
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {selected.length > 0 && (
-              <span
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
                 onClick={clearAll}
-                className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Clear selection"
               >
-                <X className="h-3.5 w-3.5" />
-              </span>
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
             )}
             <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
           </div>
