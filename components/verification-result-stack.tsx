@@ -49,8 +49,22 @@ export default function VerificationResultStack({
       observers.push(observer);
     });
 
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+
+      if (scrollPosition >= documentHeight - 24) {
+        setActiveIndex(results.length - 1);
+      }
+    };
+
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
     return () => {
       observers.forEach((observer) => observer.disconnect());
+      window.removeEventListener("scroll", handleScroll);
     };
   }, [results.length]);
 
@@ -111,7 +125,7 @@ export default function VerificationResultStack({
 
   return (
     <div className="relative">
-      <div className="sticky top-[52px] z-20 mb-6 flex items-center justify-between rounded-md border border-border/60 bg-background px-3 py-2 text-xs shadow-sm">
+      <div className="sticky top-16 z-20 mb-6 flex items-center justify-between rounded-md border border-border/60 bg-background px-3 py-2 text-xs shadow-sm">
         <span className="font-medium text-muted-foreground">
           Registry results
         </span>
@@ -129,7 +143,7 @@ export default function VerificationResultStack({
             ref={(element) => {
               itemRefs.current[index] = element;
             }}
-            className="relative min-h-[30vh]"
+            className="relative min-h-[22vh]"
           >
             <div className="sticky top-24">
               <article
@@ -138,10 +152,10 @@ export default function VerificationResultStack({
                   "transition-[transform,opacity] duration-500 ease-out",
                   "motion-reduce:transition-none",
                   index < activeIndex
-                    ? activeIndex === results.length - 1
-                      ? "scale-[0.96] opacity-0 pointer-events-none"
-                      : "scale-[0.96] opacity-60"
-                    : "scale-100 opacity-100",
+                    ? "scale-[0.96] opacity-0 pointer-events-none"
+                    : index === activeIndex
+                    ? "scale-100 opacity-100"
+                    : "scale-[0.96] opacity-35",
                 ].join(" ")}
               >
                 <div className="flex items-start justify-between gap-4">
