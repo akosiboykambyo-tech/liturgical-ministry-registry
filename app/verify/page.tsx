@@ -416,7 +416,6 @@ function VerifyPage() {
     }
     setGenerating(true);
     await trackDownload(member.id, ministry);
-    const verifyUrl = `${window.location.origin}/verify?uid=${member.uid}`;
     await certRef.current?.download(`certificate-${member.uid}${reprintSuffix || ""}.png`);
     setGenerating(false);
   };
