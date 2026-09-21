@@ -28,6 +28,7 @@ import {
   Pencil,
   Trash2,
   Eye,
+  CircleAlert,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -90,6 +91,15 @@ export default function MembersListPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMembers, setReportMembers] = useState<Member[]>([]);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [attention, setAttention] = useState<"pending" | "missing-documents" | "expiring" | null>(null);
+
+  // Read dashboard attention filter from the URL
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("attention");
+    if (value === "pending" || value === "missing-documents" || value === "expiring") {
+      setAttention(value);
+    }
+  }, []);
 
   // Member detail drawer
   const [drawerMemberId, setDrawerMemberId] = useState<string | null>(null);
@@ -173,6 +183,28 @@ export default function MembersListPage() {
       query = query.ilike("uid", `LMD-${filters.year}-%`);
     }
 
+    // Apply dashboard attention filter directly from the current URL.
+    const dashboardAttention = new URLSearchParams(window.location.search).get("attention");
+
+    if (dashboardAttention === "pending") {
+      query = query.eq("status", "Pending Verification");
+    }
+
+    if (dashboardAttention === "missing-documents") {
+      query = query.is("document_url", null);
+    }
+
+    if (dashboardAttention === "expiring") {
+      const today = new Date();
+      const future = new Date(today);
+      future.setDate(future.getDate() + 30);
+
+      query = query
+        .not("document_url", "is", null)
+        .not("expiration_date", "is", null)
+        .gte("expiration_date", today.toISOString().slice(0, 10))
+        .lte("expiration_date", future.toISOString().slice(0, 10));
+    }
     // Apply status filter (member matches ANY selected status)
     if (filters.status.length > 0) {
       query = query.in("status", filters.status);
@@ -199,7 +231,7 @@ export default function MembersListPage() {
     }
 
     setLoading(false);
-  }, [supabase, search, filters, page, toast]);
+  }, [supabase, search, filters, page, toast, attention]);
 
   useEffect(() => {
     loadMembers();
@@ -350,7 +382,7 @@ export default function MembersListPage() {
     }
     toast({
       title: "Member corrected",
-      description: `${editTarget.first_name} ${editTarget.last_name} → ${first} ${last}.`,
+      description: `${editTarget.first_name} ${editTarget.last_name} -> ${first} ${last}.`,
     });
     setEditTarget(null);
     loadMembers();
@@ -380,13 +412,44 @@ export default function MembersListPage() {
 
   return (
     <div className="space-y-5 pb-24">
+      {attention && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">
+              {attention === "pending" && "Pending Verification"}
+              {attention === "missing-documents" && "Recommendation Letter Needed"}
+              {attention === "expiring" && "Expiring Soon"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {attention === "pending" &&
+                "Members currently waiting for approval."}
+              {attention === "missing-documents" &&
+                "Members who still need a recommendation letter uploaded."}
+              {attention === "expiring" &&
+                "Members whose recommendation letters expire within 30 days."}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttention(null);
+              window.history.replaceState({}, "", "/admin/members");
+              setPage(0);
+            }}
+            className="shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Members</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {totalCount.toLocaleString()} total member(s)
-            {isActiveSearch && ` · ${totalCount.toLocaleString()} matching "${search.trim()}"`}
-            {selected.size > 0 && ` · ${selected.size} selected`}
+            {isActiveSearch && ` - ${totalCount.toLocaleString()} matching "${search.trim()}"`}
+            {selected.size > 0 && ` - ${selected.size} selected`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -429,7 +492,7 @@ export default function MembersListPage() {
             placeholder="All Parishes"
             searchPlaceholder="Type a parish name..."
             emptyText="No parish matches."
-            formatBadge={(v) => (v.length > 18 ? `${v.slice(0, 16)}…` : v)}
+            formatBadge={(v) => (v.length > 18 ? `${v.slice(0, 16)}...` : v)}
           />
           <MultiSelectCombobox
             options={MINISTRIES as readonly string[]}
@@ -561,6 +624,13 @@ export default function MembersListPage() {
               <tbody className="divide-y divide-border">
                 {members.map((m) => {
                   const checked = selected.has(m.id);
+                  const needsVerification = m.status === "Pending Verification";
+                  const needsLetter = !m.document_url;
+                  const expirationDate = m.expiration_date ? new Date(m.expiration_date) : null;
+                  const today = new Date();
+                  const in30Days = new Date(today);
+                  in30Days.setDate(in30Days.getDate() + 30);
+                  const letterExpiringSoon = !!expirationDate && !!m.document_url && expirationDate >= today && expirationDate <= in30Days;
                   return (
                     <tr
                       key={m.id}
@@ -584,6 +654,23 @@ export default function MembersListPage() {
                           className="font-medium hover:text-primary text-left"
                         >
                           {m.first_name} {m.last_name}
+                        {(needsVerification || needsLetter || letterExpiringSoon) && (
+                          <span
+                            className="ml-2 inline-flex align-middle text-amber-600"
+                            title={[
+                              needsVerification ? "Verification Needed" : null,
+                              needsLetter ? "Recommendation Letter Needed" : null,
+                              letterExpiringSoon ? "Letter Expiring Soon" : null,
+                            ].filter(Boolean).join(" - ")}
+                            aria-label={[
+                              needsVerification ? "Verification Needed" : null,
+                              needsLetter ? "Recommendation Letter Needed" : null,
+                              letterExpiringSoon ? "Letter Expiring Soon" : null,
+                            ].filter(Boolean).join(", ")}
+                          >
+                            <CircleAlert className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                        )}
                         </button>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{m.parish}</td>
@@ -639,7 +726,7 @@ export default function MembersListPage() {
           </div>
           <div className="flex items-center justify-between px-4 py-3 border-t border-border">
             <p className="text-xs text-muted-foreground">
-              Showing {page * PAGE_SIZE + 1}–
+              Showing {page * PAGE_SIZE + 1}-
               {Math.min((page + 1) * PAGE_SIZE, totalCount)} of{" "}
               {totalCount.toLocaleString()}
             </p>
@@ -894,7 +981,7 @@ function PrintReport({
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Liturgical Ministry Registry — Member Report</title>
+  <title>Liturgical Ministry Registry - Member Report</title>
   <style>
     @page { margin: 1.5cm; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; margin: 0; padding: 24px; }
@@ -985,7 +1072,7 @@ function PrintReport({
 
         <div className="flex items-center justify-between px-5 py-2.5 bg-muted/40 border-b border-border">
           <span className="text-xs text-muted-foreground">
-            {members.length} member(s) · Generated {generatedAt}
+            {members.length} member(s) - Generated {generatedAt}
           </span>
           <button
             onClick={handlePrint}

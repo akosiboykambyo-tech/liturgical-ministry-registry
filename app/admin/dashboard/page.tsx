@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/status-badge";
 import { Member } from "@/lib/types";
+import { EXPIRING_SOON_DAYS } from "@/lib/constants";
 import {
   Users,
   ShieldCheck,
@@ -13,6 +14,8 @@ import {
   UserPlus,
   Upload,
   CheckCheck,
+  FileWarning,
+  CalendarClock,
 } from "lucide-react";
 
 export default function AdminDashboardPage() {
@@ -21,27 +24,59 @@ export default function AdminDashboardPage() {
     total: 0,
     pending: 0,
     verified: 0,
+    missingDocuments: 0,
+    expiringSoon: 0,
   });
   const [recent, setRecent] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [countRes, pendingRes, verifiedRes] = await Promise.all([
-        supabase.from("members").select("id", { count: "exact", head: true }),
+      const [
+        countRes,
+        pendingRes,
+        verifiedRes,
+        missingDocumentsRes,
+        expiringSoonRes,
+      ] = await Promise.all([
+        supabase
+          .from("members")
+          .select("id", { count: "exact", head: true }),
+
         supabase
           .from("members")
           .select("id", { count: "exact", head: true })
           .eq("status", "Pending Verification"),
+
         supabase
           .from("members")
           .select("id", { count: "exact", head: true })
           .in("status", ["New", "Renewed"]),
+
+        supabase
+          .from("members")
+          .select("id", { count: "exact", head: true })
+          .is("document_url", null),
+
+        supabase
+          .from("members")
+          .select("id", { count: "exact", head: true })
+          .gte("expiration_date", new Date().toISOString().slice(0, 10))
+          .lte(
+            "expiration_date",
+            new Date(
+              Date.now() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000
+            )
+              .toISOString()
+              .slice(0, 10)
+          ),
       ]);
       setStats({
         total: countRes.count ?? 0,
         pending: pendingRes.count ?? 0,
         verified: verifiedRes.count ?? 0,
+        missingDocuments: missingDocumentsRes.count ?? 0,
+        expiringSoon: expiringSoonRes.count ?? 0,
       });
 
       const { data: recentData } = await supabase
@@ -102,6 +137,85 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold">Needs Your Attention</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Registry items that may require follow-up.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <Link
+            href="/admin/members?attention=pending"
+            className="group rounded-lg border border-amber-200 bg-amber-50/60 p-4 transition-[border-color,background-color,box-shadow] hover:border-amber-300 hover:bg-amber-50 hover:shadow-sm focus-ring"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-amber-100 text-amber-700">
+                <Clock className="h-4 w-4" aria-hidden="true" />
+              </div>
+              <ArrowRight
+                className="h-4 w-4 text-amber-700 transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </div>
+
+            <p className="mt-4 text-2xl font-bold tracking-tight">
+              {loading ? "—" : stats.pending}
+            </p>
+            <p className="text-sm font-semibold">Pending Verification</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Members awaiting approval.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/members?attention=missing-documents"
+            className="group rounded-lg border border-border bg-card p-4 transition-[border-color,background-color,box-shadow] hover:border-primary/30 hover:bg-muted/30 hover:shadow-sm focus-ring"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                <FileWarning className="h-4 w-4" aria-hidden="true" />
+              </div>
+              <ArrowRight
+                className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </div>
+
+            <p className="mt-4 text-2xl font-bold tracking-tight">
+              {loading ? "—" : stats.missingDocuments}
+            </p>
+            <p className="text-sm font-semibold">Recommendation Letter Needed</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Recommendation letters still need to be uploaded.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/members?attention=expiring"
+            className="group rounded-lg border border-border bg-card p-4 transition-[border-color,background-color,box-shadow] hover:border-primary/30 hover:bg-muted/30 hover:shadow-sm focus-ring"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                <CalendarClock className="h-4 w-4" aria-hidden="true" />
+              </div>
+              <ArrowRight
+                className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </div>
+
+            <p className="mt-4 text-2xl font-bold tracking-tight">
+              {loading ? "—" : stats.expiringSoon}
+            </p>
+            <p className="text-sm font-semibold">Expiring Soon</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Recommendation letters approaching expiration.
+            </p>
+          </Link>
+        </div>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {cards.map((c) => {
           const Icon = c.icon;
