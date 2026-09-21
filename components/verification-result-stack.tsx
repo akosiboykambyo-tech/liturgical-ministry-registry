@@ -143,7 +143,7 @@ export default function VerificationResultStack({
             ref={(element) => {
               itemRefs.current[index] = element;
             }}
-            className="relative min-h-[22vh]"
+            className="relative min-h-[18vh]"
           >
             <div className="sticky top-24">
               <article

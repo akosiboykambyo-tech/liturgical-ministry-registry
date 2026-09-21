@@ -11,7 +11,7 @@ import {
   type DuplicateMatchType,
 } from "@/lib/duplicate-check";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { MINISTRIES, shortMinistry } from "@/lib/constants";
+import { MINISTRIES, PARISHES, shortMinistry } from "@/lib/constants";
 import type { Member, MemberStatus } from "@/lib/types";
 import {
   Upload,
@@ -195,10 +195,21 @@ export default function CsvImportPage() {
         for (const r of res.data as ParsedRow[]) {
           const firstName = (r.first_name ?? "").trim();
           const lastName = (r.last_name ?? "").trim();
-          const parish = (r.parish ?? "").trim();
+          const rawParish = (r.parish ?? "").trim();
+          const normalizedParish = rawParish.normalize("NFC");
+          const parish = PARISHES.find(
+            (candidate) => candidate.normalize("NFC") === normalizedParish
+          ) ?? "";
           const ministry = (r.ministry ?? "").trim();
-          if (!firstName || !lastName || !parish || !ministry) {
+          if (!firstName || !lastName || !rawParish || !ministry) {
             skipped.push(`${firstName || "?"} ${lastName || "?"}`.trim());
+            continue;
+          }
+
+          if (!parish) {
+            skipped.push(
+              `${firstName} ${lastName} (invalid parish: "${rawParish}")`
+            );
             continue;
           }
           if (valid.length >= MAX_ROWS) {
