@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   ScrollText,
+  Pencil,
 } from "lucide-react";
 
 export default function MemberDetailPage() {
@@ -39,6 +40,9 @@ export default function MemberDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editingName, setEditingName] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,6 +61,9 @@ export default function MemberDetailPage() {
     setEditMinistries(m.ministries);
     setStatus(m.status);
     setNotes(m.notes ?? "");
+    setEditFirstName(m.first_name);
+    setEditLastName(m.last_name);
+    setEditingName(false);
     const { data: logs } = await supabase
       .from("audit_logs")
       .select("*")
@@ -83,24 +90,46 @@ export default function MemberDetailPage() {
 
   const handleSave = async () => {
     if (!member) return;
+
+    const firstName = editFirstName.trim().normalize("NFC");
+    const lastName = editLastName.trim().normalize("NFC");
+
+    if (!firstName || !lastName) {
+      setError("First name and last name cannot be blank.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
+
     const { error } = await supabase
       .from("members")
       .update({
+        first_name: firstName,
+        last_name: lastName,
         ministries: editMinistries,
         status,
         notes: notes.trim() || null,
       })
       .eq("id", member.id);
+
     setSaving(false);
+
     if (error) {
       setError(error.message);
     } else {
+      setEditingName(false);
       setShowSavedToast(true);
       setTimeout(() => setShowSavedToast(false), 2500);
       load();
     }
+  };
+
+  const cancelNameEdit = () => {
+    if (!member) return;
+    setEditFirstName(member.first_name);
+    setEditLastName(member.last_name);
+    setEditingName(false);
   };
 
   const handleUpload = async (file: File) => {
@@ -221,19 +250,82 @@ export default function MemberDetailPage() {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">First Name</p>
-              <p className="text-sm font-medium">{member.first_name}</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Member Name
+              </p>
+              {!editingName ? (
+                <button
+                  type="button"
+                  onClick={() => setEditingName(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit Name
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={cancelNameEdit}
+                  disabled={saving}
+                  className="rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Last Name</p>
-              <p className="text-sm font-medium">{member.last_name}</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="member-first-name"
+                  className="text-xs text-muted-foreground"
+                >
+                  First Name
+                </label>
+                {editingName ? (
+                  <input
+                    id="member-first-name"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    autoComplete="given-name"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                ) : (
+                  <p className="text-sm font-medium mt-1">
+                    {member.first_name}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="member-last-name"
+                  className="text-xs text-muted-foreground"
+                >
+                  Last Name
+                </label>
+                {editingName ? (
+                  <input
+                    id="member-last-name"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    autoComplete="family-name"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                ) : (
+                  <p className="text-sm font-medium mt-1">
+                    {member.last_name}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="col-span-2">
-              <p className="text-xs text-muted-foreground">Parish</p>
-              <p className="text-sm font-medium">{member.parish}</p>
-            </div>
+          </div>
+
+          <div>
+            <p className="text-xs text-muted-foreground">Parish</p>
+            <p className="text-sm font-medium mt-1">{member.parish}</p>
           </div>
 
           <div className="space-y-1.5">
