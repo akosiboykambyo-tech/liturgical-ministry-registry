@@ -49,6 +49,12 @@ export const CertificateDesign = forwardRef<
       await renderCertificate(canvas, data, settings, signatories);
       downloadCanvasAsPng(canvas, filename);
     },
+    render: async () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      await renderCertificate(canvas, data, settings, signatories);
+      return canvas;
+    },
     getCanvas: () => canvasRef.current,
   }));
 

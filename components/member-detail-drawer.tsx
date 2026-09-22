@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/status-badge";
-import { STATUS_VALUES, getExpirationStatus, EXPIRING_SOON_DAYS } from "@/lib/constants";
+import {
+  STATUS_VALUES,
+  getExpirationStatus,
+  EXPIRING_SOON_DAYS,
+  DEFAULT_TEMPLATE_SETTINGS,
+} from "@/lib/constants";
 import { MinistryMultiSelect } from "@/components/ministry-multi-select";
-import type { Member, AuditLog, ArchivedDocument, MemberStatus } from "@/lib/types";
+import type { Member, AuditLog, ArchivedDocument, MemberStatus, CertificateTemplateSettings, Signatory } from "@/lib/types";
 import {
   Sheet,
   SheetContent,
@@ -31,6 +36,10 @@ import {
   X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  CertificateDesign,
+  type CertificateDesignHandle,
+} from "@/components/certificate-design";
 
 export function MemberDetailDrawer({
   memberId,
@@ -53,6 +62,12 @@ export function MemberDetailDrawer({
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editingName, setEditingName] = useState(false);
+  const [certificateSettings, setCertificateSettings] =
+    useState<CertificateTemplateSettings>(DEFAULT_TEMPLATE_SETTINGS);
+  const [certificateSignatories, setCertificateSignatories] =
+    useState<Signatory[]>([]);
+  const certificateRef = useRef<CertificateDesignHandle>(null);
+  const [printingCertificate, setPrintingCertificate] = useState(false);
   const [status, setStatus] = useState<MemberStatus>("Pending Verification");
   const [notes, setNotes] = useState("");
   const [expirationDate, setExpirationDate] = useState<string>("");
@@ -86,6 +101,37 @@ export function MemberDetailDrawer({
     setNotes(m.notes ?? "");
     setExpirationDate(m.expiration_date ?? "");
     setArchivedDocs(m.archived_documents ?? []);
+
+    // Load the certificate template marked as the system default.
+    // This keeps the member drawer certificate identical to the template
+    // selected as Default in the Certificate Template Manager.
+    const { data: templateRows } = await supabase
+      .from("system_settings")
+      .select("*")
+      .like("key", "certificate_template%")
+      .order("key");
+
+    const defaultTemplate =
+      (templateRows ?? []).find((row) => Boolean(row.is_default)) ??
+      (templateRows ?? [])[0];
+
+    if (defaultTemplate) {
+      setCertificateSettings({
+        ...DEFAULT_TEMPLATE_SETTINGS,
+        ...(defaultTemplate.value as CertificateTemplateSettings),
+      });
+    } else {
+      setCertificateSettings(DEFAULT_TEMPLATE_SETTINGS);
+    }
+
+    // Load certificate signatories using the same source as the
+    // Certificate Template Manager.
+    const { data: signatoryRows } = await supabase
+      .from("signatories")
+      .select("*")
+      .order("sort_order");
+
+    setCertificateSignatories((signatoryRows as Signatory[]) ?? []);
 
     const { data: logs } = await supabase
       .from("audit_logs")
@@ -232,6 +278,28 @@ export function MemberDetailDrawer({
   const publicVerifyUrl = member
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/verify?uid=${member.uid}`
     : "";
+
+  const handlePrintCertificate = () => {
+    if (!member?.uid || member.uid === "PENDING" || isExpiredOrExpiring) return;
+
+    setPrintingCertificate(true);
+
+    const cleanup = () => {
+      document.body.classList.remove("member-certificate-print-mode");
+      setPrintingCertificate(false);
+      window.removeEventListener("afterprint", cleanup);
+    };
+
+    window.addEventListener("afterprint", cleanup);
+
+    requestAnimationFrame(() => {
+      document.body.classList.add("member-certificate-print-mode");
+
+      requestAnimationFrame(() => {
+        window.print();
+      });
+    });
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -439,6 +507,28 @@ export function MemberDetailDrawer({
                 </div>
               </div>
 
+              <div className="member-certificate-print-target" aria-hidden="true">
+                <CertificateDesign
+                  ref={certificateRef}
+                  settings={certificateSettings}
+                  data={{
+                    firstName: member.first_name,
+                    lastName: member.last_name,
+                    parish: member.parish,
+                    ministries: member.ministries,
+                    uid: member.uid,
+                    liturgicalYear: certificateSettings.liturgical_year,
+                    verifyUrl: publicVerifyUrl,
+                    selectedMinistry:
+                      member.ministries.length === 1
+                        ? member.ministries[0]
+                        : null,
+                  }}
+                  signatories={certificateSignatories}
+                  className="member-certificate-print-canvas"
+                />
+              </div>
+
               {/* Print Certificate */}
               <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-3">
                 <h3 className="text-sm font-semibold flex items-center gap-1.5">
@@ -450,7 +540,7 @@ export function MemberDetailDrawer({
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   onClick={() => {
                     if (member.uid && member.uid !== "PENDING") {
-                      window.open(`/verify?uid=${member.uid}&print=1`, "_blank");
+                      handlePrintCertificate();
                     }
                   }}
                   title={
@@ -460,7 +550,7 @@ export function MemberDetailDrawer({
                   }
                 >
                   <Printer className="h-4 w-4" />
-                  Print UID Certificate
+                  {printingCertificate ? "Preparing Certificate..." : "Print UID Certificate"}
                 </button>
                 {isExpiredOrExpiring && (
                   <p className="text-xs text-muted-foreground">

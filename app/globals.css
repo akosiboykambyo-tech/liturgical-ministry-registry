@@ -172,6 +172,131 @@
   }
 }
 
+/* Certificate canvas is print-only and must never remain visible on screen. */
+.print-certificate-canvas {
+  display: none !important;
+}
+
+/*
+ * Member drawer certificate printing.
+ * The drawer prints the actual certificate canvas instead of navigating
+ * to the public verification page.
+ */
+@media print {
+  body.member-certificate-print-mode > * {
+    visibility: hidden !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-print-target {
+    visibility: visible !important;
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    z-index: 2147483647 !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-print-target * {
+    visibility: visible !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-print-canvas {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-print-target ~ * {
+    visibility: hidden !important;
+  }
+}
+@media print {
+  /* Certificate-only print mode.
+     When /verify?print=1 is used, print only the certificate canvas. */
+  body:has(.certificate-print-mode) {
+    background: #fff !important;
+  }
+
+  body:has(.certificate-print-mode) > * {
+    visibility: hidden !important;
+  }
+
+  body:has(.certificate-print-mode) .certificate-print-mode,
+  body:has(.certificate-print-mode) .certificate-print-mode .print-certificate-canvas,
+  body:has(.certificate-print-mode) .certificate-print-mode .print-certificate-canvas * {
+    visibility: visible !important;
+  }
+
+  body:has(.certificate-print-mode) .certificate-print-mode {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body:has(.certificate-print-mode) .print-certificate-canvas {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* Certificate canvas is print-only and must never remain visible on screen. */
+.print-certificate-canvas {
+  display: none !important;
+}
+
+/*
+ * Member drawer certificate printing.
+ * The drawer prints the actual certificate canvas instead of navigating
+ * to the public verification page.
+ */
+@media print {
+  body.member-certificate-print-mode > * {
+    visibility: hidden !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-print-target {
+    visibility: visible !important;
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    z-index: 2147483647 !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-print-target * {
+    visibility: visible !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-print-canvas {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-print-target ~ * {
+    visibility: hidden !important;
+  }
+}
 @media print {
   /* Strip the about:blank footer and reset page margins */
   @page {

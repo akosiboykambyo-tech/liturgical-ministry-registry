@@ -153,115 +153,248 @@ export async function renderCertificate(
     : data.uid;
 
   const drawOverlay = async () => {
-    ctx.textAlign = "center";
+    const elements = [...(settings.elements ?? [])]
+      .filter((element) => element.visible !== false)
+      .sort((a, b) => (a.z_index ?? 0) - (b.z_index ?? 0));
 
-    // Header text (customizable)
-    ctx.font = `bold 24px ${fontFam}`;
-    ctx.fillStyle = "#1a1a2e";
-    ctx.fillText(
-      settings.header_text || "CERTIFICATE OF SERVICE",
-      CANVAS_W / 2,
-      70
-    );
-    ctx.font = `italic 13px ${fontFam}`;
-    ctx.fillStyle = "#71717a";
-    ctx.fillText(
-      "Liturgical Ministry Registry — Official Verification",
-      CANVAS_W / 2,
-      95
-    );
+    const loadImage = async (
+      url: string
+    ): Promise<HTMLImageElement | null> => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
 
-    // Body text (customizable intro line)
-    ctx.font = `14px ${fontFam}`;
-    ctx.fillStyle = "#3f3f46";
-    ctx.fillText(
-      settings.body_text || "This is to certify that",
-      CANVAS_W / 2,
-      290
-    );
+        const blob = await response.blob();
 
-    // Name
-    ctx.font = `20px ${fontFam}`;
-    ctx.fillStyle = "#0f172a";
-    ctx.fillText(
-      `${data.firstName} ${data.lastName}`,
-      settings.name_x,
-      settings.name_y
-    );
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
 
-    // Parish
-    ctx.font = `14px ${fontFam}`;
-    ctx.fillStyle = "#3f3f46";
-    ctx.fillText(data.parish, settings.parish_x, settings.parish_y);
+        const image = new Image();
 
-    // Ministry (selected or all)
-    ctx.fillText(ministryDisplay, settings.ministry_x, settings.ministry_y);
+        await new Promise<void>((resolve) => {
+          image.onload = () => resolve();
+          image.onerror = () => resolve();
+          image.src = dataUrl;
+        });
 
-    // Footer text (customizable)
-    ctx.font = `italic 12px ${fontFam}`;
-    ctx.fillStyle = "#52525b";
-    const footerText =
-      settings.footer_text ||
-      "has been duly commissioned as a liturgical minister";
-    ctx.fillText(footerText, CANVAS_W / 2, settings.ministry_y + 35);
+        return image.naturalWidth > 0 ? image : null;
+      } catch {
+        return null;
+      }
+    };
 
-    // Liturgical Year
-    ctx.font = `bold 16px ${fontFam}`;
-    ctx.fillStyle = "#b8071a";
-    ctx.fillText(
-      `Liturgical Year ${data.liturgicalYear}`,
-      settings.year_x,
-      settings.year_y
-    );
+    const getTextValue = (
+      element: CertificateTemplateSettings["elements"][number]
+    ): string => {
+      switch (element.type) {
+        case "text":
+          return element.text ?? "";
 
-    // UID footer with reprint suffix
-    ctx.font = "11px monospace";
-    ctx.fillStyle = "#71717a";
-    ctx.fillText(`UID: ${uidDisplay}`, CANVAS_W / 2, CANVAS_H - 30);
+        case "member_name":
+          return `${data.firstName} ${data.lastName}`;
 
-    // QR code
-    try {
-      const qrDataUrl = await QRCode.toDataURL(data.verifyUrl, {
-        width: settings.qr_size,
-        margin: 1,
-        color: { dark: "#0f172a", light: "#ffffff" },
-      });
-      const qrImg = new Image();
-      await new Promise<void>((resolve, reject) => {
-        qrImg.onload = () => resolve();
-        qrImg.onerror = reject;
-        qrImg.src = qrDataUrl;
-      });
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(
-        settings.qr_x - 4,
-        settings.qr_y - 4,
-        settings.qr_size + 8,
-        settings.qr_size + 8
-      );
-      ctx.drawImage(
-        qrImg,
-        settings.qr_x,
-        settings.qr_y,
-        settings.qr_size,
-        settings.qr_size
-      );
-      ctx.font = "9px sans-serif";
-      ctx.fillStyle = "#71717a";
-      ctx.textAlign = "center";
-      ctx.fillText(
-        "Scan to verify authenticity",
-        settings.qr_x + settings.qr_size / 2,
-        settings.qr_y + settings.qr_size + 14
-      );
-    } catch {
-      // QR generation failed
+        case "parish":
+          return data.parish;
+
+        case "ministry":
+          return selectedMinistry ?? data.ministries.join(", ");
+
+        case "liturgical_year":
+          return `Liturgical Year ${data.liturgicalYear}`;
+
+        case "uid":
+          return `UID: ${uidDisplay}`;
+
+        default:
+          return "";
+      }
+    };
+
+    for (const element of elements) {
+      ctx.save();
+
+      ctx.globalAlpha = element.opacity ?? 1;
+
+      if (element.rotation) {
+        ctx.translate(element.x, element.y);
+        ctx.rotate((element.rotation * Math.PI) / 180);
+      } else {
+        ctx.translate(element.x, element.y);
+      }
+
+      switch (element.type) {
+        case "text":
+        case "member_name":
+        case "parish":
+        case "ministry":
+        case "liturgical_year":
+        case "uid": {
+          const value = getTextValue(element);
+
+          if (value) {
+            const fontFamily =
+              element.font_family ||
+              settings.font_family ||
+              "Georgia, serif";
+
+            const fontSize = element.font_size ?? 14;
+            const fontWeight = element.font_weight ?? "normal";
+            const fontStyle = element.font_style ?? "normal";
+            const alignment = element.text_align ?? "center";
+
+            ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+            ctx.fillStyle = element.color || "#0f172a";
+            ctx.textBaseline = "middle";
+            ctx.textAlign = alignment as CanvasTextAlign;
+
+            let textX = 0;
+
+            if (alignment === "left") {
+              textX = -element.width / 2;
+            } else if (alignment === "right") {
+              textX = element.width / 2;
+            }
+
+            ctx.fillText(
+              value,
+              textX,
+              0,
+              Math.max(1, element.width)
+            );
+          }
+
+          break;
+        }
+
+        case "qr": {
+          try {
+            const qrDataUrl = await QRCode.toDataURL(data.verifyUrl, {
+              width: Math.max(1, Math.round(element.width)),
+              margin: 1,
+              color: {
+                dark: "#0f172a",
+                light: "#ffffff",
+              },
+            });
+
+            const qrImage = new Image();
+
+            await new Promise<void>((resolve) => {
+              qrImage.onload = () => resolve();
+              qrImage.onerror = () => resolve();
+              qrImage.src = qrDataUrl;
+            });
+
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(
+              -element.width / 2 - 4,
+              -element.height / 2 - 4,
+              element.width + 8,
+              element.height + 8
+            );
+
+            ctx.drawImage(
+              qrImage,
+              -element.width / 2,
+              -element.height / 2,
+              element.width,
+              element.height
+            );
+          } catch {
+            // QR generation failed; leave the element blank.
+          }
+
+          break;
+        }
+
+        case "image": {
+          if (element.image_url) {
+            const image = await loadImage(element.image_url);
+
+            if (image) {
+              ctx.drawImage(
+                image,
+                -element.width / 2,
+                -element.height / 2,
+                element.width,
+                element.height
+              );
+            }
+          }
+
+          break;
+        }
+
+        case "signatory": {
+          const signatory = element.signatory_id
+            ? signatories.find(
+                (item) => item.id === element.signatory_id
+              )
+            : null;
+
+          if (signatory && signatory.is_active) {
+            if (signatory.signature_url) {
+              const signature = await loadImage(
+                signatory.signature_url
+              );
+
+              if (signature) {
+                const maxWidth = element.width;
+                const maxHeight = element.height * 0.55;
+
+                const scale = Math.min(
+                  maxWidth / signature.naturalWidth,
+                  maxHeight / signature.naturalHeight
+                );
+
+                const width = signature.naturalWidth * scale;
+                const height = signature.naturalHeight * scale;
+
+                ctx.drawImage(
+                  signature,
+                  -width / 2,
+                  -element.height / 2,
+                  width,
+                  height
+                );
+              }
+            }
+
+            ctx.textAlign =
+              element.text_align ??
+              signatory.alignment ??
+              "center";
+
+            ctx.textBaseline = "middle";
+
+            ctx.font = "bold 12px Georgia, serif";
+            ctx.fillStyle = "#0f172a";
+            ctx.fillText(
+              signatory.name,
+              0,
+              element.height * 0.20
+            );
+
+            ctx.font = "10px Georgia, serif";
+            ctx.fillStyle = "#71717a";
+            ctx.fillText(
+              signatory.title,
+              0,
+              element.height * 0.38
+            );
+          }
+
+          break;
+        }
+      }
+
+      ctx.restore();
     }
-
-    // Signatories
-    await drawSignatories(ctx, signatories, selectedMinistry);
   };
-
   // Background
   const templateUrl = settings.template_url;
   if (templateUrl) {

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
@@ -9,6 +9,7 @@ import VerificationResultStack from "@/components/verification-result-stack";
 import { CertificateDesign } from "@/components/certificate-design";
 import type { CertificateDesignHandle } from "@/components/certificate-design";
 import type { Member, CertificateTemplateSettings, Signatory } from "@/lib/types";
+import { DEFAULT_TEMPLATE_SETTINGS } from "@/lib/constants";
 import {
   Search,
   ShieldCheck,
@@ -92,25 +93,7 @@ function VerifyPage() {
       if (data?.value) {
         setSettings(data.value as CertificateTemplateSettings);
       } else {
-        setSettings({
-          template_url: null,
-          name_x: 300,
-          name_y: 320,
-          parish_x: 300,
-          parish_y: 400,
-          ministry_x: 300,
-          ministry_y: 460,
-          year_x: 300,
-          year_y: 540,
-          qr_x: 440,
-          qr_y: 680,
-          qr_size: 120,
-          liturgical_year: String(new Date().getFullYear()),
-          font_family: "Georgia, serif",
-          header_text: "Diocese of Navotas",
-          body_text: "This is to certify that",
-          footer_text: "has been duly commissioned as a liturgical minister",
-        });
+        setSettings(DEFAULT_TEMPLATE_SETTINGS);
       }
 
       // Load active signatories (public read)
@@ -373,7 +356,7 @@ function VerifyPage() {
       .select("*")
       .eq("member_id", memberId)
       .is("ministry", ministry ?? null);
-    // .is() for nullable column — but we use COALESCE in the unique index, so query with filter
+    // .is() for nullable column â€” but we use COALESCE in the unique index, so query with filter
     let row = (existing as any)?.[0];
     if (!row) {
       // Try querying with ministry as empty string match
@@ -452,7 +435,11 @@ function VerifyPage() {
         </div>
       </header>
 
-      <main className="flex-1 mx-auto max-w-3xl w-full px-4 sm:px-6 py-8 sm:py-12">
+      <main
+        className={`flex-1 mx-auto max-w-3xl w-full px-4 sm:px-6 py-8 sm:py-12 ${
+          printParam ? "certificate-print-mode" : ""
+        }`}
+      >
         <div className="text-center mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             Verify a Member
@@ -637,11 +624,11 @@ function VerifyPage() {
                         <div role="status" className="mt-4 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
                           <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />
                           <span className="font-medium">Verified Active Member</span>
-                          <span className="text-emerald-700">— authorized to serve in the {settings?.liturgical_year} liturgical year.</span>
+                          <span className="text-emerald-700">â€” authorized to serve in the {settings?.liturgical_year} liturgical year.</span>
                         </div>
                       )}
 
-                      {/* Certificate section — only for single UID-verified result */}
+                      {/* Certificate section â€” only for single UID-verified result */}
                       <div className="mt-6 pt-5 border-t border-border">
                         {canDownload && results.length === 1 ? (
                           <div className="space-y-3">
@@ -744,7 +731,7 @@ function VerifyPage() {
             className="h-16 sm:h-20 md:h-24 w-auto"
           />
           <p className="text-xs text-muted-foreground text-center">
-            Liturgical Ministry Registry — Public Verification Portal
+            Liturgical Ministry Registry â€” Public Verification Portal
           </p>
         </div>
       </footer>

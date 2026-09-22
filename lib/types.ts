@@ -85,6 +85,46 @@ export interface ImportBatch {
   completed_at: string | null;
 }
 
+export type CertificateElementType =
+  | "text"
+  | "member_name"
+  | "parish"
+  | "ministry"
+  | "liturgical_year"
+  | "uid"
+  | "qr"
+  | "image"
+  | "signatory";
+
+export interface CertificateElement {
+  id: string;
+  type: CertificateElementType;
+
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+
+  rotation?: number;
+
+  text?: string;
+  font_family?: string;
+  font_size?: number;
+  font_weight?: string;
+  font_style?: string;
+  text_align?: "left" | "center" | "right";
+
+  color?: string;
+  opacity?: number;
+
+  image_url?: string;
+
+  signatory_id?: string;
+
+  visible?: boolean;
+  locked?: boolean;
+  z_index?: number;
+}
 export interface CertificateTemplateSettings {
   template_url: string | null;
   name_x: number;
@@ -103,6 +143,11 @@ export interface CertificateTemplateSettings {
   header_text: string;
   body_text: string;
   footer_text: string;
+
+  // Visual certificate designer
+  canvas_width: number;
+  canvas_height: number;
+  elements: CertificateElement[];
 }
 
 export type SignatoryDisplayType = "static" | "dynamic";
