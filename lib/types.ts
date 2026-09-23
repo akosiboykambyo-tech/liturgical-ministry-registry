@@ -112,7 +112,7 @@ export interface CertificateElement {
   font_size?: number;
   font_weight?: string;
   font_style?: string;
-  text_align?: "left" | "center" | "right";
+  text_align?: "left" | "center" | "right" | "justify";
 
   color?: string;
   opacity?: number;

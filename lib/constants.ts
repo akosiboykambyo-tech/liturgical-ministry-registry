@@ -117,6 +117,45 @@ export const FONT_OPTIONS = [
   { label: "Georgia (Default)", value: "Georgia, serif" },
 ] as const;
 
+export const CERTIFICATE_FONT_PAIRINGS = [
+  {
+    id: "classic-church",
+    name: "Classic Church",
+    heading: "Cormorant Garamond, Georgia, serif",
+    recipient: "Cormorant Garamond, Georgia, serif",
+    body: "Cormorant Garamond, Georgia, serif",
+    supporting: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+    signatory: "Cormorant Garamond, Georgia, serif",
+  },
+  {
+    id: "traditional",
+    name: "Traditional",
+    heading: '"EB Garamond", Georgia, serif',
+    recipient: '"EB Garamond", Georgia, serif',
+    body: '"EB Garamond", Georgia, serif',
+    supporting: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+    signatory: '"EB Garamond", Georgia, serif',
+  },
+  {
+    id: "elegant",
+    name: "Elegant",
+    heading: '"Playfair Display", Georgia, serif',
+    recipient: '"Playfair Display", Georgia, serif',
+    body: '"EB Garamond", Georgia, serif',
+    supporting: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+    signatory: '"Playfair Display", Georgia, serif',
+  },
+  {
+    id: "modern-formal",
+    name: "Modern Formal",
+    heading: '"Libre Baskerville", Georgia, serif',
+    recipient: '"Libre Baskerville", Georgia, serif',
+    body: '"Libre Baskerville", Georgia, serif',
+    supporting: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+    signatory: '"Libre Baskerville", Georgia, serif',
+  },
+] as const;
+
 export const DEFAULT_TEMPLATE_SETTINGS: CertificateTemplateSettings = {
   template_url: null as string | null,
   name_x: 300,
@@ -132,7 +171,7 @@ export const DEFAULT_TEMPLATE_SETTINGS: CertificateTemplateSettings = {
   qr_size: 90,
   liturgical_year: currentLiturgicalYear(),
   font_family: "Georgia, serif",
-  header_text: "Diocese of Navotas",
+  header_text: "Diocese of Kalookan",
   body_text: "This is to certify that",
   footer_text: "has been duly commissioned as a liturgical minister",
 

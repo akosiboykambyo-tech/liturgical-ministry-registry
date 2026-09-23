@@ -365,9 +365,11 @@ export async function renderCertificate(
             }
 
             ctx.textAlign =
-              element.text_align ??
-              signatory.alignment ??
-              "center";
+              element.text_align === "justify"
+               ? "center"
+                : element.text_align ??
+                 signatory.alignment ??
+                 "center";
 
             ctx.textBaseline = "middle";
 

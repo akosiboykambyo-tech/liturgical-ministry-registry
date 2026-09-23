@@ -3,7 +3,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
-import { DEFAULT_TEMPLATE_SETTINGS, FONT_OPTIONS, MINISTRIES } from "@/lib/constants";
+import {
+  CERTIFICATE_FONT_PAIRINGS,
+  DEFAULT_TEMPLATE_SETTINGS,
+  FONT_OPTIONS,
+  MINISTRIES,
+} from "@/lib/constants";
 import {
   Image as ImageIcon,
   Loader2,
@@ -257,6 +262,62 @@ export default function CertificateManagerPage() {
     setSettings((s) => ({ ...s, [key]: value }));
   };
 
+  const applyFontPairing = (pairingId: string) => {
+  const pairing = CERTIFICATE_FONT_PAIRINGS.find(
+    (item) => item.id === pairingId
+  );
+
+  if (!pairing) return;
+
+  setSettings((current) => ({
+    ...current,
+    font_family: pairing.body,
+    elements: current.elements.map((element) => {
+      switch (element.type) {
+        case "text":
+          return {
+            ...element,
+            font_family: pairing.body,
+          };
+
+        case "member_name":
+          return {
+            ...element,
+            font_family: pairing.recipient,
+          };
+
+        case "parish":
+        case "ministry":
+          return {
+            ...element,
+            font_family: pairing.supporting,
+          };
+
+        case "liturgical_year":
+          return {
+            ...element,
+            font_family: pairing.heading,
+          };
+
+        case "signatory":
+          return {
+            ...element,
+            font_family: pairing.signatory,
+          };
+
+        case "uid":
+          return {
+            ...element,
+            font_family: pairing.supporting,
+          };
+
+        default:
+          return element;
+      }
+    }),
+  }));
+};
+
   // Signatory handlers
   const handleSigUpload = async (file: File) => {
     setSigUploading("new");
@@ -396,7 +457,7 @@ export default function CertificateManagerPage() {
       {/* Tabs */}
       <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">
         {([
-          { id: "layout" as const, label: "Layout & Background", icon: ImageIcon },
+          { id: "layout" as const, label: "Certificate Design", icon: ImageIcon },
           { id: "signatories" as const, label: "Signatories", icon: UserCog },
         ]).map((tab) => (
           <button
@@ -414,7 +475,13 @@ export default function CertificateManagerPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div
+  className={
+    activeTab === "layout"
+      ? "grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6"
+      : "grid grid-cols-1 gap-6"
+  }
+>
         {/* Left: controls */}
         <div className="space-y-6">
           {activeTab === "layout" && (
@@ -474,74 +541,38 @@ export default function CertificateManagerPage() {
                 )}
               </div>
 
+              {/* Typography */}
               <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold">Overlay Layout (600x850 canvas)</h2>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleNew}
-                      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <Plus className="h-3 w-3" /> New
-                    </button>
-                    <button
-                      onClick={() => setSettings(DEFAULTS)}
-                      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <RefreshCw className="h-3 w-3" /> Reset fields
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Template name</label>
-                  <input
-                    type="text"
-                    value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)}
-                    placeholder="e.g. Advent, Easter, Standard"
-                    className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    {editingKey
-                      ? `Editing saved template "${templateLabel(editingKey)}".`
-                      : "New template -- give it a name before saving."}
+                <div>
+                  <h2 className="text-sm font-semibold">Typography</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Choose a coordinated font pairing for the certificate.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <NumberField label="Name X" value={settings.name_x} onChange={(v) => updateField("name_x", v)} />
-                  <NumberField label="Name Y" value={settings.name_y} onChange={(v) => updateField("name_y", v)} />
-                  <NumberField label="Parish X" value={settings.parish_x} onChange={(v) => updateField("parish_x", v)} />
-                  <NumberField label="Parish Y" value={settings.parish_y} onChange={(v) => updateField("parish_y", v)} />
-                  <NumberField label="Ministry X" value={settings.ministry_x} onChange={(v) => updateField("ministry_x", v)} />
-                  <NumberField label="Ministry Y" value={settings.ministry_y} onChange={(v) => updateField("ministry_y", v)} />
-                  <NumberField label="Year X" value={settings.year_x} onChange={(v) => updateField("year_x", v)} />
-                  <NumberField label="Year Y" value={settings.year_y} onChange={(v) => updateField("year_y", v)} />
-                  <NumberField label="QR X" value={settings.qr_x} onChange={(v) => updateField("qr_x", v)} />
-                  <NumberField label="QR Y" value={settings.qr_y} onChange={(v) => updateField("qr_y", v)} />
-                  <NumberField label="QR Size" value={settings.qr_size} onChange={(v) => updateField("qr_size", v)} />
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Liturgical Year</label>
-                    <input
-                      type="text"
-                      value={settings.liturgical_year}
-                      onChange={(e) => updateField("liturgical_year", e.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                  </div>
-                </div>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Font Pairing
+                  </span>
+                  <select
+  value={
+    CERTIFICATE_FONT_PAIRINGS.find(
+      (pairing) =>
+        pairing.body === settings.font_family
+    )?.id ?? ""
+  }
+  onChange={(e) => applyFontPairing(e.target.value)}
+  className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+>
+  <option value="">Choose a font pairing</option>
 
-                <div className="flex justify-end pt-2 border-t border-border">
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
-                  >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Save Template Settings
-                  </button>
-                </div>
+  {CERTIFICATE_FONT_PAIRINGS.map((pairing) => (
+    <option key={pairing.id} value={pairing.id}>
+      {pairing.name}
+    </option>
+  ))}
+</select>
+                </label>
               </div>
             </>
           )}
@@ -730,36 +761,42 @@ export default function CertificateManagerPage() {
           )}
         </div>
 
-        {/* Right: visual certificate editor */}
-        <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold flex items-center gap-1.5">
-                <Eye className="h-4 w-4" />
-                Certificate Designer
-              </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Select and drag certificate elements directly on the canvas.
-              </p>
-            </div>
-          </div>
-
-          <CertificateEditor
-            settings={settings}
-            onChange={setSettings}
-            previewMember={{
-              firstName: "Juan",
-              lastName: "Dela Cruz",
-              parish: "St. Joseph Parish",
-              ministry: "Lector",
-              uid: "LMD-2026-0001",
-              liturgicalYear: settings.liturgical_year,
-            }}
-          />
+{activeTab === "layout" && (
+  <>
+    {/* Right: visual certificate editor */}
+    <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold flex items-center gap-1.5">
+            <Eye className="h-4 w-4" />
+            Certificate Designer
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Select and drag certificate elements directly on the canvas.
+          </p>
         </div>
       </div>
 
-      {/* Saved templates list */}
+      <CertificateEditor
+        settings={settings}
+        onChange={setSettings}
+        signatories={signatories}
+        previewMember={{
+          firstName: "Juan",
+          lastName: "Dela Cruz",
+          parish: "St. Joseph Parish",
+          ministry: "Lector",
+          uid: "LMD-2026-0001",
+          liturgicalYear: settings.liturgical_year,
+        }}
+      />
+    </div>
+  </>
+)}
+
+</div>
+
+{/* Saved templates list */}
       <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div>

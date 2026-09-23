@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+} from "lucide-react";
 import type {
   CertificateElement,
   CertificateTemplateSettings,
+  Signatory,
 } from "@/lib/types";
 
 type PreviewMember = {
@@ -19,6 +26,7 @@ type CertificateEditorProps = {
   settings: CertificateTemplateSettings;
   onChange: (settings: CertificateTemplateSettings) => void;
   previewMember?: PreviewMember;
+  signatories?: Signatory[];
 };
 
 const CANVAS_W = 600;
@@ -80,6 +88,7 @@ export function CertificateEditor({
     uid: "LMD-2026-0001",
     liturgicalYear: settings.liturgical_year,
   },
+  signatories = [],
 }: CertificateEditorProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -122,8 +131,9 @@ export function CertificateEditor({
   };
 
   const createElement = (
-    type: CertificateElement["type"]
-  ): CertificateElement => {
+  type: CertificateElement["type"],
+  signatoryId?: string
+): CertificateElement => {
     const id = `${type}-${Date.now()}`;
 
     const base: CertificateElement = {
@@ -210,18 +220,22 @@ export function CertificateEditor({
         };
 
       case "signatory":
-        return {
-          ...base,
-          x: 300,
-          y: 680,
-          width: 180,
-          height: 90,
-        };
+  return {
+    ...base,
+    x: 300,
+    y: 680,
+    width: 180,
+    height: 90,
+    signatory_id: signatoryId,
+  };
     }
   };
 
-  const addElement = (type: CertificateElement["type"]) => {
-    const element = createElement(type);
+  const addElement = (
+  type: CertificateElement["type"],
+  signatoryId?: string
+) => {
+    const element = createElement(type, signatoryId);
 
     onChange({
       ...settings,
@@ -436,30 +450,103 @@ export function CertificateEditor({
     }
 
     if (element.type === "signatory") {
+      const signatory = signatories.find(
+        (item) => item.id === element.signatory_id
+      );
+
+      if (!signatory) {
+        return (
+          <div
+            key={element.id}
+            style={{
+              ...commonStyle,
+              ...selectionStyle,
+            }}
+            onPointerDown={(event) => handlePointerDown(event, element)}
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedId(element.id);
+            }}
+            className="flex items-center justify-center border border-dashed border-zinc-400 bg-white/20 text-xs text-muted-foreground"
+          >
+            Select a signatory
+          </div>
+        );
+      }
+
       return (
         <div
           key={element.id}
           style={{
             ...commonStyle,
             ...selectionStyle,
-            textAlign: element.text_align ?? "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: element.text_align || "center",
+            overflow: "hidden",
+            padding: "4px 8px",
           }}
           onPointerDown={(event) => handlePointerDown(event, element)}
           onClick={(event) => {
             event.stopPropagation();
             setSelectedId(element.id);
           }}
-          className="border border-dashed border-zinc-400 bg-white/20 px-2 py-1"
         >
+          {signatory.signature_url ? (
+            <img
+              src={signatory.signature_url}
+              alt=""
+              draggable={false}
+              style={{
+                display: "block",
+                width: "100%",
+                maxHeight: "55%",
+                objectFit: "contain",
+                objectPosition: "center",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                height: "45%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 10,
+                color: "#71717a",
+                borderBottom: "1px solid #d4d4d8",
+              }}
+            >
+              Signature
+            </div>
+          )}
+
           <div
             style={{
+              marginTop: 4,
               fontFamily: element.font_family || "Georgia, serif",
               fontSize: element.font_size || 12,
               fontWeight: element.font_weight || "bold",
               color: element.color || "#0f172a",
+              lineHeight: 1.2,
             }}
           >
-            Signatory
+            {signatory.name}
+          </div>
+
+          <div
+            style={{
+              marginTop: 2,
+              fontFamily: element.font_family || "Georgia, serif",
+              fontSize: Math.max(8, (element.font_size || 12) - 2),
+              color: "#71717a",
+              lineHeight: 1.2,
+            }}
+          >
+            {signatory.title}
           </div>
         </div>
       );
@@ -478,7 +565,9 @@ export function CertificateEditor({
           color: element.color || "#0f172a",
           textAlign: element.text_align || "center",
           overflow: "hidden",
-          whiteSpace: "nowrap",
+          whiteSpace: "pre-wrap",
+          overflowWrap: "break-word",
+          wordBreak: "break-word",
           display: "flex",
           alignItems: "center",
           justifyContent:
@@ -520,7 +609,7 @@ export function CertificateEditor({
             Add Element
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5">
             {(
               [
                 ["text", "Text"],
@@ -531,7 +620,6 @@ export function CertificateEditor({
                 ["uid", "UID"],
                 ["qr", "QR Code"],
                 ["image", "Image"],
-                ["signatory", "Signatory"],
               ] as const
             ).map(([type, label]) => (
               <button
@@ -544,7 +632,34 @@ export function CertificateEditor({
               </button>
             ))}
           </div>
+
+          {signatories.length > 0 && (
+            <div className="mt-2">
+              <select
+                defaultValue=""
+                onChange={(event) => {
+                  const signatoryId = event.target.value;
+                  if (!signatoryId) return;
+
+                  addElement("signatory", signatoryId);
+                  event.currentTarget.value = "";
+                }}
+                className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-[11px] font-medium hover:bg-muted transition-colors"
+                aria-label="Add signatory"
+              >
+                <option value="">+ Add Signatory</option>
+                {signatories
+                  .filter((signatory) => signatory.is_active)
+                  .map((signatory) => (
+                    <option key={signatory.id} value={signatory.id}>
+                      {signatory.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
         </div>
+
         <div className="flex justify-center overflow-auto">
           <div
             ref={canvasRef}
@@ -669,13 +784,52 @@ export function CertificateEditor({
               </label>
             </div>
 
-            {(selectedElement.type === "text" ||
-              selectedElement.type === "member_name" ||
-              selectedElement.type === "parish" ||
-              selectedElement.type === "ministry" ||
-              selectedElement.type === "liturgical_year" ||
-              selectedElement.type === "uid") && (
+            {(selectedElement.type === "signatory" ||
+  selectedElement.type === "text" ||
+  selectedElement.type === "member_name" ||
+  selectedElement.type === "parish" ||
+  selectedElement.type === "ministry" ||
+  selectedElement.type === "liturgical_year" ||
+  selectedElement.type === "uid") && (
               <>
+
+    <div className="space-y-1.5">
+      <span className="text-[11px] text-muted-foreground">
+        Text Alignment
+      </span>
+
+      <div className="grid grid-cols-4 gap-1">
+        {(
+          [
+            ["left", "Left", AlignLeft],
+            ["center", "Center", AlignCenter],
+            ["right", "Right", AlignRight],
+            ["justify", "Justify", AlignJustify],
+          ] as const
+        ).map(([alignment, label, Icon]) => (
+          <button
+            key={alignment}
+            type="button"
+            disabled={selectedElement.locked}
+            onClick={() =>
+              updateElement(selectedElement.id, {
+                text_align: alignment,
+              })
+            }
+            className={`inline-flex items-center justify-center rounded-md border px-2 py-1.5 text-xs transition-colors ${
+              selectedElement.text_align === alignment
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-input bg-background hover:bg-muted"
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+            title={label}
+            aria-label={label}
+          >
+            <Icon className="h-3.5 w-3.5" />
+          </button>
+        ))}
+      </div>
+    </div>
+
                 <label className="block space-y-1">
                   <span className="text-[11px] text-muted-foreground">
                     Font Family
