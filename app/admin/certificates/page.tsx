@@ -430,15 +430,36 @@ export default function CertificateManagerPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <ImageIcon className="h-6 w-6 text-primary" />
-          Certificate Template Manager
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Customize certificate text, fonts, layout, and signatories. The
-          default template is used for public certificate rendering.
-        </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <ImageIcon className="h-6 w-6 text-primary" />
+            Certificate Template Manager
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Customize certificate text, fonts, layout, and signatories. The
+            default template is used for public certificate rendering.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" />
+              Save Template
+            </>
+          )}
+        </button>
       </div>
 
       {error && (

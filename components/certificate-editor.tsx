@@ -589,6 +589,8 @@ export function CertificateEditor({
     );
   };
 
+console.log("CERTIFICATE ELEMENTS:", settings.elements);
+
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
       <div className="rounded-lg border border-border bg-muted/30 p-4">

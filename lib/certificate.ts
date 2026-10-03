@@ -61,74 +61,114 @@ function drawDefaultBackground(ctx: CanvasRenderingContext2D) {
   ctx.strokeRect(28, 28, CANVAS_W - 56, CANVAS_H - 56);
 }
 
-async function drawSignatories(
+function drawWrappedText(
   ctx: CanvasRenderingContext2D,
-  signatories: Signatory[],
-  selectedMinistry: string | null
-): Promise<void> {
-  const visible = signatories
-    .filter((s) => s.is_active)
-    .filter((s) => {
-      if (s.display_type === "static") return true;
-      return s.ministry && selectedMinistry && s.ministry === selectedMinistry;
-    })
-    .sort((a, b) => a.sort_order - b.sort_order);
+  text: string,
+  width: number,
+  height: number,
+  alignment: "left" | "center" | "right" | "justify"
+) {
+  const maxWidth = Math.max(1, width);
+  const maxHeight = Math.max(1, height);
+  const lineHeight = Math.max(1, Number.parseFloat(ctx.font) * 1.2);
 
-  for (const sig of visible) {
-    const sigY = sig.position_y;
-    const alignment = sig.alignment ?? "left";
-    const w = sig.width;
-    let imgX = sig.position_x;
-    let textX = sig.position_x;
-    if (alignment === "center") {
-      imgX = sig.position_x - w / 2;
-      textX = sig.position_x;
-    } else if (alignment === "right") {
-      imgX = sig.position_x - w;
-      textX = sig.position_x + w;
+  const words = text.trim().split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const testLine = currentLine
+      ? `${currentLine} ${word}`
+      : word;
+
+    if (ctx.measureText(testLine).width <= maxWidth) {
+      currentLine = testLine;
+      continue;
     }
 
-    if (sig.signature_url) {
-      try {
-        const response = await fetch(sig.signature_url);
-        if (response.ok) {
-          const blob = await response.blob();
-          const dataUrl: string = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-          const img = new Image();
-          await new Promise<void>((resolve) => {
-            img.onload = () => {
-              const aspectRatio = img.height / img.width || 0.4;
-              const h = w * aspectRatio;
-              ctx.drawImage(img, imgX, sigY, w, h);
-              resolve();
-            };
-            img.onerror = () => resolve();
-            img.src = dataUrl;
-          });
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    if (ctx.measureText(word).width > maxWidth) {
+      let chunk = "";
+
+      for (const character of word) {
+        const testChunk = chunk + character;
+
+        if (
+          chunk &&
+          ctx.measureText(testChunk).width > maxWidth
+        ) {
+          lines.push(chunk);
+          chunk = character;
+        } else {
+          chunk = testChunk;
         }
-      } catch {
-        // signature image failed to load
+      }
+
+      currentLine = chunk;
+    } else {
+      currentLine = word;
+    }
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  if (!lines.length) return;
+
+  const maxLines = Math.max(
+    1,
+    Math.floor(maxHeight / lineHeight)
+  );
+
+  const visibleLines = lines.slice(0, maxLines);
+  const totalHeight = visibleLines.length * lineHeight;
+  const startY = -totalHeight / 2 + lineHeight / 2;
+
+  for (let index = 0; index < visibleLines.length; index++) {
+    const line = visibleLines[index];
+    const y = startY + index * lineHeight;
+    const isLastLine = index === visibleLines.length - 1;
+
+    if (alignment === "justify" && !isLastLine) {
+      const parts = line.split(" ");
+
+      if (parts.length > 1) {
+        const wordsWidth = parts.reduce(
+          (total, part) => total + ctx.measureText(part).width,
+          0
+        );
+
+        const gap =
+          (maxWidth - wordsWidth) /
+          (parts.length - 1);
+
+        let x = -maxWidth / 2;
+
+        ctx.textAlign = "left";
+
+        for (const part of parts) {
+          ctx.fillText(part, x, y);
+          x += ctx.measureText(part).width + gap;
+        }
+
+        continue;
       }
     }
 
-    const font = ctx.font;
-    const fill = ctx.fillStyle;
-    const align = ctx.textAlign;
-    ctx.textAlign = alignment as CanvasTextAlign;
-    ctx.font = "bold 12px Georgia, serif";
-    ctx.fillStyle = "#0f172a";
-    ctx.fillText(sig.name, textX, sigY + 50);
-    ctx.font = "10px Georgia, serif";
-    ctx.fillStyle = "#71717a";
-    ctx.fillText(sig.title, textX, sigY + 65);
-    ctx.font = font;
-    ctx.fillStyle = fill;
-    ctx.textAlign = align;
+    if (alignment === "left") {
+      ctx.textAlign = "left";
+      ctx.fillText(line, -maxWidth / 2, y);
+    } else if (alignment === "right") {
+      ctx.textAlign = "right";
+      ctx.fillText(line, maxWidth / 2, y);
+    } else {
+      ctx.textAlign = "center";
+      ctx.fillText(line, 0, y);
+    }
   }
 }
 
@@ -158,34 +198,41 @@ export async function renderCertificate(
       .sort((a, b) => (a.z_index ?? 0) - (b.z_index ?? 0));
 
     const loadImage = async (
-      url: string
-    ): Promise<HTMLImageElement | null> => {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) return null;
+  url: string
+): Promise<HTMLImageElement | null> => {
+  try {
+    const response = await fetch(url);
 
-        const blob = await response.blob();
+    if (!response.ok) {
+      return null;
+    }
 
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
+    const blob = await response.blob();
 
-        const image = new Image();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
 
-        await new Promise<void>((resolve) => {
-          image.onload = () => resolve();
-          image.onerror = () => resolve();
-          image.src = dataUrl;
-        });
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
 
-        return image.naturalWidth > 0 ? image : null;
-      } catch {
-        return null;
-      }
-    };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+    const image = new Image();
+
+    await new Promise<void>((resolve) => {
+      image.onload = () => resolve();
+      image.onerror = () => resolve();
+      image.src = dataUrl;
+    });
+
+    return image.naturalWidth > 0 ? image : null;
+  } catch {
+    return null;
+  }
+};
 
     const getTextValue = (
       element: CertificateTemplateSettings["elements"][number]
@@ -251,20 +298,13 @@ export async function renderCertificate(
             ctx.textBaseline = "middle";
             ctx.textAlign = alignment as CanvasTextAlign;
 
-            let textX = 0;
-
-            if (alignment === "left") {
-              textX = -element.width / 2;
-            } else if (alignment === "right") {
-              textX = element.width / 2;
-            }
-
-            ctx.fillText(
-              value,
-              textX,
-              0,
-              Math.max(1, element.width)
-            );
+drawWrappedText(
+  ctx,
+  value,
+  element.width,
+  element.height,
+  alignment
+);
           }
 
           break;
@@ -281,13 +321,11 @@ export async function renderCertificate(
               },
             });
 
-            const qrImage = new Image();
+            const qrImage = await loadImage(qrDataUrl);
 
-            await new Promise<void>((resolve) => {
-              qrImage.onload = () => resolve();
-              qrImage.onerror = () => resolve();
-              qrImage.src = qrDataUrl;
-            });
+            if (!qrImage) {
+              break;
+            }
 
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(
@@ -329,69 +367,100 @@ export async function renderCertificate(
           break;
         }
 
-        case "signatory": {
-          const signatory = element.signatory_id
-            ? signatories.find(
-                (item) => item.id === element.signatory_id
-              )
-            : null;
+                case "signatory": {
+  const signatory = element.signatory_id
+    ? signatories.find(
+        (item) => item.id === element.signatory_id
+      )
+    : null;
 
-          if (signatory && signatory.is_active) {
-            if (signatory.signature_url) {
-              const signature = await loadImage(
-                signatory.signature_url
-              );
+  if (signatory && signatory.is_active) {
+    const contentWidth = Math.max(1, element.width - 16);
+    const contentHeight = Math.max(1, element.height - 8);
 
-              if (signature) {
-                const maxWidth = element.width;
-                const maxHeight = element.height * 0.55;
+    const nameFontSize = element.font_size || 12;
+    const titleFontSize = Math.max(8, nameFontSize - 2);
+    const fontFamily =
+      element.font_family || "Georgia, serif";
+    const fontWeight =
+      element.font_weight || "bold";
+    const fontStyle =
+      element.font_style || "normal";
 
-                const scale = Math.min(
-                  maxWidth / signature.naturalWidth,
-                  maxHeight / signature.naturalHeight
-                );
+    const textAlign =
+      element.text_align || "center";
 
-                const width = signature.naturalWidth * scale;
-                const height = signature.naturalHeight * scale;
+    ctx.textAlign = textAlign as CanvasTextAlign;
+    ctx.textBaseline = "middle";
 
-                ctx.drawImage(
-                  signature,
-                  -width / 2,
-                  -element.height / 2,
-                  width,
-                  height
-                );
-              }
-            }
+    let textX = 0;
 
-            ctx.textAlign =
-              element.text_align === "justify"
-               ? "center"
-                : element.text_align ??
-                 signatory.alignment ??
-                 "center";
+    if (textAlign === "left") {
+      textX = -contentWidth / 2;
+    } else if (textAlign === "right") {
+      textX = contentWidth / 2;
+    }
 
-            ctx.textBaseline = "middle";
+    let currentY = -contentHeight / 2;
 
-            ctx.font = "bold 12px Georgia, serif";
-            ctx.fillStyle = "#0f172a";
-            ctx.fillText(
-              signatory.name,
-              0,
-              element.height * 0.20
-            );
+    // Signature
+    if (signatory.signature_url) {
+      const signature = await loadImage(
+        signatory.signature_url
+      );
 
-            ctx.font = "10px Georgia, serif";
-            ctx.fillStyle = "#71717a";
-            ctx.fillText(
-              signatory.title,
-              0,
-              element.height * 0.38
-            );
-          }
+      if (signature && signature.naturalWidth > 0) {
+        const maxSignatureWidth = contentWidth;
+        const maxSignatureHeight =
+          contentHeight * 0.42;
 
-          break;
-        }
+        const scale = Math.min(
+          maxSignatureWidth / signature.naturalWidth,
+          maxSignatureHeight / signature.naturalHeight
+        );
+
+        const signatureWidth =
+          signature.naturalWidth * scale;
+        const signatureHeight =
+          signature.naturalHeight * scale;
+
+        ctx.drawImage(
+          signature,
+          -signatureWidth / 2,
+          currentY,
+          signatureWidth,
+          signatureHeight
+        );
+
+        currentY += signatureHeight + 4;
+      }
+    }
+
+    // Name
+    ctx.font = `${fontStyle} ${fontWeight} ${nameFontSize}px ${fontFamily}`;
+    ctx.fillStyle = element.color || "#0f172a";
+
+    ctx.fillText(
+      signatory.name,
+      textX,
+      currentY + nameFontSize / 2
+    );
+
+    currentY += nameFontSize + 2;
+
+    // Title
+    ctx.font = `normal ${titleFontSize}px ${fontFamily}`;
+    ctx.fillStyle = "#71717a";
+
+    ctx.fillText(
+      signatory.title,
+      textX,
+      currentY + titleFontSize / 2
+    );
+  }
+
+  break;
+}
       }
 
       ctx.restore();

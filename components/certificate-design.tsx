@@ -1,16 +1,25 @@
 "use client";
 
-import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import {
+  useEffect,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import {
   renderCertificate,
   downloadCanvasAsPng,
   type CertificateData,
 } from "@/lib/certificate";
-import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
+import type {
+  CertificateTemplateSettings,
+  Signatory,
+} from "@/lib/types";
 
 export interface CertificateDesignHandle {
   download: (filename: string) => Promise<void>;
   getCanvas: () => HTMLCanvasElement | null;
+  render: () => Promise<HTMLCanvasElement | null>;
 }
 
 interface CertificateDesignProps {
@@ -21,40 +30,58 @@ interface CertificateDesignProps {
   style?: React.CSSProperties;
 }
 
-/**
- * Single source of truth for certificate rendering.
- *
- * Both the admin template preview and the public verify-page download use
- * this component, guaranteeing the on-screen preview and the exported PNG
- * are pixel-identical — same fonts, colors, borders, text positions, and QR
- * code. The canvas is drawn by the shared `renderCertificate` engine so there
- * is never a chance for the two contexts to drift.
- */
 export const CertificateDesign = forwardRef<
   CertificateDesignHandle,
   CertificateDesignProps
 >(({ settings, data, signatories = [], className, style }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const renderQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const queueRender = () => {
+    const canvas = canvasRef.current;
+
+    if (!canvas) {
+      return Promise.resolve();
+    }
+
+    const renderJob = renderQueueRef.current.then(async () => {
+      const currentCanvas = canvasRef.current;
+
+      if (!currentCanvas) return;
+
+      await renderCertificate(
+        currentCanvas,
+        data,
+        settings,
+        signatories
+      );
+    });
+
+    renderQueueRef.current = renderJob.catch(() => undefined);
+
+    return renderJob;
+  };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    renderCertificate(canvas, data, settings, signatories);
+    void queueRender();
   }, [data, settings, signatories]);
 
   useImperativeHandle(ref, () => ({
     download: async (filename: string) => {
+      await queueRender();
+
       const canvas = canvasRef.current;
+
       if (!canvas) return;
-      await renderCertificate(canvas, data, settings, signatories);
+
       downloadCanvasAsPng(canvas, filename);
     },
+
     render: async () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return null;
-      await renderCertificate(canvas, data, settings, signatories);
-      return canvas;
+      await queueRender();
+      return canvasRef.current;
     },
+
     getCanvas: () => canvasRef.current,
   }));
 
