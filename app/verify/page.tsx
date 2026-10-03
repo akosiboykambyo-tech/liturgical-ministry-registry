@@ -17,6 +17,7 @@ import {
   Church,
   Lock,
   Download,
+  Printer,
   QrCode,
   CheckCircle2,
   Clock,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { RegistryFooter } from "@/components/registry-footer";
 
 export default function VerifyPageWrapper() {
   return (
@@ -253,27 +255,34 @@ function VerifyPage() {
     }
   }, [uidParam, doSearch]);
 
-  // Print-only flow for the Admin "Print UID Certificate" action.
+    // Print-only flow for the Admin "Print UID Certificate" action.
   useEffect(() => {
     if (!printParam || results.length !== 1 || !settings) return;
 
-    setPrintReady(false);
+    let cancelled = false;
 
-    // Give CertificateDesign time to render the certificate canvas.
-    const timer = window.setTimeout(() => {
-      const canvas = certRef.current?.getCanvas();
+    const preparePrint = async () => {
+      setPrintReady(false);
 
-      if (!canvas) return;
+      const canvas = await certRef.current?.render();
+
+      if (!canvas || cancelled) return;
 
       setPrintReady(true);
 
-      // Let the print layout paint before opening the browser dialog.
-      window.setTimeout(() => {
-        window.print();
-      }, 150);
-    }, 400);
+      // Let React paint the print layout before opening the browser dialog.
+      window.requestAnimationFrame(() => {
+        if (!cancelled) {
+          window.print();
+        }
+      });
+    };
 
-    return () => window.clearTimeout(timer);
+    void preparePrint();
+
+    return () => {
+      cancelled = true;
+    };
   }, [printParam, results, settings]);
 
   // Reset download count and ministry selection when results change
@@ -403,16 +412,157 @@ function VerifyPage() {
     setGenerating(false);
   };
 
-  const handleMinistrySelect = async (ministry: string) => {
-    setShowMinistryDialog(false);
-    setSelectedMinistry(ministry);
-    const member = results[0];
-    if (!member || !settings) return;
-    setGenerating(true);
+    const handlePrint = async () => {
+  const member = results[0];
+  if (!member || !settings) return;
+
+  const ministry =
+    member.ministries.length === 1
+      ? member.ministries[0]
+      : selectedMinistry;
+
+  if (member.ministries.length > 1 && !ministry) {
+    setShowMinistryDialog(true);
+    return;
+  }
+
+  // Open the print window immediately while this is still a user-initiated action.
+  const printWindow = window.open("", "_blank", "width=900,height=1000");
+
+  if (!printWindow) {
+    setError("Please allow pop-ups for this site to print the certificate.");
+    return;
+  }
+
+  setGenerating(true);
+
+  try {
     await trackDownload(member.id, ministry);
-    await certRef.current?.download(`certificate-${member.uid}.png`);
+
+    // Render the exact same canvas used by the Download button.
+    const canvas = await certRef.current?.render();
+
+    if (!canvas) {
+      printWindow.close();
+      setError("Unable to render the certificate for printing.");
+      return;
+    }
+
+    const png = canvas.toDataURL("image/png");
+
+    printWindow.document.open();
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>Certificate - ${member.uid}</title>
+          <style>
+            @page {
+              size: Letter portrait;
+              margin: 0;
+            }
+
+            html,
+            body {
+              width: 8.5in;
+              height: 11in;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              overflow: hidden;
+            }
+
+            body {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            img {
+              display: block;
+              width: 8.5in;
+              height: 11in;
+              object-fit: contain;
+              margin: 0;
+              padding: 0;
+            }
+
+            @media print {
+              html,
+              body {
+                width: 8.5in;
+                height: 11in;
+                margin: 0;
+                padding: 0;
+              }
+
+              img {
+                width: 8.5in;
+                height: 11in;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <img
+            src="${png}"
+            alt="Official certificate"
+          />
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    const image = printWindow.document.querySelector("img");
+
+    if (!image) {
+      printWindow.close();
+      setError("Unable to prepare the certificate for printing.");
+      return;
+    }
+
+    const print = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+
+    if (image.complete) {
+      print();
+    } else {
+      image.onload = print;
+      image.onerror = () => {
+        printWindow.close();
+        setError("Unable to load the certificate image for printing.");
+      };
+    }
+  } catch (error) {
+    printWindow.close();
+    setError(
+      error instanceof Error
+        ? error.message
+        : "Unable to prepare the certificate for printing."
+    );
+  } finally {
     setGenerating(false);
-  };
+  }
+};
+
+const handleMinistrySelect = async (ministry: string) => {
+  setShowMinistryDialog(false);
+  setSelectedMinistry(ministry);
+
+  const member = results[0];
+
+  if (!member || !settings) return;
+
+  setGenerating(true);
+
+  await trackDownload(member.id, ministry);
+
+  await certRef.current?.download(`certificate-${member.uid}.png`);
+
+  setGenerating(false);
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-red-50/40 to-background flex flex-col">
@@ -624,11 +774,11 @@ function VerifyPage() {
                         <div role="status" className="mt-4 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
                           <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />
                           <span className="font-medium">Verified Active Member</span>
-                          <span className="text-emerald-700">â€” authorized to serve in the {settings?.liturgical_year} liturgical year.</span>
+                          <span className="text-emerald-700">— authorized to serve in the {settings?.liturgical_year} liturgical year.</span>
                         </div>
                       )}
 
-                      {/* Certificate section â€” only for single UID-verified result */}
+                      {/* Certificate section — only for single UID-verified result */}
                       <div className="mt-6 pt-5 border-t border-border">
                         {canDownload && results.length === 1 ? (
                           <div className="space-y-3">
@@ -654,19 +804,37 @@ function VerifyPage() {
                                   Download includes a QR code linking to this verification page.
                                 </p>
                               </div>
-                              <button
-                                type="button"
-                                ref={downloadButtonRef}
-                                onClick={handleDownload}
-                                disabled={generating}
-                                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                              >
-                                {generating ? (
-                                  <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Generating...</>
-                                ) : (
-                                  <><Download aria-hidden="true" className="h-4 w-4" /> Download Official Certificate</>
-                                )}
-                              </button>
+                              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+  <button
+    type="button"
+    ref={downloadButtonRef}
+    onClick={handleDownload}
+    disabled={generating}
+    className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+  >
+    {generating ? (
+      <>
+        <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+        Generating...
+      </>
+    ) : (
+      <>
+        <Download aria-hidden="true" className="h-4 w-4" />
+        Download Official Certificate
+      </>
+    )}
+  </button>
+
+  <button
+    type="button"
+    onClick={handlePrint}
+    disabled={generating}
+    className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-60 w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+  >
+    <Printer aria-hidden="true" className="h-4 w-4" />
+    Print Certificate
+  </button>
+</div>
                             </div>
                             <div className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                               <QrCode aria-hidden="true" className="h-3.5 w-3.5" />
@@ -720,21 +888,7 @@ function VerifyPage() {
         </div>
       </main>
 
-      <footer className="border-t border-border/60 mt-auto">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-5 flex flex-col items-center gap-3">
-          <Image
-            src="/images/Asset_1.svg"
-            alt="Liturgical Ministry Registry"
-            width={200}
-            height={80}
-            priority
-            className="h-16 sm:h-20 md:h-24 w-auto"
-          />
-          <p className="text-xs text-muted-foreground text-center">
-            Liturgical Ministry Registry â€” Public Verification Portal
-          </p>
-        </div>
-      </footer>
+      <RegistryFooter label="Public Verification Portal" />
 
       {/* Ministry selection dialog for multi-ministry members */}
       {showMinistryDialog && results.length === 1 && (

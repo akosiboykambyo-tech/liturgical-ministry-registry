@@ -280,26 +280,48 @@ export function MemberDetailDrawer({
     : "";
 
   const handlePrintCertificate = () => {
-    if (!member?.uid || member.uid === "PENDING" || isExpiredOrExpiring) return;
+  if (!member?.uid || member.uid === "PENDING" || isExpiredOrExpiring) return;
 
-    setPrintingCertificate(true);
+  const sourceCanvas = certificateRef.current?.getCanvas();
+  if (!sourceCanvas) return;
 
-    const cleanup = () => {
-      document.body.classList.remove("member-certificate-print-mode");
-      setPrintingCertificate(false);
-      window.removeEventListener("afterprint", cleanup);
-    };
+  setPrintingCertificate(true);
 
-    window.addEventListener("afterprint", cleanup);
+  const printContainer = document.createElement("div");
+  printContainer.className = "member-certificate-direct-print";
+  printContainer.setAttribute("aria-hidden", "true");
 
-    requestAnimationFrame(() => {
-      document.body.classList.add("member-certificate-print-mode");
+  const printCanvas = document.createElement("canvas");
+  printCanvas.width = sourceCanvas.width;
+  printCanvas.height = sourceCanvas.height;
+  printCanvas.className = "member-certificate-direct-print-canvas";
 
-      requestAnimationFrame(() => {
-        window.print();
-      });
-    });
+  const printContext = printCanvas.getContext("2d");
+  if (!printContext) {
+    setPrintingCertificate(false);
+    return;
+  }
+
+  printContext.drawImage(sourceCanvas, 0, 0);
+
+  printContainer.appendChild(printCanvas);
+  document.body.appendChild(printContainer);
+
+  const cleanup = () => {
+    printContainer.remove();
+    document.body.classList.remove("member-certificate-print-mode");
+    setPrintingCertificate(false);
+    window.removeEventListener("afterprint", cleanup);
   };
+
+  window.addEventListener("afterprint", cleanup);
+
+  document.body.classList.add("member-certificate-print-mode");
+
+  requestAnimationFrame(() => {
+    window.print();
+  });
+};
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
