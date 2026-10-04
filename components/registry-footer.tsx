@@ -1,4 +1,5 @@
-import Image from 'next/image';
+import Image from "next/image";
+import Link from "next/link";
 
 export function RegistryFooter({ label = 'Public Verification Portal' }: { label?: string }) {
   return (
@@ -11,9 +12,31 @@ export function RegistryFooter({ label = 'Public Verification Portal' }: { label
           height={80}
           className="h-14 w-auto sm:h-16 md:h-20"
         />
+
         <p className="text-xs text-muted-foreground">
           Liturgical Ministry Registry — {label}
         </p>
+
+        <nav
+          aria-label="Legal"
+          className="flex items-center gap-3 text-xs text-muted-foreground"
+        >
+          <Link
+            href="/privacy"
+            className="transition-colors underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Privacy Policy
+          </Link>
+
+          <span aria-hidden="true">·</span>
+
+          <Link
+            href="/terms"
+            className="transition-colors underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Terms &amp; Conditions
+          </Link>
+        </nav> 
       </div>
     </footer>
   );
