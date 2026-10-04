@@ -918,7 +918,7 @@ const handleMinistrySelect = async (ministry: string) => {
             <button
               type="button"
               onClick={() => setShowMinistryDialog(false)}
-              className="mt-4 w-full rounded-md text-center text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="mt-4 w-full rounded-md py-2 text-center text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               Cancel
             </button>
