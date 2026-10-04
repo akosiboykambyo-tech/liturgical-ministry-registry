@@ -606,6 +606,8 @@ const handleMinistrySelect = async (ministry: string) => {
           <Search aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
           <input
             id="member-search"
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "member-search-error" : undefined}
             value={query}
             onChange={(e) => {
               const v = e.target.value;
@@ -678,7 +680,11 @@ const handleMinistrySelect = async (ministry: string) => {
           )}
 
           {error && (
-            <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 py-8 text-center">
+            <div
+              id="member-search-error"
+              role="alert"
+              className="rounded-lg border border-destructive/30 bg-destructive/5 py-8 text-center"
+            >
               <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
               <p className="mt-3 text-sm text-destructive">{error}</p>
             </div>
