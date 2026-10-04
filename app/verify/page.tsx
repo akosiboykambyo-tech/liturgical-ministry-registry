@@ -121,6 +121,7 @@ function VerifyPage() {
         setSearching(false);
         setSearchedByUid(false);
         setSearched(false);
+        setError("Enter a member name or Registry ID to verify.");
         return;
       }
 
