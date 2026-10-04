@@ -862,8 +862,8 @@ export default function CertificateManagerPage() {
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                      {row.settings.template_url ? "Custom background" : "No background image"} Ã‚Â·
-                      {" "}Liturgical year {row.settings.liturgical_year} Ã‚Â·
+                      {row.settings.template_url ? "Custom background" : "No background image"} ·
+                      {" "}Liturgical year {row.settings.liturgical_year} ·
                       {" "}Font: {row.settings.font_family?.split(",")[0] || "Georgia"}
                     </p>
                   </div>
