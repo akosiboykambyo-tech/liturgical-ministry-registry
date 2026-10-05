@@ -40,14 +40,10 @@ export default function AdminDashboardPage() {
       const expiringCutoff = new Date(today);
       expiringCutoff.setDate(expiringCutoff.getDate() + EXPIRING_SOON_DAYS);
 
-      const [countRes, membershipsRes, recentRes] = await Promise.all([
+      const [countRes, recentRes] = await Promise.all([
         supabase
           .from("members")
           .select("id", { count: "exact", head: true }),
-
-        supabase
-          .from("member_ministries")
-          .select("member_id,status,document_url,expiration_date"),
 
         supabase
           .from("members")
@@ -56,18 +52,43 @@ export default function AdminDashboardPage() {
           .limit(5),
       ]);
 
-      const membershipRows =
-        (membershipsRes.data as Pick<
-          MemberMinistry,
-          "member_id" | "status" | "document_url" | "expiration_date"
-        >[]) ?? [];
+      // Supabase/PostgREST applies a default row cap to returned data.
+      // Fetch all ministry rows in pages, then count distinct member_ids locally
+      // so multi-ministry members are counted once per dashboard category.
+      const allMemberships: Pick<
+        MemberMinistry,
+        "member_id" | "status" | "document_url" | "expiration_date"
+      >[] = [];
+
+      const batchSize = 1000;
+      for (let from = 0; ; from += batchSize) {
+        const { data, error } = await supabase
+          .from("member_ministries")
+          .select("member_id,status,document_url,expiration_date")
+          .range(from, from + batchSize - 1);
+
+        if (error) {
+          console.error("Failed to load dashboard ministry counts:", error);
+          break;
+        }
+
+        const batch =
+          (data as Pick<
+            MemberMinistry,
+            "member_id" | "status" | "document_url" | "expiration_date"
+          >[]) ?? [];
+
+        allMemberships.push(...batch);
+
+        if (batch.length < batchSize) break;
+      }
 
       const pendingMemberIds = new Set<string>();
       const verifiedMemberIds = new Set<string>();
       const missingDocumentMemberIds = new Set<string>();
       const expiringSoonMemberIds = new Set<string>();
 
-      for (const membership of membershipRows) {
+      for (const membership of allMemberships) {
         if (membership.status === "Pending Verification") {
           pendingMemberIds.add(membership.member_id);
         }
