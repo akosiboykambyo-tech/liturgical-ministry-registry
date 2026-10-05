@@ -9,6 +9,7 @@ export interface ArchivedDocument {
   uploaded_at: string | null;
   archived_at: string;
   expiration_date: string | null;
+  ministry?: string | null;
 }
 
 export interface Member {
@@ -23,6 +24,21 @@ export interface Member {
   document_url: string | null;
   notes: string | null;
   expiration_date: string | null;
+  archived_documents: ArchivedDocument[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemberMinistry {
+  id: string;
+  member_id: string;
+  ministry: string;
+  status: MemberStatus;
+  start_date: string | null;
+  expiration_date: string | null;
+  renewal_date: string | null;
+  document_url: string | null;
+  document_uploaded_at: string | null;
   archived_documents: ArchivedDocument[];
   created_at: string;
   updated_at: string;
@@ -173,6 +189,7 @@ export interface Signatory {
 export interface CertificateDownload {
   id: string;
   member_id: string;
+  member_ministry_id: string | null;
   ministry: string | null;
   download_count: number;
   created_at: string;
@@ -186,6 +203,11 @@ export interface Database {
         Row: Member;
         Insert: Partial<Member>;
         Update: Partial<Member>;
+      };
+      member_ministries: {
+        Row: MemberMinistry;
+        Insert: Partial<MemberMinistry>;
+        Update: Partial<MemberMinistry>;
       };
       audit_logs: {
         Row: AuditLog;

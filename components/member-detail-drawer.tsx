@@ -2,15 +2,13 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { StatusBadge } from "@/components/status-badge";
 import {
   STATUS_VALUES,
   getExpirationStatus,
-  EXPIRING_SOON_DAYS,
   DEFAULT_TEMPLATE_SETTINGS,
 } from "@/lib/constants";
 import { MinistryMultiSelect } from "@/components/ministry-multi-select";
-import type { Member, AuditLog, ArchivedDocument, MemberStatus, CertificateTemplateSettings, Signatory } from "@/lib/types";
+import type { Member, MemberMinistry, AuditLog, ArchivedDocument, MemberStatus, CertificateTemplateSettings, Signatory } from "@/lib/types";
 import {
   Sheet,
   SheetContent,
@@ -26,20 +24,30 @@ import {
   Trash2,
   ExternalLink,
   QrCode,
-  ShieldCheck,
   AlertTriangle,
   ScrollText,
-  CalendarClock,
   Archive,
   Printer,
   Pencil,
-  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   CertificateDesign,
   type CertificateDesignHandle,
 } from "@/components/certificate-design";
+
+type MembershipDraft = Pick<
+  MemberMinistry,
+  | "id"
+  | "ministry"
+  | "status"
+  | "start_date"
+  | "expiration_date"
+  | "renewal_date"
+  | "document_url"
+  | "document_uploaded_at"
+  | "archived_documents"
+>;
 
 export function MemberDetailDrawer({
   memberId,
@@ -59,6 +67,10 @@ export function MemberDetailDrawer({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editMinistries, setEditMinistries] = useState<string[]>([]);
+  const [membershipDrafts, setMembershipDrafts] = useState<MembershipDraft[]>([]);
+  const [persistedMembershipIds, setPersistedMembershipIds] = useState<string[]>([]);
+  const [membershipTableAvailable, setMembershipTableAvailable] = useState(true);
+  const [selectedMinistry, setSelectedMinistry] = useState<string | null>(null);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editingName, setEditingName] = useState(false);
@@ -68,12 +80,9 @@ export function MemberDetailDrawer({
     useState<Signatory[]>([]);
   const certificateRef = useRef<CertificateDesignHandle>(null);
   const [printingCertificate, setPrintingCertificate] = useState(false);
-  const [status, setStatus] = useState<MemberStatus>("Pending Verification");
   const [notes, setNotes] = useState("");
-  const [expirationDate, setExpirationDate] = useState<string>("");
   const [uploading, setUploading] = useState(false);
-  const [signedDocUrl, setSignedDocUrl] = useState<string | null>(null);
-  const [archivedDocs, setArchivedDocs] = useState<ArchivedDocument[]>([]);
+  const [signedMembershipDocUrl, setSignedMembershipDocUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -97,10 +106,59 @@ export function MemberDetailDrawer({
     setEditFirstName(m.first_name);
     setEditLastName(m.last_name);
     setEditingName(false);
-    setStatus(m.status);
     setNotes(m.notes ?? "");
-    setExpirationDate(m.expiration_date ?? "");
-    setArchivedDocs(m.archived_documents ?? []);
+
+    const { data: membershipRows, error: membershipError } = await supabase
+      .from("member_ministries")
+      .select("*")
+      .eq("member_id", m.id)
+      .order("created_at");
+
+    if (!membershipError) {
+      const rows = (membershipRows as MemberMinistry[]) ?? [];
+      setMembershipTableAvailable(true);
+      setMembershipDrafts(
+        rows.map((row) => ({
+          id: row.id,
+          ministry: row.ministry,
+          status: row.status,
+          start_date: row.start_date,
+          expiration_date: row.expiration_date,
+          renewal_date: row.renewal_date,
+          document_url: row.document_url,
+          document_uploaded_at: row.document_uploaded_at,
+          archived_documents: row.archived_documents ?? [],
+        }))
+      );
+      setPersistedMembershipIds(rows.map((row) => row.id));
+      setEditMinistries(rows.map((row) => row.ministry));
+      setSelectedMinistry((current) =>
+        current && rows.some((row) => row.ministry === current)
+          ? current
+          : rows[0]?.ministry ?? null
+      );
+    } else {
+      // Compatibility fallback until the member_ministries migration is applied.
+      setMembershipTableAvailable(false);
+      const fallbackRows: MembershipDraft[] = m.ministries.map((ministry) => ({
+        id: "",
+        ministry,
+        status: m.status,
+        start_date: m.created_at.slice(0, 10),
+        expiration_date: m.expiration_date,
+        renewal_date: null,
+        document_url: m.document_url,
+        document_uploaded_at: null,
+        archived_documents: m.archived_documents ?? [],
+      }));
+      setPersistedMembershipIds([]);
+      setMembershipDrafts(fallbackRows);
+      setSelectedMinistry((current) =>
+        current && m.ministries.includes(current)
+          ? current
+          : m.ministries[0] ?? null
+      );
+    }
 
     // Load the certificate template marked as the system default.
     // This keeps the member drawer certificate identical to the template
@@ -141,14 +199,6 @@ export function MemberDetailDrawer({
       .limit(10);
     setAudits((logs as AuditLog[]) ?? []);
 
-    if (m.document_url) {
-      const { data: signed } = await supabase.storage
-        .from("member-documents")
-        .createSignedUrl(m.document_url, 3600);
-      setSignedDocUrl(signed?.signedUrl ?? null);
-    } else {
-      setSignedDocUrl(null);
-    }
     setLoading(false);
   }, [memberId, supabase]);
 
@@ -158,8 +208,83 @@ export function MemberDetailDrawer({
     }
   }, [open, memberId, load]);
 
-  const expStatus = getExpirationStatus(member?.expiration_date ?? null);
-  const isExpiredOrExpiring = expStatus === "expired" || expStatus === "expiring_soon";
+  const selectedMembership =
+    membershipDrafts.find((membership) => membership.ministry === selectedMinistry) ??
+    membershipDrafts[0] ??
+    null;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSignedDocument = async () => {
+      if (!selectedMembership?.document_url) {
+        setSignedMembershipDocUrl(null);
+        return;
+      }
+
+      const { data } = await supabase.storage
+        .from("member-documents")
+        .createSignedUrl(selectedMembership.document_url, 3600);
+
+      if (!cancelled) {
+        setSignedMembershipDocUrl(data?.signedUrl ?? null);
+      }
+    };
+
+    void loadSignedDocument();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMembership?.document_url, supabase]);
+
+  const selectedExpirationStatus = getExpirationStatus(
+    selectedMembership?.expiration_date ?? null
+  );
+
+  const selectedCertificateEligible =
+    Boolean(selectedMembership) &&
+    (selectedMembership?.status === "New" || selectedMembership?.status === "Renewed") &&
+    selectedExpirationStatus !== "expired" &&
+    selectedExpirationStatus !== "expiring_soon";
+
+  const handleMinistriesChange = (ministries: string[]) => {
+    setEditMinistries(ministries);
+    setMembershipDrafts((current) =>
+      ministries.map((ministry) => {
+        const existing = current.find((row) => row.ministry === ministry);
+        if (existing) return existing;
+
+        return {
+          id: "",
+          ministry,
+          status: "Pending Verification" as MemberStatus,
+          start_date: new Date().toISOString().slice(0, 10),
+          expiration_date: null,
+          renewal_date: null,
+          document_url: null,
+          document_uploaded_at: null,
+          archived_documents: [],
+        };
+      })
+    );
+
+    setSelectedMinistry((current) =>
+      current && ministries.includes(current) ? current : ministries[0] ?? null
+    );
+  };
+
+  const updateMembershipDraft = (
+    ministry: string,
+    field: "status" | "start_date" | "expiration_date" | "renewal_date",
+    value: MemberStatus | string | null
+  ) => {
+    setMembershipDrafts((current) =>
+      current.map((row) =>
+        row.ministry === ministry ? { ...row, [field]: value || null } : row
+      )
+    );
+  };
 
   const handleSave = async () => {
     if (!member) return;
@@ -181,11 +306,53 @@ export function MemberDetailDrawer({
         first_name: firstName,
         last_name: lastName,
         ministries: editMinistries,
-        status,
         notes: notes.trim() || null,
-        expiration_date: expirationDate || null,
       })
       .eq("id", member.id);
+
+    if (!error && membershipTableAvailable) {
+      const currentIds = new Set(
+        membershipDrafts.map((row) => row.id).filter((id): id is string => Boolean(id))
+      );
+      const removedMembershipIds = persistedMembershipIds.filter(
+        (id) => !currentIds.has(id)
+      );
+
+      if (removedMembershipIds.length > 0) {
+        const { error: removeError } = await supabase
+          .from("member_ministries")
+          .delete()
+          .in("id", removedMembershipIds);
+
+        if (removeError) {
+          setSaving(false);
+          setError(removeError.message);
+          return;
+        }
+      }
+
+      if (membershipDrafts.length > 0) {
+        const { error: membershipSaveError } = await supabase
+          .from("member_ministries")
+          .upsert(
+            membershipDrafts.map((row) => ({
+              member_id: member.id,
+              ministry: row.ministry,
+              status: row.status,
+              start_date: row.start_date,
+              expiration_date: row.expiration_date,
+              renewal_date: row.renewal_date,
+            })),
+            { onConflict: "member_id,ministry" }
+          );
+
+        if (membershipSaveError) {
+          setSaving(false);
+          setError(membershipSaveError.message);
+          return;
+        }
+      }
+    }
 
     setSaving(false);
 
@@ -210,43 +377,72 @@ export function MemberDetailDrawer({
   };
 
   const handleUpload = async (file: File) => {
-    if (!member) return;
+    if (
+      !member ||
+      !membershipTableAvailable ||
+      !selectedMembership?.id
+    ) {
+      setError("Save the ministry assignment before uploading its recommendation letter.");
+      return;
+    }
+
     setUploading(true);
     setError(null);
-    const ext = file.name.split(".").pop();
-    const path = `${member.id}/recommendation-letter.${ext}`;
 
-    // Archive the previous document if one exists
-    if (member.document_url) {
-      const archivedEntry: ArchivedDocument = {
-        document_url: member.document_url,
-        uploaded_at: member.created_at,
-        archived_at: new Date().toISOString(),
-        expiration_date: member.expiration_date,
-      };
-      const newArchived = [...archivedDocs, archivedEntry];
-      setArchivedDocs(newArchived);
-      await supabase
-        .from("members")
-        .update({ archived_documents: newArchived })
-        .eq("id", member.id);
-    }
+    const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
+    const path = `${member.id}/${selectedMembership.id}/recommendation-letter.${ext}`;
+    const nowIso = new Date().toISOString();
+
+    const archivedDocuments = selectedMembership.archived_documents ?? [];
+    const nextArchivedDocuments = selectedMembership.document_url
+      ? [
+          ...archivedDocuments,
+          {
+            document_url: selectedMembership.document_url,
+            uploaded_at: selectedMembership.document_uploaded_at,
+            archived_at: nowIso,
+            expiration_date: selectedMembership.expiration_date,
+            ministry: selectedMembership.ministry,
+          } satisfies ArchivedDocument,
+        ]
+      : archivedDocuments;
 
     const { error: upErr } = await supabase.storage
       .from("member-documents")
       .upload(path, file, { upsert: true });
+
     if (upErr) {
       setError(upErr.message);
       setUploading(false);
       return;
     }
 
-    // Set new expiration date to one year from today if none set
     const defaultExp = new Date();
     defaultExp.setFullYear(defaultExp.getFullYear() + 1);
-    const newExpDate = expirationDate || defaultExp.toISOString().slice(0, 10);
+    const newExpDate = defaultExp.toISOString().slice(0, 10);
+    const renewalDate = new Date().toISOString().slice(0, 10);
 
-    await supabase
+    const { error: membershipRenewalError } = await supabase
+      .from("member_ministries")
+      .update({
+        status: "Renewed",
+        expiration_date: newExpDate,
+        renewal_date: renewalDate,
+        document_url: path,
+        document_uploaded_at: nowIso,
+        archived_documents: nextArchivedDocuments,
+      })
+      .eq("id", selectedMembership.id);
+
+    if (membershipRenewalError) {
+      setError(membershipRenewalError.message);
+      setUploading(false);
+      return;
+    }
+
+    // Temporary compatibility mirror for screens that still read member-level
+    // document/status fields. member_ministries remains the canonical source.
+    const { error: memberUpdateError } = await supabase
       .from("members")
       .update({
         document_url: path,
@@ -255,22 +451,55 @@ export function MemberDetailDrawer({
       })
       .eq("id", member.id);
 
+    if (memberUpdateError) {
+      setError(memberUpdateError.message);
+      setUploading(false);
+      return;
+    }
+
     setUploading(false);
     toast({
       title: "Letter uploaded",
-      description: "Previous letter archived. New expiration date set.",
+      description: `${selectedMembership.ministry} renewed for one year.`,
     });
     load();
     onUpdated?.();
   };
 
   const handleDeleteDocument = async () => {
-    if (!member?.document_url) return;
-    await supabase.storage.from("member-documents").remove([member.document_url]);
-    await supabase
-      .from("members")
-      .update({ document_url: null, expiration_date: null })
-      .eq("id", member.id);
+    if (!selectedMembership?.id || !selectedMembership.document_url) return;
+
+    const { error: storageError } = await supabase.storage
+      .from("member-documents")
+      .remove([selectedMembership.document_url]);
+
+    if (storageError) {
+      setError(storageError.message);
+      return;
+    }
+
+    const { error: membershipUpdateError } = await supabase
+      .from("member_ministries")
+      .update({
+        document_url: null,
+        document_uploaded_at: null,
+        expiration_date: null,
+      })
+      .eq("id", selectedMembership.id);
+
+    if (membershipUpdateError) {
+      setError(membershipUpdateError.message);
+      return;
+    }
+
+    // Clear the legacy mirror only when it points at the same document.
+    if (member?.document_url === selectedMembership.document_url) {
+      await supabase
+        .from("members")
+        .update({ document_url: null, expiration_date: null })
+        .eq("id", member.id);
+    }
+
     load();
     onUpdated?.();
   };
@@ -280,7 +509,7 @@ export function MemberDetailDrawer({
     : "";
 
   const handlePrintCertificate = () => {
-  if (!member?.uid || member.uid === "PENDING" || isExpiredOrExpiring) return;
+  if (!member?.uid || member.uid === "PENDING" || !selectedCertificateEligible) return;
 
   const sourceCanvas = certificateRef.current?.getCanvas();
   if (!sourceCanvas) return;
@@ -349,12 +578,6 @@ export function MemberDetailDrawer({
                 <span className="text-muted-foreground/50">·</span>
                 <span>UID: <code className="text-xs">{member.uid}</code></span>
               </SheetDescription>
-              <div className="pt-1">
-                <StatusBadge
-                  status={member.status}
-                  expirationDate={member.expiration_date}
-                />
-              </div>
             </SheetHeader>
 
             {/* Body */}
@@ -366,43 +589,9 @@ export function MemberDetailDrawer({
                 </div>
               )}
 
-              {/* Expiration warning */}
-              {expStatus === "expired" && (
-                <div className="flex items-start gap-2 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-inset ring-red-600/20">
-                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>
-                    This member&apos;s recommendation letter has expired. The
-                    Print UID Certificate button is disabled until renewal.
-                  </span>
-                </div>
-              )}
-              {expStatus === "expiring_soon" && (
-                <div className="flex items-start gap-2 rounded-md bg-orange-50 px-4 py-3 text-sm text-orange-800 ring-1 ring-inset ring-orange-600/20">
-                  <CalendarClock className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>
-                    This member&apos;s letter expires within {EXPIRING_SOON_DAYS}{" "}
-                    days (on {new Date(member.expiration_date!).toLocaleDateString()}).
-                    Renew soon to keep the Print UID Certificate button enabled.
-                  </span>
-                </div>
-              )}
-
               {/* Edit section */}
               <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
                 <h3 className="text-sm font-semibold">Member Details</h3>
-
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Status</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as MemberStatus)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {STATUS_VALUES.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
@@ -485,26 +674,141 @@ export function MemberDetailDrawer({
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Assigned Ministries</label>
-                  <MinistryMultiSelect value={editMinistries} onChange={setEditMinistries} columns={1} />
-                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium">Assigned Ministries</label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Each ministry now has its own workflow status and validity dates.
+                    </p>
+                  </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium flex items-center gap-1.5">
-                    <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
-                    Expiration Date
-                  </label>
-                  <input
-                    type="date"
-                    value={expirationDate}
-                    onChange={(e) => setExpirationDate(e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  <MinistryMultiSelect
+                    value={editMinistries}
+                    onChange={handleMinistriesChange}
+                    columns={1}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    When the recommendation letter expires. Auto-set to one year
-                    from upload if left blank.
-                  </p>
+
+                  {!membershipTableAvailable && (
+                    <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                      Per-ministry records are shown in compatibility mode. Apply the
+                      member_ministries migration before saving independent ministry
+                      status or expiration changes.
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    {membershipDrafts.map((membership) => {
+                      const expirationStatus = getExpirationStatus(
+                        membership.expiration_date
+                      );
+
+                      return (
+                        <div
+                          key={membership.ministry}
+                          className="rounded-md border border-border bg-muted/20 p-4 space-y-3"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-semibold">
+                              {membership.ministry}
+                            </p>
+                            {expirationStatus === "expired" && (
+                              <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">
+                                Expired
+                              </span>
+                            )}
+                            {expirationStatus === "expiring_soon" && (
+                              <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-800 ring-1 ring-inset ring-orange-600/20">
+                                Expiring Soon
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <label className="text-xs text-muted-foreground">
+                                Status
+                              </label>
+                              <select
+                                value={membership.status}
+                                onChange={(event) =>
+                                  updateMembershipDraft(
+                                    membership.ministry,
+                                    "status",
+                                    event.target.value as MemberStatus
+                                  )
+                                }
+                                disabled={!membershipTableAvailable}
+                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                              >
+                                {STATUS_VALUES.map((value) => (
+                                  <option key={value} value={value}>
+                                    {value}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs text-muted-foreground">
+                                Expiration Date
+                              </label>
+                              <input
+                                type="date"
+                                value={membership.expiration_date ?? ""}
+                                onChange={(event) =>
+                                  updateMembershipDraft(
+                                    membership.ministry,
+                                    "expiration_date",
+                                    event.target.value
+                                  )
+                                }
+                                disabled={!membershipTableAvailable}
+                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs text-muted-foreground">
+                                Start Date
+                              </label>
+                              <input
+                                type="date"
+                                value={membership.start_date ?? ""}
+                                onChange={(event) =>
+                                  updateMembershipDraft(
+                                    membership.ministry,
+                                    "start_date",
+                                    event.target.value
+                                  )
+                                }
+                                disabled={!membershipTableAvailable}
+                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs text-muted-foreground">
+                                Renewal Date
+                              </label>
+                              <input
+                                type="date"
+                                value={membership.renewal_date ?? ""}
+                                onChange={(event) =>
+                                  updateMembershipDraft(
+                                    membership.ministry,
+                                    "renewal_date",
+                                    event.target.value
+                                  )
+                                }
+                                disabled={!membershipTableAvailable}
+                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -542,9 +846,10 @@ export function MemberDetailDrawer({
                     liturgicalYear: certificateSettings.liturgical_year,
                     verifyUrl: publicVerifyUrl,
                     selectedMinistry:
-                      member.ministries.length === 1
+                      selectedMinistry ??
+                      (member.ministries.length === 1
                         ? member.ministries[0]
-                        : null,
+                        : null),
                   }}
                   signatories={certificateSignatories}
                   className="member-certificate-print-canvas"
@@ -557,8 +862,27 @@ export function MemberDetailDrawer({
                   <Printer className="h-4 w-4" />
                   UID Certificate
                 </h3>
+                {membershipDrafts.length > 1 && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">
+                      Certificate ministry
+                    </label>
+                    <select
+                      value={selectedMinistry ?? ""}
+                      onChange={(event) => setSelectedMinistry(event.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {membershipDrafts.map((membership) => (
+                        <option key={membership.ministry} value={membership.ministry}>
+                          {membership.ministry}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <button
-                  disabled={isExpiredOrExpiring}
+                  disabled={!selectedCertificateEligible || printingCertificate}
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   onClick={() => {
                     if (member.uid && member.uid !== "PENDING") {
@@ -566,19 +890,20 @@ export function MemberDetailDrawer({
                     }
                   }}
                   title={
-                    isExpiredOrExpiring
-                      ? "Certificate printing is disabled for expired or expiring members"
-                      : "Print UID certificate"
+                    selectedCertificateEligible
+                      ? "Print UID certificate"
+                      : "Certificate printing is unavailable for this ministry"
                   }
                 >
                   <Printer className="h-4 w-4" />
                   {printingCertificate ? "Preparing Certificate..." : "Print UID Certificate"}
                 </button>
-                {isExpiredOrExpiring && (
+
+                {!selectedCertificateEligible && selectedMembership && (
                   <p className="text-xs text-muted-foreground">
-                    Printing is disabled because the member&apos;s letter is{" "}
-                    {expStatus === "expired" ? "expired" : "expiring soon"}.
-                    Upload a new recommendation letter to re-enable.
+                    Printing is unavailable for {selectedMembership.ministry} because
+                    its status or expiration does not currently qualify for a
+                    certificate.
                   </p>
                 )}
               </div>
@@ -589,11 +914,35 @@ export function MemberDetailDrawer({
                   <FileText className="h-4 w-4" />
                   Recommendation Letter
                 </h3>
-                {member.document_url ? (
+                {membershipDrafts.length > 1 && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">
+                      Membership this letter renews
+                    </label>
+                    <select
+                      value={selectedMinistry ?? ""}
+                      onChange={(event) => setSelectedMinistry(event.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {membershipDrafts.map((membership) => (
+                        <option key={membership.ministry} value={membership.ministry}>
+                          {membership.ministry}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {!selectedMembership?.id && membershipTableAvailable && (
+                  <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                    Save this ministry assignment before uploading its recommendation letter.
+                  </div>
+                )}
+
+                {selectedMembership?.document_url ? (
                   <div className="space-y-3">
-                    {signedDocUrl ? (
+                    {signedMembershipDocUrl ? (
                       <a
-                        href={signedDocUrl}
+                        href={signedMembershipDocUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 rounded-md border border-border p-3 text-sm hover:bg-muted transition-colors"
@@ -631,6 +980,7 @@ export function MemberDetailDrawer({
                       type="file"
                       accept="image/*,.pdf"
                       className="hidden"
+                      disabled={!selectedMembership?.id || !membershipTableAvailable}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f) handleUpload(f);
@@ -639,24 +989,27 @@ export function MemberDetailDrawer({
                   </label>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Uploading a new letter archives the previous one and resets the
-                  expiration date.
+                  Uploading a new letter archives the previous one and renews the
+                  selected ministry for one year.
                 </p>
               </div>
 
               {/* Archived Documents */}
-              {archivedDocs.length > 0 && (
+              {(selectedMembership?.archived_documents?.length ?? 0) > 0 && (
                 <div className="rounded-lg border border-border bg-muted/20 p-5 shadow-sm space-y-3">
                   <h3 className="text-sm font-semibold flex items-center gap-1.5">
                     <Archive className="h-4 w-4" />
-                    Archived Documents ({archivedDocs.length})
+                    Archived Documents ({selectedMembership?.archived_documents.length ?? 0})
                   </h3>
+                  <p className="text-xs text-muted-foreground">
+                    History for {selectedMembership?.ministry}.
+                  </p>
                   <ul className="divide-y divide-border">
-                    {archivedDocs.map((doc, i) => (
-                      <li key={i} className="py-2.5 space-y-1">
+                    {(selectedMembership?.archived_documents ?? []).map((doc, i) => (
+                      <li key={`${doc.document_url}-${doc.archived_at}-${i}`} className="py-2.5 space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-medium truncate">
-                            Letter #{archivedDocs.length - i}
+                            Letter #{(selectedMembership?.archived_documents.length ?? 0) - i}
                           </span>
                           <span className="text-xs text-muted-foreground whitespace-nowrap">
                             Archived {new Date(doc.archived_at).toLocaleDateString()}
