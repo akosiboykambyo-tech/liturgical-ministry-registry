@@ -9,7 +9,7 @@ import VerificationResultStack from "@/components/verification-result-stack";
 import { CertificateDesign } from "@/components/certificate-design";
 import type { CertificateDesignHandle } from "@/components/certificate-design";
 import type { Member, CertificateTemplateSettings, Signatory } from "@/lib/types";
-import { DEFAULT_TEMPLATE_SETTINGS } from "@/lib/constants";
+import { DEFAULT_TEMPLATE_SETTINGS, getExpirationStatus } from "@/lib/constants";
 import {
   Search,
   ShieldCheck,
@@ -58,6 +58,7 @@ interface PublicMember extends Pick<
   | "ministries"
   | "status"
   | "service_year"
+  | "expiration_date"
 > {}
 function VerifyPage() {
   const supabase = getSupabaseBrowserClient();
@@ -128,7 +129,7 @@ function VerifyPage() {
       // Public verification only needs these fields.
       // Never expose internal document URLs, notes, or archived documents.
       const publicFields =
-        "id,uid,first_name,last_name,parish,ministries,status,service_year";
+        "id,uid,first_name,last_name,parish,ministries,status,service_year,expiration_date";
 
       // A complete Registry ID must follow LMD-YYYY-NNNN.
       const isCompleteUid = /^LMD-\d{4}-\d+$/i.test(term);
@@ -352,10 +353,19 @@ function VerifyPage() {
     doSearch(query);
   };
 
+  const expirationStatus =
+    results.length === 1
+      ? getExpirationStatus(results[0].expiration_date)
+      : "none";
+
+  const isExpiredOrExpiring =
+    expirationStatus === "expired" || expirationStatus === "expiring_soon";
+
   const canDownload =
     results.length === 1 &&
     settings &&
     searchedByUid &&
+    !isExpiredOrExpiring &&
     (results[0].status === "New" || results[0].status === "Renewed");
 
   const reprintSuffix =
@@ -407,7 +417,7 @@ function VerifyPage() {
 
   const handleDownload = async () => {
     const member = results[0];
-    if (!member || !settings) return;
+    if (!member || !settings || isExpiredOrExpiring) return;
     const ministry = member.ministries.length === 1
       ? member.ministries[0]
       : selectedMinistry;
@@ -430,7 +440,7 @@ function VerifyPage() {
 
     const handlePrint = async () => {
   const member = results[0];
-  if (!member || !settings) return;
+  if (!member || !settings || isExpiredOrExpiring) return;
 
   const ministry =
     member.ministries.length === 1
@@ -569,7 +579,7 @@ const handleMinistrySelect = async (ministry: string) => {
 
   const member = results[0];
 
-  if (!member || !settings) return;
+  if (!member || !settings || isExpiredOrExpiring) return;
 
   setGenerating(true);
 
@@ -772,6 +782,46 @@ const handleMinistrySelect = async (ministry: string) => {
                       </div>
                     )}
 
+                    {expirationStatus === "expired" && (
+                      <div className="rounded-lg border-2 border-rose-300 bg-rose-50 px-5 py-4">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle
+                            aria-hidden="true"
+                            className="h-5 w-5 text-rose-700 mt-0.5 shrink-0"
+                          />
+                          <div>
+                            <p className="font-semibold text-rose-900">
+                              Recommendation Letter Expired
+                            </p>
+                            <p className="text-sm text-rose-800 mt-0.5">
+                              This member&apos;s recommendation letter has expired.
+                              Certificate download and printing are disabled until renewal.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {expirationStatus === "expiring_soon" && (
+                      <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-5 py-4">
+                        <div className="flex items-start gap-3">
+                          <Clock
+                            aria-hidden="true"
+                            className="h-5 w-5 text-amber-700 mt-0.5 shrink-0"
+                          />
+                          <div>
+                            <p className="font-semibold text-amber-900">
+                              Recommendation Letter Expiring Soon
+                            </p>
+                            <p className="text-sm text-amber-800 mt-0.5">
+                              This member&apos;s recommendation letter is approaching expiration.
+                              Certificate download and printing are disabled until renewal.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Privacy-safe result card */}
                     <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
                       <div className="flex items-start justify-between gap-4">
@@ -786,7 +836,19 @@ const handleMinistrySelect = async (ministry: string) => {
                             {member.parish}
                           </p>
                         </div>
-                        <StatusBadge status={status} />
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <StatusBadge status={status} />
+                          {expirationStatus === "expired" && (
+                            <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 ring-1 ring-inset ring-rose-600/20">
+                              Expired
+                            </span>
+                          )}
+                          {expirationStatus === "expiring_soon" && (
+                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                              Expiring Soon
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -800,7 +862,8 @@ const handleMinistrySelect = async (ministry: string) => {
                         </div>
                       </div>
 
-                      {(status === "New" || status === "Renewed") && (
+                      {(status === "New" || status === "Renewed") &&
+                        !isExpiredOrExpiring && (
                         <div role="status" className="mt-4 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
                           <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />
                           <span className="font-medium">Verified Active Member</span>
@@ -880,7 +943,11 @@ const handleMinistrySelect = async (ministry: string) => {
                               <div>
                                 <p className="text-sm font-medium">Certificate Download Unavailable</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {!searchedByUid
+                                  {isExpiredOrExpiring
+                                    ? expirationStatus === "expired"
+                                      ? "Certificate download is unavailable because this member's recommendation letter has expired."
+                                      : "Certificate download is unavailable because this member's recommendation letter is approaching expiration."
+                                    : !searchedByUid
                                     ? "Certificate download requires the exact Registry ID. Search by UID (e.g., LMD-2026-0001) to unlock the official certificate download."
                                     : results.length > 1
                                     ? "Multiple entries matched this UID. Refine your search to a single record."
