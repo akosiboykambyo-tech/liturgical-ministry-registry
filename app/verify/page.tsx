@@ -358,7 +358,15 @@ function VerifyPage() {
     searchedByUid &&
     (results[0].status === "New" || results[0].status === "Renewed");
 
-  const reprintSuffix = downloadCount > 0 ? `-R${downloadCount}` : "";
+  const reprintSuffix =
+    downloadCount > 0 ? `-R${downloadCount + 1}` : "";
+
+  const waitForCertificateRender = () =>
+    new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
 
   const trackDownload = async (memberId: string, ministry: string | null) => {
     const { data: existing } = await supabase
@@ -386,14 +394,14 @@ function VerifyPage() {
         .from("certificate_downloads")
         .update({ download_count: newCount, updated_at: new Date().toISOString() })
         .eq("id", row.id);
-      setDownloadCount(newCount);
+      setDownloadCount((count) => count + 1);
     } else {
       await supabase.from("certificate_downloads").insert({
         member_id: memberId,
         ministry: ministry ?? null,
         download_count: 1,
       });
-      setDownloadCount(1);
+      setDownloadCount((count) => count + 1);
     }
   };
 
@@ -408,9 +416,16 @@ function VerifyPage() {
       return;
     }
     setGenerating(true);
-    await trackDownload(member.id, ministry);
-    await certRef.current?.download(`certificate-${member.uid}${reprintSuffix || ""}.png`);
-    setGenerating(false);
+
+    try {
+      await certRef.current?.download(
+        `certificate-${member.uid}${reprintSuffix}.png`
+      );
+
+      await trackDownload(member.id, ministry);
+    } finally {
+      setGenerating(false);
+    }
   };
 
     const handlePrint = async () => {
@@ -438,8 +453,6 @@ function VerifyPage() {
   setGenerating(true);
 
   try {
-    await trackDownload(member.id, ministry);
-
     // Render the exact same canvas used by the Download button.
     const canvas = await certRef.current?.render();
 
@@ -448,6 +461,8 @@ function VerifyPage() {
       setError("Unable to render the certificate for printing.");
       return;
     }
+
+    await trackDownload(member.id, ministry);
 
     const png = canvas.toDataURL("image/png");
 
@@ -558,11 +573,19 @@ const handleMinistrySelect = async (ministry: string) => {
 
   setGenerating(true);
 
-  await trackDownload(member.id, ministry);
+  try {
+    // Allow CertificateDesign to receive the selected ministry
+    // before asking its imperative ref to render/download.
+    await waitForCertificateRender();
 
-  await certRef.current?.download(`certificate-${member.uid}.png`);
+    await certRef.current?.download(
+      `certificate-${member.uid}${reprintSuffix}.png`
+    );
 
-  setGenerating(false);
+    await trackDownload(member.id, ministry);
+  } finally {
+    setGenerating(false);
+  }
 };
 
   return (
