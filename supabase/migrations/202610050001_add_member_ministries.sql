@@ -35,6 +35,19 @@ CREATE INDEX IF NOT EXISTS idx_member_ministries_expiration_date
   ON public.member_ministries (expiration_date)
   WHERE expiration_date IS NOT NULL;
 
+-- Keep updated_at current on member_ministries.
+-- Defined here so this migration does not depend on older schema history.
+CREATE OR REPLACE FUNCTION public.touch_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS trg_touch_member_ministries_updated_at
   ON public.member_ministries;
 
