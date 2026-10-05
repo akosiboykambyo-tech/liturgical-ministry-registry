@@ -11,8 +11,9 @@ import {
   PARISHES,
   STATUS_VALUES,
   shortMinistry,
+  getExpirationStatus,
 } from "@/lib/constants";
-import type { Member } from "@/lib/types";
+import type { Member, MemberMinistry } from "@/lib/types";
 import {
   Loader2,
   Search,
@@ -69,6 +70,10 @@ type Filters = {
   status: string[];
 };
 
+type MemberWithMemberships = Member & {
+  member_ministries: MemberMinistry[];
+};
+
 const EMPTY_FILTERS: Filters = {
   parish: [],
   ministry: [],
@@ -80,7 +85,7 @@ export default function MembersListPage() {
   const supabase = getSupabaseBrowserClient();
   const { toast } = useToast();
 
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<MemberWithMemberships[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -89,7 +94,7 @@ export default function MembersListPage() {
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportMembers, setReportMembers] = useState<Member[]>([]);
+  const [reportMembers, setReportMembers] = useState<MemberWithMemberships[]>([]);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [attention, setAttention] = useState<"pending" | "missing-documents" | "expiring" | null>(null);
 
@@ -150,19 +155,37 @@ export default function MembersListPage() {
     loadYears();
   }, [supabase]);
 
-  // Server-side search and filtering
+  // Server-side search and filtering.
+  // Ministry/status/attention filters now operate on member_ministries rather
+  // than the legacy member-wide compatibility fields.
   const loadMembers = useCallback(async () => {
     setLoading(true);
 
+    const dashboardAttention = new URLSearchParams(window.location.search).get("attention");
+    const hasMembershipFilter =
+      filters.ministry.length > 0 ||
+      filters.status.length > 0 ||
+      dashboardAttention === "pending" ||
+      dashboardAttention === "missing-documents" ||
+      dashboardAttention === "expiring";
+
+    const membershipFields =
+      "id,member_id,ministry,status,start_date,expiration_date,renewal_date,document_url,document_uploaded_at,archived_documents,created_at,updated_at";
+
+    // Keep one unfiltered embedding for display, and use a second inner-join
+    // alias only when membership-level filtering is required. This lets the
+    // table show every ministry even when one specific ministry/status matched.
+    const selectClause = hasMembershipFilter
+      ? `*,member_ministries(${membershipFields}),matched_memberships:member_ministries!inner(id,ministry,status,expiration_date,document_url)`
+      : `*,member_ministries(${membershipFields})`;
+
     let query = supabase
       .from("members")
-      .select("*", { count: "exact" });
+      .select(selectClause, { count: "exact" });
 
     // Apply search filter (server-side, case-insensitive)
     const searchTrimmed = search.trim();
     if (searchTrimmed) {
-      // Use ilike for case-insensitive partial matching on name or UID
-      // We'll use an or clause to search across multiple fields
       query = query.or(
         `first_name.ilike.%${searchTrimmed}%,last_name.ilike.%${searchTrimmed}%,parish.ilike.%${searchTrimmed}%,uid.ilike.%${searchTrimmed}%`
       );
@@ -173,9 +196,9 @@ export default function MembersListPage() {
       query = query.in("parish", filters.parish);
     }
 
-    // Apply ministry filter (member matches ANY selected ministry)
+    // Apply ministry filter to the per-ministry relationship.
     if (filters.ministry.length > 0) {
-      query = query.overlaps("ministries", filters.ministry);
+      query = query.in("matched_memberships.ministry", filters.ministry);
     }
 
     // Apply year filter (UID starts with LMD-YYYY-)
@@ -183,31 +206,31 @@ export default function MembersListPage() {
       query = query.ilike("uid", `LMD-${filters.year}-%`);
     }
 
-    // Apply dashboard attention filter directly from the current URL.
-    const dashboardAttention = new URLSearchParams(window.location.search).get("attention");
-
+    // Dashboard attention filters now refer to individual ministry records.
     if (dashboardAttention === "pending") {
-      query = query.eq("status", "Pending Verification");
+      query = query.eq("matched_memberships.status", "Pending Verification");
     }
 
     if (dashboardAttention === "missing-documents") {
-      query = query.is("document_url", null);
+      query = query.is("matched_memberships.document_url", null);
     }
 
     if (dashboardAttention === "expiring") {
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const future = new Date(today);
       future.setDate(future.getDate() + 30);
 
       query = query
-        .not("document_url", "is", null)
-        .not("expiration_date", "is", null)
-        .gte("expiration_date", today.toISOString().slice(0, 10))
-        .lte("expiration_date", future.toISOString().slice(0, 10));
+        .not("matched_memberships.document_url", "is", null)
+        .not("matched_memberships.expiration_date", "is", null)
+        .gte("matched_memberships.expiration_date", today.toISOString().slice(0, 10))
+        .lte("matched_memberships.expiration_date", future.toISOString().slice(0, 10));
     }
-    // Apply status filter (member matches ANY selected status)
+
+    // Apply status filter to the per-ministry relationship.
     if (filters.status.length > 0) {
-      query = query.in("status", filters.status);
+      query = query.in("matched_memberships.status", filters.status);
     }
 
     // Apply pagination
@@ -226,7 +249,16 @@ export default function MembersListPage() {
       setMembers([]);
       setTotalCount(0);
     } else {
-      setMembers((data as Member[]) ?? []);
+      const normalized = ((data ?? []) as unknown as Array<
+        MemberWithMemberships & { matched_memberships?: unknown }
+      >).map(({ matched_memberships: _matchedMemberships, ...member }) => ({
+        ...member,
+        member_ministries: [...(member.member_ministries ?? [])].sort((a, b) =>
+          a.ministry.localeCompare(b.ministry)
+        ),
+      }));
+
+      setMembers(normalized);
       setTotalCount(count ?? 0);
     }
 
@@ -309,7 +341,7 @@ export default function MembersListPage() {
 
     const { data, error } = await supabase
       .from("members")
-      .select("*")
+      .select("*,member_ministries(*)")
       .in("id", selectedList);
 
     if (error) {
@@ -321,15 +353,19 @@ export default function MembersListPage() {
       return;
     }
 
-    const membersToExport = (data as Member[]) ?? [];
+    const membersToExport = (data as MemberWithMemberships[]) ?? [];
     const rows = membersToExport.map((m) =>
       [
         escape(m.uid),
         escape(m.first_name),
         escape(m.last_name),
         escape(m.parish),
-        escape(m.ministries.join("; ")),
-        escape(m.status),
+        escape((m.member_ministries ?? []).map((membership) => membership.ministry).join("; ")),
+        escape(
+          (m.member_ministries ?? [])
+            .map((membership) => `${shortMinistry(membership.ministry)}: ${membership.status}`)
+            .join("; ")
+        ),
         escape(m.created_at),
       ].join(",")
     );
@@ -617,20 +653,30 @@ export default function MembersListPage() {
                   <th className="px-4 py-3 font-semibold text-muted-foreground">Parish</th>
                   <th className="px-4 py-3 font-semibold text-muted-foreground">Ministries</th>
                   <th className="px-4 py-3 font-semibold text-muted-foreground">UID</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 font-semibold text-muted-foreground">Ministry Status</th>
                   <th className="px-4 py-3 font-semibold text-muted-foreground text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {members.map((m) => {
                   const checked = selected.has(m.id);
-                  const needsVerification = m.status === "Pending Verification";
-                  const needsLetter = !m.document_url;
-                  const expirationDate = m.expiration_date ? new Date(m.expiration_date) : null;
+                  const memberships = m.member_ministries ?? [];
                   const today = new Date();
+                  today.setHours(0, 0, 0, 0);
                   const in30Days = new Date(today);
                   in30Days.setDate(in30Days.getDate() + 30);
-                  const letterExpiringSoon = !!expirationDate && !!m.document_url && expirationDate >= today && expirationDate <= in30Days;
+
+                  const needsVerification = memberships.some(
+                    (membership) => membership.status === "Pending Verification"
+                  );
+                  const needsLetter = memberships.some(
+                    (membership) => !membership.document_url
+                  );
+                  const letterExpiringSoon = memberships.some((membership) => {
+                    if (!membership.document_url || !membership.expiration_date) return false;
+                    const expirationDate = new Date(`${membership.expiration_date}T00:00:00`);
+                    return expirationDate >= today && expirationDate <= in30Days;
+                  });
                   return (
                     <tr
                       key={m.id}
@@ -676,12 +722,12 @@ export default function MembersListPage() {
                       <td className="px-4 py-3 text-muted-foreground">{m.parish}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
-                          {m.ministries.map((min) => (
+                          {memberships.map((membership) => (
                             <span
-                              key={min}
+                              key={membership.id}
                               className="inline-flex rounded bg-accent px-1.5 py-0.5 text-[11px] font-medium text-accent-foreground"
                             >
-                              {shortMinistry(min)}
+                              {shortMinistry(membership.ministry)}
                             </span>
                           ))}
                         </div>
@@ -690,7 +736,54 @@ export default function MembersListPage() {
                         <code className="text-xs text-muted-foreground">{m.uid}</code>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={m.status} showIcon={false} />
+                        <div className="space-y-1.5">
+                          {memberships.length === 0 ? (
+                            <span className="text-xs text-muted-foreground">
+                              No ministry records
+                            </span>
+                          ) : (
+                            memberships.map((membership) => {
+                              const expirationLabel = membership.expiration_date
+                                ? new Date(
+                                    `${membership.expiration_date}T00:00:00`
+                                  ).toLocaleDateString()
+                                : null;
+                              const expirationStatus = getExpirationStatus(
+                                membership.expiration_date
+                              );
+
+                              return (
+                                <div
+                                  key={membership.id}
+                                  className="flex flex-wrap items-center gap-1.5"
+                                >
+                                  <span className="min-w-[3rem] text-[11px] font-semibold text-muted-foreground">
+                                    {shortMinistry(membership.ministry)}
+                                  </span>
+                                  <StatusBadge
+                                    status={membership.status}
+                                    showIcon={false}
+                                  />
+                                  {expirationStatus === "expired" && (
+                                    <span className="inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 ring-1 ring-inset ring-rose-600/20">
+                                      Expired
+                                    </span>
+                                  )}
+                                  {expirationStatus === "expiring_soon" && (
+                                    <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                                      Expiring Soon
+                                    </span>
+                                  )}
+                                  {expirationLabel && (
+                                    <span className="text-[11px] text-muted-foreground">
+                                      until {expirationLabel}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <DropdownMenu>
@@ -775,9 +868,9 @@ export default function MembersListPage() {
                 if (ids.length === 0) return;
                 const { data } = await supabase
                   .from("members")
-                  .select("*")
+                  .select("*,member_ministries(*)")
                   .in("id", ids);
-                setReportMembers((data as Member[]) ?? []);
+                setReportMembers((data as MemberWithMemberships[]) ?? []);
                 setReportOpen(true);
               }}
               className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
@@ -949,7 +1042,7 @@ function PrintReport({
   members,
   onClose,
 }: {
-  members: Member[];
+  members: MemberWithMemberships[];
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -971,8 +1064,12 @@ function PrintReport({
           <td>${m.uid}</td>
           <td>${escapeHtml(`${m.first_name} ${m.last_name}`)}</td>
           <td>${escapeHtml(m.parish)}</td>
-          <td>${escapeHtml(m.ministries.join(", "))}</td>
-          <td>${escapeHtml(m.status)}</td>
+          <td>${escapeHtml((m.member_ministries ?? []).map((membership) => membership.ministry).join(", "))}</td>
+          <td>${escapeHtml(
+            (m.member_ministries ?? [])
+              .map((membership) => `${shortMinistry(membership.ministry)}: ${membership.status}`)
+              .join("; ")
+          )}</td>
         </tr>`
       )
       .join("");
@@ -1111,7 +1208,16 @@ function PrintReport({
                     </td>
                     <td className="py-2 pr-2 text-muted-foreground">{m.parish}</td>
                     <td className="py-2 pr-2">
-                      <StatusBadge status={m.status} showIcon={false} />
+                      <div className="space-y-1">
+                        {(m.member_ministries ?? []).map((membership) => (
+                          <div key={membership.id} className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-muted-foreground">
+                              {shortMinistry(membership.ministry)}
+                            </span>
+                            <StatusBadge status={membership.status} showIcon={false} />
+                          </div>
+                        ))}
+                      </div>
                     </td>
                   </tr>
                 ))}
