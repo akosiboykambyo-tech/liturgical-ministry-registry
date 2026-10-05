@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/status-badge";
-import { Member } from "@/lib/types";
+import type { Member, MemberMinistry } from "@/lib/types";
 import { EXPIRING_SOON_DAYS } from "@/lib/constants";
 import {
   Users,
@@ -27,64 +27,92 @@ export default function AdminDashboardPage() {
     missingDocuments: 0,
     expiringSoon: 0,
   });
-  const [recent, setRecent] = useState<Member[]>([]);
+  const [recent, setRecent] = useState<
+    Array<Member & { member_ministries: MemberMinistry[] }>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [
-        countRes,
-        pendingRes,
-        verifiedRes,
-        missingDocumentsRes,
-        expiringSoonRes,
-      ] = await Promise.all([
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const expiringCutoff = new Date(today);
+      expiringCutoff.setDate(expiringCutoff.getDate() + EXPIRING_SOON_DAYS);
+
+      const [countRes, membershipsRes, recentRes] = await Promise.all([
         supabase
           .from("members")
           .select("id", { count: "exact", head: true }),
 
         supabase
-          .from("members")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "Pending Verification"),
+          .from("member_ministries")
+          .select("member_id,status,document_url,expiration_date"),
 
         supabase
           .from("members")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["New", "Renewed"]),
-
-        supabase
-          .from("members")
-          .select("id", { count: "exact", head: true })
-          .is("document_url", null),
-
-        supabase
-          .from("members")
-          .select("id", { count: "exact", head: true })
-          .gte("expiration_date", new Date().toISOString().slice(0, 10))
-          .lte(
-            "expiration_date",
-            new Date(
-              Date.now() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000
-            )
-              .toISOString()
-              .slice(0, 10)
-          ),
+          .select("*,member_ministries(*)")
+          .order("created_at", { ascending: false })
+          .limit(5),
       ]);
+
+      const membershipRows =
+        (membershipsRes.data as Pick<
+          MemberMinistry,
+          "member_id" | "status" | "document_url" | "expiration_date"
+        >[]) ?? [];
+
+      const pendingMemberIds = new Set<string>();
+      const verifiedMemberIds = new Set<string>();
+      const missingDocumentMemberIds = new Set<string>();
+      const expiringSoonMemberIds = new Set<string>();
+
+      for (const membership of membershipRows) {
+        if (membership.status === "Pending Verification") {
+          pendingMemberIds.add(membership.member_id);
+        }
+
+        if (membership.status === "New" || membership.status === "Renewed") {
+          verifiedMemberIds.add(membership.member_id);
+        }
+
+        if (!membership.document_url) {
+          missingDocumentMemberIds.add(membership.member_id);
+        }
+
+        if (membership.document_url && membership.expiration_date) {
+          const expirationDate = new Date(
+            `${membership.expiration_date}T00:00:00`
+          );
+
+          if (
+            expirationDate >= today &&
+            expirationDate <= expiringCutoff
+          ) {
+            expiringSoonMemberIds.add(membership.member_id);
+          }
+        }
+      }
+
       setStats({
         total: countRes.count ?? 0,
-        pending: pendingRes.count ?? 0,
-        verified: verifiedRes.count ?? 0,
-        missingDocuments: missingDocumentsRes.count ?? 0,
-        expiringSoon: expiringSoonRes.count ?? 0,
+        pending: pendingMemberIds.size,
+        verified: verifiedMemberIds.size,
+        missingDocuments: missingDocumentMemberIds.size,
+        expiringSoon: expiringSoonMemberIds.size,
       });
 
-      const { data: recentData } = await supabase
-        .from("members")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(5);
-      setRecent((recentData as Member[]) ?? []);
+      setRecent(
+        ((recentRes.data ?? []) as Array<
+          Member & { member_ministries: MemberMinistry[] }
+        >).map((member) => ({
+          ...member,
+          member_ministries: [...(member.member_ministries ?? [])].sort(
+            (a, b) => a.ministry.localeCompare(b.ministry)
+          ),
+        }))
+      );
+
       setLoading(false);
     })();
   }, [supabase]);
@@ -165,7 +193,7 @@ export default function AdminDashboardPage() {
             </p>
             <p className="text-sm font-semibold">Pending Verification</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Members awaiting approval.
+              Members with at least one ministry awaiting approval.
             </p>
           </Link>
 
@@ -188,7 +216,7 @@ export default function AdminDashboardPage() {
             </p>
             <p className="text-sm font-semibold">Recommendation Letter Needed</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Recommendation letters still need to be uploaded.
+              Members with at least one ministry missing a recommendation letter.
             </p>
           </Link>
 
@@ -211,7 +239,7 @@ export default function AdminDashboardPage() {
             </p>
             <p className="text-sm font-semibold">Expiring Soon</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Recommendation letters approaching expiration.
+              Members with at least one ministry recommendation letter approaching expiration.
             </p>
           </Link>
         </div>
@@ -268,7 +296,28 @@ export default function AdminDashboardPage() {
                       {m.parish}
                     </p>
                   </div>
-                  <StatusBadge status={m.status} showIcon={false} />
+                  <div className="flex max-w-[220px] flex-col items-end gap-1">
+                    {m.member_ministries.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        No ministry records
+                      </span>
+                    ) : (
+                      m.member_ministries.map((membership) => (
+                        <div
+                          key={membership.id}
+                          className="flex items-center gap-1.5"
+                        >
+                          <span className="text-[11px] font-medium text-muted-foreground">
+                            {membership.ministry}
+                          </span>
+                          <StatusBadge
+                            status={membership.status}
+                            showIcon={false}
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
