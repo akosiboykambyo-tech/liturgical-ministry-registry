@@ -96,6 +96,7 @@ export default function CertificateManagerPage() {
   const [sigLoading, setSigLoading] = useState(true);
   const [sigSaving, setSigSaving] = useState(false);
   const [sigUploading, setSigUploading] = useState<string | null>(null);
+  const [sigUploadUrl, setSigUploadUrl] = useState<string | null>(null);
   const [sigForm, setSigForm] = useState({
     name: "",
     title: "",
@@ -334,26 +335,29 @@ export default function CertificateManagerPage() {
     const { data: pub } = supabase.storage
       .from("certificate-templates")
       .getPublicUrl(path);
-    setSigForm((f) => ({ ...f }));
+    setSigUploadUrl(pub.publicUrl);
     setSigUploading(null);
-    // Store URL temporarily in a ref-like variable
-    sigUploadUrlRef.current = pub.publicUrl;
   };
-  const sigUploadUrlRef = useRef<string | null>(null);
 
   const handleSigSave = async () => {
     if (!sigForm.name.trim()) {
       setError("Signatory name is required.");
       return;
     }
+
+    if (sigForm.display_type === "dynamic" && !sigForm.ministry) {
+      setError("Please select a ministry for a dynamic signatory.");
+      return;
+    }
+
     setSigSaving(true);
     setError(null);
     const { error } = await supabase.from("signatories").insert({
       name: sigForm.name.trim(),
       title: sigForm.title.trim(),
-      signature_url: sigUploadUrlRef.current,
+      signature_url: sigUploadUrl,
       display_type: sigForm.display_type,
-      ministry: sigForm.display_type === "dynamic" ? sigForm.ministry || null : null,
+      ministry: sigForm.display_type === "dynamic" ? sigForm.ministry : null,
       position_x: sigForm.position_x,
       position_y: sigForm.position_y,
       width: sigForm.width,
@@ -365,7 +369,7 @@ export default function CertificateManagerPage() {
     if (error) {
       setError(error.message);
     } else {
-      sigUploadUrlRef.current = null;
+      setSigUploadUrl(null);
       setSigForm({
         name: "",
         title: "",
@@ -695,7 +699,7 @@ export default function CertificateManagerPage() {
                   <label className="cursor-pointer">
                     <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
                       {sigUploading === "new" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                      {sigUploadUrlRef.current ? "Replace signature" : "Upload signature"}
+                      {sigUploadUrl ? "Replace signature" : "Upload signature"}
                     </span>
                     <input
                       type="file"
@@ -707,7 +711,7 @@ export default function CertificateManagerPage() {
                       }}
                     />
                   </label>
-                  {sigUploadUrlRef.current && (
+                  {sigUploadUrl && (
                     <p className="text-[11px] text-emerald-600 mt-1">Signature image uploaded.</p>
                   )}
                 </div>
