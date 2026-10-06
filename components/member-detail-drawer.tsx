@@ -1063,21 +1063,96 @@ export function MemberDetailDrawer({
                   <p className="text-xs text-muted-foreground py-4 text-center">No audit entries yet.</p>
                 ) : (
                   <ul className="divide-y divide-border">
-                    {audits.map((a) => (
-                      <li key={a.id} className="py-2.5 flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{a.admin_action}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {a.previous_state
-                              ? `Changed from ${(a.previous_state as Record<string, unknown>).status ?? "—"} to ${(a.new_state as Record<string, unknown>).status ?? "—"}`
-                              : "Initial creation"}
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(a.timestamp).toLocaleString()}
-                        </span>
-                      </li>
-                    ))}
+                    {audits.map((a) => {
+                      const previousState =
+                        (a.previous_state as Record<string, unknown> | null) ?? null;
+                      const newState =
+                        (a.new_state as Record<string, unknown> | null) ?? null;
+                      const entityType =
+                        newState?.entity_type ?? previousState?.entity_type;
+                      const ministry =
+                        (newState?.ministry ?? previousState?.ministry) as
+                          | string
+                          | undefined;
+
+                      let summary = "Audit entry recorded.";
+
+                      if (entityType === "member_ministry") {
+                        if (a.admin_action === "Ministry Added") {
+                          summary = `${ministry ?? "Ministry"} added with status ${
+                            newState?.status ?? "Pending Verification"
+                          }.`;
+                        } else if (a.admin_action === "Ministry Removed") {
+                          summary = `${ministry ?? "Ministry"} removed.`;
+                        } else {
+                          const changes: string[] = [];
+
+                          if (previousState?.status !== newState?.status) {
+                            changes.push(
+                              `status ${previousState?.status ?? "—"} → ${
+                                newState?.status ?? "—"
+                              }`
+                            );
+                          }
+
+                          if (
+                            previousState?.expiration_date !==
+                            newState?.expiration_date
+                          ) {
+                            changes.push(
+                              `expiration ${
+                                previousState?.expiration_date ?? "—"
+                              } → ${newState?.expiration_date ?? "—"}`
+                            );
+                          }
+
+                          if (
+                            previousState?.renewal_date !== newState?.renewal_date
+                          ) {
+                            changes.push(
+                              `renewal ${previousState?.renewal_date ?? "—"} → ${
+                                newState?.renewal_date ?? "—"
+                              }`
+                            );
+                          }
+
+                          if (
+                            previousState?.document_url !== newState?.document_url
+                          ) {
+                            changes.push(
+                              newState?.document_url
+                                ? "recommendation letter updated"
+                                : "recommendation letter removed"
+                            );
+                          }
+
+                          summary =
+                            changes.length > 0
+                              ? `${ministry ?? "Ministry"}: ${changes.join("; ")}`
+                              : `${ministry ?? "Ministry"} updated.`;
+                        }
+                      } else if (!previousState) {
+                        summary = "Initial creation";
+                      } else {
+                        summary = `Changed from ${
+                          previousState.status ?? "—"
+                        } to ${newState?.status ?? "—"}`;
+                      }
+
+                      return (
+                        <li key={a.id} className="py-2.5 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{a.admin_action}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {summary}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(a.timestamp).toLocaleString()}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
