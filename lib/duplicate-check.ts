@@ -1,6 +1,76 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MINISTRIES, shortMinistry } from "@/lib/constants";
-import type { Member } from "@/lib/types";
+import type { Member, MemberMinistry } from "@/lib/types";
+
+
+const MEMBER_PAGE_SIZE = 1000;
+
+async function fetchAllMembers(): Promise<Member[]> {
+  const supabase = getSupabaseBrowserClient();
+  const all: Member[] = [];
+
+  for (let from = 0; ; from += MEMBER_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("members")
+      .select("*")
+      .range(from, from + MEMBER_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const batch = (data as Member[]) ?? [];
+    all.push(...batch);
+
+    if (batch.length < MEMBER_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
+function buildMembershipRows(
+  memberId: string,
+  ministries: string[]
+): Array<
+  Pick<
+    MemberMinistry,
+    | "member_id"
+    | "ministry"
+    | "status"
+    | "start_date"
+    | "expiration_date"
+    | "renewal_date"
+    | "document_url"
+    | "document_uploaded_at"
+    | "archived_documents"
+  >
+> {
+  return ministries.map((ministry) => ({
+    member_id: memberId,
+    ministry,
+    status: "Pending Verification",
+    start_date: null,
+    expiration_date: null,
+    renewal_date: null,
+    document_url: null,
+    document_uploaded_at: null,
+    archived_documents: [],
+  }));
+}
+
+async function createMemberMinistries(
+  memberId: string,
+  ministries: string[]
+): Promise<string | null> {
+  if (ministries.length === 0) return null;
+
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("member_ministries")
+    .insert(buildMembershipRows(memberId, ministries));
+
+  return error?.message ?? null;
+}
 
 export interface DuplicateMatch {
   existing: Member;
@@ -63,6 +133,13 @@ function areNamesSimilar(name1: string, name2: string): boolean {
   const n2 = name2.toLowerCase().trim();
 
   if (n1 === n2) return true;
+
+  // Numeric suffixes are meaningful identity data. For example,
+  // "Subject 3" and "Subject 4" (or "Juan II" and "Juan III" when written
+  // numerically) should not be treated as misspellings of each other.
+  const digits1 = n1.match(/\d+/g)?.join("|") ?? "";
+  const digits2 = n2.match(/\d+/g)?.join("|") ?? "";
+  if (digits1 !== digits2 && (digits1 || digits2)) return false;
 
   // For short names (3 chars or less), require exact match
   if (n1.length <= 3 || n2.length <= 3) return false;
@@ -145,12 +222,15 @@ export async function findDuplicateMembers(
 
   // 3. Similar names (fuzzy matching) - fetch all and filter client-side
   // This catches misspellings like "Juan" vs "Juhn", "Dela Cruz" vs "Dela Crz"
-  const { data: allMembers, error: allError } = await supabase
-    .from("members")
-    .select("*");
+  let allMembers: Member[] = [];
+  try {
+    allMembers = await fetchAllMembers();
+  } catch {
+    allMembers = [];
+  }
 
-  if (!allError && allMembers) {
-    for (const m of allMembers as Member[]) {
+  if (allMembers.length > 0) {
+    for (const m of allMembers) {
       // Skip if already in matches
       if (matches.some((x) => x.existing.id === m.id)) continue;
 
@@ -253,7 +333,22 @@ export async function importSingleMember(
     .single();
 
   if (error) return { status: "error", error: error.message };
-  return { status: "created", member: member as Member };
+
+  const createdMember = member as Member;
+  const membershipError = await createMemberMinistries(
+    createdMember.id,
+    data.ministries
+  );
+
+  if (membershipError) {
+    await supabase.from("members").delete().eq("id", createdMember.id);
+    return {
+      status: "error",
+      error: `Member creation was rolled back because ministry memberships could not be created: ${membershipError}`,
+    };
+  }
+
+  return { status: "created", member: createdMember };
 }
 
 export interface IncomingRecord {
@@ -359,11 +454,16 @@ export async function stageBatchRecords(
   }
 
   // --- Fetch all existing members once ---
-  const { data: allMembers } = await supabase
-    .from("members")
-    .select("*");
+  // Paginate explicitly so duplicate detection is not limited to Supabase's
+  // default 1,000 returned rows.
+  let allMembers: Member[] = [];
+  try {
+    allMembers = await fetchAllMembers();
+  } catch {
+    allMembers = [];
+  }
 
-  const dbMembers = ((allMembers as Member[]) ?? []).map((m) => ({
+  const dbMembers = allMembers.map((m) => ({
     member: m,
     first: m.first_name.toLowerCase().trim(),
     last: m.last_name.toLowerCase().trim(),
@@ -371,10 +471,22 @@ export async function stageBatchRecords(
   }));
 
   // --- Track records already staged as unique in this batch ---
-  // This catches internal batch duplicates (same person appearing twice in
-  // the same CSV). We store the normalized key + the name parts for fuzzy
-  // comparison against later rows.
-  const stagedUniqueKeys: { first: string; last: string; parish: string }[] = [];
+  // Multiple CSV rows for the same person + parish are expected when the
+  // person serves in more than one ministry. Those rows are consolidated into
+  // one member insert with multiple member_ministries rows.
+  const stagedUniqueKeys: Array<{
+    first: string;
+    last: string;
+    parish: string;
+    uniqueIndex: number;
+  }> = [];
+
+  const stagedDuplicateKeys: Array<{
+    first: string;
+    last: string;
+    parish: string;
+    duplicateIndex: number;
+  }> = [];
 
   for (let i = 0; i < records.length; i++) {
     const rec = records[i];
@@ -383,19 +495,54 @@ export async function stageBatchRecords(
     const parish = rec.parish.toLowerCase().trim();
     const ministries = normalizeMinistriesRaw(rec.ministry);
 
-    // --- Check 1: Internal batch duplication ---
-    // First check for exact internal batch dup
+    // --- Check 1: Same person + same parish already staged ---
+    // If an earlier row for this person was already routed to DB duplicate
+    // review, fold this row's ministry into that same pending-merge item.
+    // Reconciliation should happen once per person, not once per ministry row.
+    const stagedDuplicate = stagedDuplicateKeys.find(
+      (s) => s.first === first && s.last === last && s.parish === parish
+    );
+
+    if (stagedDuplicate) {
+      const pending = duplicates[stagedDuplicate.duplicateIndex];
+      const pendingMinistries = normalizeMinistriesRaw(pending.incoming.ministry);
+      const mergedPendingMinistries = Array.from(
+        new Set([...pendingMinistries, ...ministries])
+      );
+
+      pending.incoming = {
+        ...pending.incoming,
+        ministry: mergedPendingMinistries.join("; "),
+      };
+
+      continue;
+    }
+
     const internalExact = stagedUniqueKeys.find(
       (s) => s.first === first && s.last === last && s.parish === parish
     );
+
     if (internalExact) {
-      duplicates.push({
-        incoming: rec,
-        existing: null,
-        matchType: "internal_batch_exact",
-        similarity: 1,
-        source: "internal_batch",
-      });
+      const staged = unique[internalExact.uniqueIndex];
+      const newMinistries = ministries.filter(
+        (ministry) => !staged.ministries.includes(ministry)
+      );
+
+      if (newMinistries.length > 0) {
+        staged.ministries = Array.from(
+          new Set([...staged.ministries, ...newMinistries])
+        );
+      } else {
+        // An exact repeated row with no new ministry is still a duplicate.
+        duplicates.push({
+          incoming: rec,
+          existing: null,
+          matchType: "internal_batch_exact",
+          similarity: 1,
+          source: "internal_batch",
+        });
+      }
+
       continue;
     }
 
@@ -429,6 +576,7 @@ export async function stageBatchRecords(
       (m) => m.first === first && m.last === last && m.parish === parish
     );
     if (exactMatch) {
+      const duplicateIndex = duplicates.length;
       duplicates.push({
         incoming: rec,
         existing: exactMatch.member,
@@ -436,6 +584,7 @@ export async function stageBatchRecords(
         similarity: 1,
         source: "db",
       });
+      stagedDuplicateKeys.push({ first, last, parish, duplicateIndex });
       continue;
     }
 
@@ -444,6 +593,7 @@ export async function stageBatchRecords(
       (m) => m.first === first && m.last === last && m.parish !== parish
     );
     if (sameNameDiffParish) {
+      const duplicateIndex = duplicates.length;
       duplicates.push({
         incoming: rec,
         existing: sameNameDiffParish.member,
@@ -451,6 +601,7 @@ export async function stageBatchRecords(
         similarity: 1,
         source: "db",
       });
+      stagedDuplicateKeys.push({ first, last, parish, duplicateIndex });
       continue;
     }
 
@@ -465,6 +616,7 @@ export async function stageBatchRecords(
         (similarityRatio(first, similarMatch.first) +
           similarityRatio(last, similarMatch.last)) /
         2;
+      const duplicateIndex = duplicates.length;
       duplicates.push({
         incoming: rec,
         existing: similarMatch.member,
@@ -472,11 +624,13 @@ export async function stageBatchRecords(
         similarity: sim,
         source: "db",
       });
+      stagedDuplicateKeys.push({ first, last, parish, duplicateIndex });
       continue;
     }
 
     // --- Passed all checks: stage for insertion ---
-    stagedUniqueKeys.push({ first, last, parish });
+    const uniqueIndex = unique.length;
+    stagedUniqueKeys.push({ first, last, parish, uniqueIndex });
     unique.push({
       first_name: rec.first_name.trim(),
       last_name: rec.last_name.trim(),
@@ -535,12 +689,45 @@ export async function importMemberBatch(
     .select("*");
 
   if (!insErr && inserted) {
-    // Bulk insert succeeded — all rows created.
+    const createdMembers = inserted as Member[];
+    const membershipRows = createdMembers.flatMap((member, index) =>
+      buildMembershipRows(member.id, batch[index]?.ministries ?? [])
+    );
+
+    const { error: membershipError } = membershipRows.length
+      ? await supabase.from("member_ministries").insert(membershipRows)
+      : { error: null };
+
+    if (membershipError) {
+      const createdIds = createdMembers.map((member) => member.id);
+      if (createdIds.length > 0) {
+        await supabase.from("members").delete().in("id", createdIds);
+      }
+
+      const message =
+        `Batch creation was rolled back because ministry memberships could not be created: ${membershipError.message}`;
+
+      for (let j = 0; j < batch.length; j++) {
+        results[j] = {
+          index: startIndex + j,
+          status: "error",
+          error: message,
+        };
+      }
+
+      return results;
+    }
+
+    // Bulk insert and relationship creation both succeeded.
     for (let j = 0; j < batch.length; j++) {
-      const created = inserted[j] as Member | undefined;
+      const created = createdMembers[j];
       results[j] = created
         ? { index: startIndex + j, status: "created" }
-        : { index: startIndex + j, status: "error", error: "No row returned on insert" };
+        : {
+            index: startIndex + j,
+            status: "error",
+            error: "No row returned on insert",
+          };
     }
     return results;
   }
@@ -586,7 +773,22 @@ export async function importMemberBatch(
         };
       }
     } else {
-      results[i] = { index: startIndex + i, status: "created" };
+      const createdMember = row as Member;
+      const membershipError = await createMemberMinistries(
+        createdMember.id,
+        data.ministries
+      );
+
+      if (membershipError) {
+        await supabase.from("members").delete().eq("id", createdMember.id);
+        results[i] = {
+          index: startIndex + i,
+          status: "error",
+          error: `Member creation was rolled back because ministry memberships could not be created: ${membershipError}`,
+        };
+      } else {
+        results[i] = { index: startIndex + i, status: "created" };
+      }
     }
   }
 

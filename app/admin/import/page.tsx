@@ -12,7 +12,7 @@ import {
 } from "@/lib/duplicate-check";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MINISTRIES, PARISHES, shortMinistry } from "@/lib/constants";
-import type { Member, MemberStatus } from "@/lib/types";
+import type { Member, MemberMinistry, MemberStatus } from "@/lib/types";
 import {
   Upload,
   FileSpreadsheet,
@@ -406,6 +406,53 @@ export default function CsvImportPage() {
       new Set([...existing.ministries, ...incomingMinistries])
     );
 
+    const { data: existingMembershipRows, error: membershipLoadError } =
+      await supabase
+        .from("member_ministries")
+        .select("id,ministry")
+        .eq("member_id", existing.id);
+
+    if (membershipLoadError) {
+      setActionError(membershipLoadError.message);
+      setActionLoading(false);
+      return;
+    }
+
+    const existingMinistryNames = new Set(
+      ((existingMembershipRows as Pick<MemberMinistry, "id" | "ministry">[]) ?? [])
+        .map((membership) => membership.ministry)
+    );
+
+    const missingMinistries = incomingMinistries.filter(
+      (ministry) => !existingMinistryNames.has(ministry)
+    );
+
+    if (missingMinistries.length > 0) {
+      const { error: membershipInsertError } = await supabase
+        .from("member_ministries")
+        .insert(
+          missingMinistries.map((ministry) => ({
+            member_id: existing.id,
+            ministry,
+            status: "Pending Verification" as MemberStatus,
+            start_date: null,
+            expiration_date: null,
+            renewal_date: null,
+            document_url: null,
+            document_uploaded_at: null,
+            archived_documents: [],
+          }))
+        );
+
+      if (membershipInsertError) {
+        setActionError(membershipInsertError.message);
+        setActionLoading(false);
+        return;
+      }
+    }
+
+    // Keep legacy member fields synchronized temporarily for screens that have
+    // not yet migrated, without resetting existing per-ministry rows.
     const { error } = await supabase
       .from("members")
       .update({
@@ -416,6 +463,14 @@ export default function CsvImportPage() {
       .eq("id", existing.id);
 
     if (error) {
+      if (missingMinistries.length > 0) {
+        await supabase
+          .from("member_ministries")
+          .delete()
+          .eq("member_id", existing.id)
+          .in("ministry", missingMinistries);
+      }
+
       setActionError(error.message);
       setActionLoading(false);
       return;
@@ -432,15 +487,19 @@ export default function CsvImportPage() {
     const { incoming } = currentDuplicate;
     const ministries = normalizeMinistries(incoming.ministry);
 
-    const { error } = await supabase.from("members").insert({
-      first_name: incoming.first_name.trim(),
-      last_name: incoming.last_name.trim(),
-      parish: incoming.parish.trim(),
-      ministries,
-      service_year: serviceYear,
-      status: "Pending Verification",
-      uid: "PENDING",
-    });
+    const { data: createdMember, error } = await supabase
+      .from("members")
+      .insert({
+        first_name: incoming.first_name.trim(),
+        last_name: incoming.last_name.trim(),
+        parish: incoming.parish.trim(),
+        ministries,
+        service_year: serviceYear,
+        status: "Pending Verification",
+        uid: "PENDING",
+      })
+      .select("*")
+      .single();
 
     if (error) {
       // Graceful handling of DB-level unique constraint violation (23505)
@@ -451,6 +510,32 @@ export default function CsvImportPage() {
       } else {
         setActionError(error.message);
       }
+      setActionLoading(false);
+      return;
+    }
+
+    const member = createdMember as Member;
+    const { error: membershipError } = await supabase
+      .from("member_ministries")
+      .insert(
+        ministries.map((ministry) => ({
+          member_id: member.id,
+          ministry,
+          status: "Pending Verification" as MemberStatus,
+          start_date: null,
+          expiration_date: null,
+          renewal_date: null,
+          document_url: null,
+          document_uploaded_at: null,
+          archived_documents: [],
+        }))
+      );
+
+    if (membershipError) {
+      await supabase.from("members").delete().eq("id", member.id);
+      setActionError(
+        `Member creation was rolled back because ministry memberships could not be created: ${membershipError.message}`
+      );
       setActionLoading(false);
       return;
     }
