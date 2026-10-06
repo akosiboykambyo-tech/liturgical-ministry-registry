@@ -44,6 +44,41 @@ export interface MemberMinistry {
   updated_at: string;
 }
 
+export interface RecommendationRenewalBatch {
+  id: string;
+  parish: string;
+  ministry: string | null;
+  document_url: string;
+  document_uploaded_at: string;
+  renewal_date: string;
+  next_renewal_date: string;
+  notes: string | null;
+  processed_by: string | null;
+  processed_at: string;
+  created_at: string;
+}
+
+export interface RecommendationRenewalMembership {
+  id: string;
+  batch_id: string;
+  member_ministry_id: string | null;
+  member_id: string | null;
+  member_uid: string;
+  member_name: string;
+  parish: string;
+  ministry: string;
+  previous_status: MemberStatus | null;
+  previous_start_date: string | null;
+  previous_expiration_date: string | null;
+  previous_renewal_date: string | null;
+  previous_document_url: string | null;
+  result_status: MemberStatus;
+  result_expiration_date: string;
+  result_renewal_date: string;
+  result_document_url: string;
+  created_at: string;
+}
+
 export interface AuditLog {
   id: string;
   member_id: string | null;
@@ -209,6 +244,16 @@ export interface Database {
         Insert: Partial<MemberMinistry>;
         Update: Partial<MemberMinistry>;
       };
+      recommendation_renewal_batches: {
+        Row: RecommendationRenewalBatch;
+        Insert: Partial<RecommendationRenewalBatch>;
+        Update: Partial<RecommendationRenewalBatch>;
+      };
+      recommendation_renewal_memberships: {
+        Row: RecommendationRenewalMembership;
+        Insert: Partial<RecommendationRenewalMembership>;
+        Update: Partial<RecommendationRenewalMembership>;
+      };
       audit_logs: {
         Row: AuditLog;
         Insert: Partial<AuditLog>;
@@ -244,6 +289,21 @@ export interface Database {
         Row: CertificateDownload;
         Insert: Partial<CertificateDownload>;
         Update: Partial<CertificateDownload>;
+      };
+    };
+    Functions: {
+      process_recommendation_renewal_batch: {
+        Args: {
+          p_batch_id: string;
+          p_parish: string;
+          p_ministry: string | null;
+          p_document_url: string;
+          p_renewal_date: string;
+          p_next_renewal_date: string;
+          p_membership_ids: string[];
+          p_notes?: string | null;
+        };
+        Returns: string;
       };
     };
   };
