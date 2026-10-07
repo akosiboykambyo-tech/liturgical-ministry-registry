@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Papa from "papaparse";
 import {
   stageBatchRecords,
@@ -15,7 +15,13 @@ import {
 } from "@/lib/duplicate-check";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MINISTRIES, PARISHES, shortMinistry } from "@/lib/constants";
-import type { Member, MemberMinistry, MemberStatus } from "@/lib/types";
+import type {
+  Member,
+  MemberMinistry,
+  MemberStatus,
+  RecommendationRenewalBatch,
+  RecommendationRenewalMembership,
+} from "@/lib/types";
 import {
   Upload,
   FileSpreadsheet,
@@ -34,6 +40,11 @@ import {
   ShieldAlert,
   Copy,
   FileCheck2,
+  History,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
 } from "lucide-react";
 
 const MAX_ROWS = 3000;
@@ -67,7 +78,11 @@ interface Progress {
   phase: string;
 }
 
-type Tab = "import" | "renewal" | "pending";
+type Tab = "import" | "renewal" | "history" | "pending";
+
+type RenewalHistoryBatch = RecommendationRenewalBatch & {
+  memberships: RecommendationRenewalMembership[];
+};
 
 function normalizeMinistries(raw: string): string[] {
   const ministries: string[] = [];
@@ -197,6 +212,13 @@ export default function CsvImportPage() {
     batchId: string;
   } | null>(null);
 
+  // Renewal history state
+  const [renewalHistory, setRenewalHistory] = useState<RenewalHistoryBatch[]>([]);
+  const [renewalHistoryLoading, setRenewalHistoryLoading] = useState(false);
+  const [renewalHistoryError, setRenewalHistoryError] = useState<string | null>(null);
+  const [expandedHistoryBatchId, setExpandedHistoryBatchId] = useState<string | null>(null);
+  const [openingHistoryDocumentId, setOpeningHistoryDocumentId] = useState<string | null>(null);
+
   // Idempotency state
   const [idempotencyWarning, setIdempotencyWarning] = useState<{
     fileName: string;
@@ -291,6 +313,89 @@ export default function CsvImportPage() {
     },
     [handleFile]
   );
+
+  const loadRenewalHistory = useCallback(async () => {
+    setRenewalHistoryLoading(true);
+    setRenewalHistoryError(null);
+
+    const { data: batchRows, error: batchError } = await supabase
+      .from("recommendation_renewal_batches")
+      .select("*")
+      .order("processed_at", { ascending: false })
+      .limit(100);
+
+    if (batchError) {
+      setRenewalHistory([]);
+      setRenewalHistoryError(batchError.message);
+      setRenewalHistoryLoading(false);
+      return;
+    }
+
+    const batches = (batchRows as RecommendationRenewalBatch[]) ?? [];
+    if (batches.length === 0) {
+      setRenewalHistory([]);
+      setRenewalHistoryLoading(false);
+      return;
+    }
+
+    const batchIds = batches.map((batch) => batch.id);
+    const { data: membershipRows, error: membershipError } = await supabase
+      .from("recommendation_renewal_memberships")
+      .select("*")
+      .in("batch_id", batchIds)
+      .order("member_name");
+
+    if (membershipError) {
+      setRenewalHistory([]);
+      setRenewalHistoryError(membershipError.message);
+      setRenewalHistoryLoading(false);
+      return;
+    }
+
+    const memberships =
+      (membershipRows as RecommendationRenewalMembership[]) ?? [];
+    const byBatch = new Map<string, RecommendationRenewalMembership[]>();
+
+    for (const membership of memberships) {
+      const current = byBatch.get(membership.batch_id) ?? [];
+      current.push(membership);
+      byBatch.set(membership.batch_id, current);
+    }
+
+    setRenewalHistory(
+      batches.map((batch) => ({
+        ...batch,
+        memberships: byBatch.get(batch.id) ?? [],
+      }))
+    );
+    setRenewalHistoryLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    if (activeTab === "history") {
+      void loadRenewalHistory();
+    }
+  }, [activeTab, loadRenewalHistory]);
+
+  const openRenewalHistoryDocument = async (batch: RecommendationRenewalBatch) => {
+    setOpeningHistoryDocumentId(batch.id);
+    setRenewalHistoryError(null);
+
+    const { data, error } = await supabase.storage
+      .from("member-documents")
+      .createSignedUrl(batch.document_url, 3600);
+
+    setOpeningHistoryDocumentId(null);
+
+    if (error || !data?.signedUrl) {
+      setRenewalHistoryError(
+        error?.message ?? "Unable to generate a secure document link."
+      );
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
 
   const handleRenewalCsv = useCallback((file: File) => {
     setRenewalParseError(null);
@@ -528,6 +633,7 @@ export default function CsvImportPage() {
     setRenewalProcessing(false);
     setRenewalSuccess({ renewed: selectedIds.length, batchId });
     setRenewalSelected(new Set());
+    void loadRenewalHistory();
   };
 
   // ============================================================
@@ -975,6 +1081,17 @@ export default function CsvImportPage() {
         >
           <FileCheck2 className="h-4 w-4" />
           Renewal Import
+        </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === "history"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          <History className="h-4 w-4" />
+          Renewal History
         </button>
         <button
           onClick={() => setActiveTab("pending")}
@@ -1842,6 +1959,250 @@ export default function CsvImportPage() {
                 </div>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* RENEWAL HISTORY TAB */}
+      {/* ============================================================ */}
+      {activeTab === "history" && (
+        <div className="space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                <History className="h-6 w-6 text-primary" />
+                Renewal History
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Durable audit history for parish recommendation renewal batches,
+                including the shared document, processing dates, and the exact
+                ministry memberships covered by each batch.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadRenewalHistory()}
+              disabled={renewalHistoryLoading}
+              className="inline-flex shrink-0 items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${renewalHistoryLoading ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </button>
+          </div>
+
+          {renewalHistoryError && (
+            <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{renewalHistoryError}</span>
+            </div>
+          )}
+
+          {renewalHistoryLoading ? (
+            <div className="flex items-center justify-center rounded-lg border border-border bg-card py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : renewalHistory.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border py-16 text-center">
+              <History className="mx-auto h-10 w-10 text-muted-foreground/50" />
+              <p className="mt-3 text-sm font-medium text-muted-foreground">
+                No renewal batches recorded yet.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Completed recommendation renewal batches will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {renewalHistory.map((batch) => {
+                const expanded = expandedHistoryBatchId === batch.id;
+                const ministryCount = new Set(
+                  batch.memberships.map((membership) => membership.ministry)
+                ).size;
+
+                return (
+                  <div
+                    key={batch.id}
+                    className="rounded-lg border border-border bg-card shadow-sm overflow-hidden"
+                  >
+                    <div className="p-4 sm:p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h2 className="text-sm font-semibold">
+                              {batch.parish}
+                            </h2>
+                            {batch.ministry && (
+                              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                                {shortMinistry(batch.ministry)}
+                              </span>
+                            )}
+                            {!batch.ministry && ministryCount > 1 && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                {ministryCount} ministries
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span>
+                              Processed{" "}
+                              <strong className="font-medium text-foreground">
+                                {new Date(batch.processed_at).toLocaleString()}
+                              </strong>
+                            </span>
+                            <span>
+                              Renewal{" "}
+                              <strong className="font-medium text-foreground">
+                                {new Date(`${batch.renewal_date}T00:00:00`).toLocaleDateString()}
+                              </strong>
+                            </span>
+                            <span>
+                              Next due{" "}
+                              <strong className="font-medium text-foreground">
+                                {new Date(`${batch.next_renewal_date}T00:00:00`).toLocaleDateString()}
+                              </strong>
+                            </span>
+                            <span>
+                              <strong className="font-medium text-foreground">
+                                {batch.memberships.length}
+                              </strong>{" "}
+                              membership{batch.memberships.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+
+                          {batch.notes && (
+                            <p className="text-xs text-muted-foreground">
+                              {batch.notes}
+                            </p>
+                          )}
+
+                          <p className="text-[11px] text-muted-foreground">
+                            Processor:{" "}
+                            <code>
+                              {batch.processed_by
+                                ? `${batch.processed_by.slice(0, 8)}…`
+                                : "not recorded"}
+                            </code>
+                            {" "}· Batch ID:{" "}
+                            <code>{batch.id.slice(0, 8)}…</code>
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void openRenewalHistoryDocument(batch)}
+                            disabled={openingHistoryDocumentId === batch.id}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-60"
+                          >
+                            {openingHistoryDocumentId === batch.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            )}
+                            View letter
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedHistoryBatchId(expanded ? null : batch.id)
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+                          >
+                            {expanded ? (
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            )}
+                            {expanded ? "Hide members" : "View members"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {expanded && (
+                      <div className="border-t border-border bg-muted/20">
+                        {batch.memberships.length === 0 ? (
+                          <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                            No membership snapshots were recorded for this batch.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full min-w-[760px] text-xs">
+                              <thead className="bg-muted/60">
+                                <tr className="text-left">
+                                  <th className="px-4 py-2.5 font-semibold">
+                                    Member
+                                  </th>
+                                  <th className="px-4 py-2.5 font-semibold">
+                                    UID
+                                  </th>
+                                  <th className="px-4 py-2.5 font-semibold">
+                                    Ministry
+                                  </th>
+                                  <th className="px-4 py-2.5 font-semibold">
+                                    Previous
+                                  </th>
+                                  <th className="px-4 py-2.5 font-semibold">
+                                    Result
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {batch.memberships.map((membership) => (
+                                  <tr key={membership.id}>
+                                    <td className="px-4 py-2.5 font-medium">
+                                      {membership.member_name}
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <code className="text-[11px] text-muted-foreground">
+                                        {membership.member_uid}
+                                      </code>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      {membership.ministry}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-muted-foreground">
+                                      <div className="space-y-0.5">
+                                        <p>{membership.previous_status ?? "—"}</p>
+                                        {membership.previous_expiration_date && (
+                                          <p>
+                                            Exp.{" "}
+                                            {new Date(
+                                              `${membership.previous_expiration_date}T00:00:00`
+                                            ).toLocaleDateString()}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <div className="space-y-0.5">
+                                        <p className="font-medium text-emerald-700">
+                                          {membership.result_status}
+                                        </p>
+                                        <p className="text-muted-foreground">
+                                          Exp.{" "}
+                                          {new Date(
+                                            `${membership.result_expiration_date}T00:00:00`
+                                          ).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}
