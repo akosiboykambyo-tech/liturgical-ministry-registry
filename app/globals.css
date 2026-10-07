@@ -22,7 +22,7 @@
 
     /* Muted: near-white red tint */
     --muted: 355 8% 94%;
-    --muted-foreground: 215 16% 47%;
+    --muted-foreground: 215 16% 44%;
 
     /* Accent: pale rose — used for ministry chips, highlights */
     --accent: 355 40% 93%;
@@ -42,6 +42,12 @@
     --warning-foreground: 0 0% 100%;
 
     --radius: 0.625rem;
+
+    /* Registry design tokens */
+    --content-reading: 42rem;
+    --content-service: 48rem;
+    --content-wide: 72rem;
+    --focus-ring: 0 0 0 3px hsl(var(--primary) / 0.18);
 
     --chart-1: 355 96% 43%;
     --chart-2: 173 58% 39%;
@@ -117,7 +123,73 @@
       transform: translateY(0);
     }
   }
+
+  /* Page-level enter transition, used by app/admin/template.tsx and can be
+     applied directly to a page's root wrapper anywhere else in the app. */
+  .animate-page-in {
+    animation: pageIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes pageIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Generic hover-lift for clickable cards (dashboard stat cards, result
+     cards, feature cards, etc.) — subtle raise + shadow on hover/focus. */
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .hover-lift:hover,
+  .hover-lift:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -8px hsl(var(--foreground) / 0.15);
+  }
+
+  .focus-ring:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  .font-display {
+    font-family: var(--font-eb-garamond), Georgia, serif;
+  }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+  body.member-certificate-print-mode .member-certificate-print-canvas {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-print-target ~ * {
+    visibility: hidden !important;
+  }
+
+/*
+ * Member drawer certificate printing.
+ * The drawer prints the actual certificate canvas instead of navigating
+ * to the public verification page.
+ */
 
 @media print {
   /* Strip the about:blank footer and reset page margins */
@@ -195,5 +267,107 @@
   h2,
   h3 {
     color: #000 !important;
+  }
+}
+
+@media print {
+  body.member-certificate-print-mode > * {
+    visibility: hidden !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-direct-print {
+    visibility: visible !important;
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    z-index: 2147483647 !important;
+  }
+
+  body.member-certificate-print-mode
+    .member-certificate-direct-print-canvas {
+    visibility: visible !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* Certificate printing */
+.print-certificate-canvas {
+  display: none !important;
+}
+
+@media print {
+  body.member-certificate-print-mode > * {
+    visibility: hidden !important;
+  }
+
+  body.member-certificate-print-mode
+    .member-certificate-direct-print {
+    visibility: visible !important;
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    z-index: 2147483647 !important;
+  }
+
+  body.member-certificate-print-mode
+    .member-certificate-direct-print-canvas {
+    visibility: visible !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+@media print {
+  body:has(.certificate-print-mode) > * {
+    visibility: hidden !important;
+  }
+
+  body:has(.certificate-print-mode) .certificate-print-mode {
+    visibility: visible !important;
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body:has(.certificate-print-mode) .certificate-print-mode > * {
+    visibility: hidden !important;
+  }
+
+  body:has(.certificate-print-mode) .certificate-print-mode .print-certificate-canvas {
+    visibility: visible !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
   }
 }

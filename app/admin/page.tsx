@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { Church, Lock, Mail, ShieldCheck, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { Lock, Mail, ShieldCheck, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
       <header className="border-b border-border/60">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
             Back to home
           </Link>
         </div>
@@ -70,7 +70,7 @@ export default function AdminLoginPage() {
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Mail aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <input
                   id="email"
                   type="email"
@@ -89,7 +89,7 @@ export default function AdminLoginPage() {
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Lock aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <input
                   id="password"
                   type="password"
@@ -104,8 +104,8 @@ export default function AdminLoginPage() {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2.5 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div role="alert" className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2.5 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+                <AlertCircle aria-hidden="true" className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
@@ -113,20 +113,17 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+             aria-busy={submitting}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {submitting ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</>
+                <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Signing in...</>
               ) : (
-                <><ShieldCheck className="h-4 w-4" /> Sign In to Admin</>
+                <><ShieldCheck aria-hidden="true" className="h-4 w-4" /> Sign In to Admin</>
               )}
             </button>
 
-            <div className="rounded-md bg-muted/60 px-3 py-2.5 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground mb-0.5">Initial Admin Credentials</p>
-              <p>Email: admin@liturgical-ministry.org</p>
-              <p>Password: set on first deployment — contact Head Office if unknown.</p>
-            </div>
+ 
           </form>
         </div>
       </div>

@@ -1,9 +1,14 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
-import { FONT_OPTIONS, MINISTRIES } from "@/lib/constants";
+import {
+  CERTIFICATE_FONT_PAIRINGS,
+  DEFAULT_TEMPLATE_SETTINGS,
+  FONT_OPTIONS,
+  MINISTRIES,
+} from "@/lib/constants";
 import {
   Image as ImageIcon,
   Loader2,
@@ -18,13 +23,13 @@ import {
   Plus,
   FileText,
   PenLine,
-  Type,
   UserCog,
   AlignLeft,
   AlignCenter,
   AlignRight,
 } from "lucide-react";
 import { CertificateDesign } from "@/components/certificate-design";
+import { CertificateEditor } from "@/components/certificate-editor";
 
 type TemplateRow = {
   key: string;
@@ -52,27 +57,8 @@ function nameToKey(name: string) {
   return `${TEMPLATE_KEY_PREFIX}${slug ? `_${slug}` : ""}`;
 }
 
-const DEFAULTS: CertificateTemplateSettings = {
-  template_url: null,
-  name_x: 300,
-  name_y: 320,
-  parish_x: 300,
-  parish_y: 400,
-  ministry_x: 300,
-  ministry_y: 460,
-  year_x: 300,
-  year_y: 540,
-  qr_x: 560,
-  qr_y: 720,
-  qr_size: 120,
-  liturgical_year: String(new Date().getFullYear()),
-  font_family: "Georgia, serif",
-  header_text: "Diocese of Navotas",
-  body_text: "This is to certify that",
-  footer_text: "has been duly commissioned as a liturgical minister",
-};
-
-type Tab = "layout" | "content" | "signatories";
+const DEFAULTS = DEFAULT_TEMPLATE_SETTINGS;
+  type Tab = "layout" | "signatories";
 
 export default function CertificateManagerPage() {
   const supabase = getSupabaseBrowserClient();
@@ -88,12 +74,29 @@ export default function CertificateManagerPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("layout");
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+
+    const updateDesktopState = () => {
+      setIsDesktop(mediaQuery.matches);
+    };
+
+    updateDesktopState();
+    mediaQuery.addEventListener("change", updateDesktopState);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updateDesktopState);
+    };
+  }, []);
 
   // Signatory state
   const [signatories, setSignatories] = useState<Signatory[]>([]);
   const [sigLoading, setSigLoading] = useState(true);
   const [sigSaving, setSigSaving] = useState(false);
   const [sigUploading, setSigUploading] = useState<string | null>(null);
+  const [sigUploadUrl, setSigUploadUrl] = useState<string | null>(null);
   const [sigForm, setSigForm] = useState({
     name: "",
     title: "",
@@ -189,18 +192,33 @@ export default function CertificateManagerPage() {
   };
 
   const handleSetDefault = async (key: string) => {
-    setSetDefaultKey(key);
-    setError(null);
-    const { error } = await supabase.rpc("set_default_certificate_template", {
-      p_key: key,
-    });
-    setSetDefaultKey(null);
-    if (error) {
-      setError(error.message);
-    } else {
-      await load();
+  setSetDefaultKey(key);
+  setError(null);
+
+  const { error } = await supabase
+    .from("system_settings")
+    .update({ is_default: false })
+    .like("key", "certificate_template%");
+
+  if (!error) {
+    const { error: setErrorResult } = await supabase
+      .from("system_settings")
+      .update({ is_default: true })
+      .eq("key", key);
+
+    if (setErrorResult) {
+      setError(setErrorResult.message);
     }
-  };
+  } else {
+    setError(error.message);
+  }
+
+  setSetDefaultKey(null);
+
+  if (!error) {
+    await load();
+  }
+};
 
   const handleDelete = async (key: string) => {
     setDeletingKey(key);
@@ -245,6 +263,62 @@ export default function CertificateManagerPage() {
     setSettings((s) => ({ ...s, [key]: value }));
   };
 
+  const applyFontPairing = (pairingId: string) => {
+  const pairing = CERTIFICATE_FONT_PAIRINGS.find(
+    (item) => item.id === pairingId
+  );
+
+  if (!pairing) return;
+
+  setSettings((current) => ({
+    ...current,
+    font_family: pairing.body,
+    elements: current.elements.map((element) => {
+      switch (element.type) {
+        case "text":
+          return {
+            ...element,
+            font_family: pairing.body,
+          };
+
+        case "member_name":
+          return {
+            ...element,
+            font_family: pairing.recipient,
+          };
+
+        case "parish":
+        case "ministry":
+          return {
+            ...element,
+            font_family: pairing.supporting,
+          };
+
+        case "liturgical_year":
+          return {
+            ...element,
+            font_family: pairing.heading,
+          };
+
+        case "signatory":
+          return {
+            ...element,
+            font_family: pairing.signatory,
+          };
+
+        case "uid":
+          return {
+            ...element,
+            font_family: pairing.supporting,
+          };
+
+        default:
+          return element;
+      }
+    }),
+  }));
+};
+
   // Signatory handlers
   const handleSigUpload = async (file: File) => {
     setSigUploading("new");
@@ -261,26 +335,29 @@ export default function CertificateManagerPage() {
     const { data: pub } = supabase.storage
       .from("certificate-templates")
       .getPublicUrl(path);
-    setSigForm((f) => ({ ...f }));
+    setSigUploadUrl(pub.publicUrl);
     setSigUploading(null);
-    // Store URL temporarily in a ref-like variable
-    sigUploadUrlRef.current = pub.publicUrl;
   };
-  const sigUploadUrlRef = useRef<string | null>(null);
 
   const handleSigSave = async () => {
     if (!sigForm.name.trim()) {
       setError("Signatory name is required.");
       return;
     }
+
+    if (sigForm.display_type === "dynamic" && !sigForm.ministry) {
+      setError("Please select a ministry for a dynamic signatory.");
+      return;
+    }
+
     setSigSaving(true);
     setError(null);
     const { error } = await supabase.from("signatories").insert({
       name: sigForm.name.trim(),
       title: sigForm.title.trim(),
-      signature_url: sigUploadUrlRef.current,
+      signature_url: sigUploadUrl,
       display_type: sigForm.display_type,
-      ministry: sigForm.display_type === "dynamic" ? sigForm.ministry || null : null,
+      ministry: sigForm.display_type === "dynamic" ? sigForm.ministry : null,
       position_x: sigForm.position_x,
       position_y: sigForm.position_y,
       width: sigForm.width,
@@ -292,7 +369,7 @@ export default function CertificateManagerPage() {
     if (error) {
       setError(error.message);
     } else {
-      sigUploadUrlRef.current = null;
+      setSigUploadUrl(null);
       setSigForm({
         name: "",
         title: "",
@@ -328,17 +405,65 @@ export default function CertificateManagerPage() {
     );
   }
 
+  if (isDesktop === false) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 text-center shadow-sm">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <ImageIcon className="h-6 w-6" />
+          </div>
+
+          <h1 className="mt-5 text-xl font-semibold tracking-tight">
+            Certificate Template Manager
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            This editor is designed for desktop computers. The certificate
+            canvas requires a larger screen for precise positioning, resizing,
+            and template design.
+          </p>
+
+          <p className="mt-3 text-sm font-medium text-foreground">
+            Please open the Certificate Template Manager on a desktop PC or
+            larger screen.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <ImageIcon className="h-6 w-6 text-primary" />
-          Certificate Template Manager
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Customize certificate text, fonts, layout, and signatories. The
-          default template is used for public certificate rendering.
-        </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <ImageIcon className="h-6 w-6 text-primary" />
+            Certificate Template Manager
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Customize certificate text, fonts, layout, and signatories. The
+            default template is used for public certificate rendering.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" />
+              Save Template
+            </>
+          )}
+        </button>
       </div>
 
       {error && (
@@ -357,8 +482,7 @@ export default function CertificateManagerPage() {
       {/* Tabs */}
       <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">
         {([
-          { id: "layout" as const, label: "Layout & Background", icon: ImageIcon },
-          { id: "content" as const, label: "Text Content & Fonts", icon: Type },
+          { id: "layout" as const, label: "Certificate Design", icon: ImageIcon },
           { id: "signatories" as const, label: "Signatories", icon: UserCog },
         ]).map((tab) => (
           <button
@@ -376,7 +500,13 @@ export default function CertificateManagerPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div
+  className={
+    activeTab === "layout"
+      ? "grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6"
+      : "grid grid-cols-1 gap-6"
+  }
+>
         {/* Left: controls */}
         <div className="space-y-6">
           {activeTab === "layout" && (
@@ -436,152 +566,44 @@ export default function CertificateManagerPage() {
                 )}
               </div>
 
+              {/* Typography */}
               <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold">Overlay Layout (600x850 canvas)</h2>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleNew}
-                      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <Plus className="h-3 w-3" /> New
-                    </button>
-                    <button
-                      onClick={() => setSettings(DEFAULTS)}
-                      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <RefreshCw className="h-3 w-3" /> Reset fields
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Template name</label>
-                  <input
-                    type="text"
-                    value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)}
-                    placeholder="e.g. Advent, Easter, Standard"
-                    className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    {editingKey
-                      ? `Editing saved template "${templateLabel(editingKey)}".`
-                      : "New template -- give it a name before saving."}
+                <div>
+                  <h2 className="text-sm font-semibold">Typography</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Choose a coordinated font pairing for the certificate.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <NumberField label="Name X" value={settings.name_x} onChange={(v) => updateField("name_x", v)} />
-                  <NumberField label="Name Y" value={settings.name_y} onChange={(v) => updateField("name_y", v)} />
-                  <NumberField label="Parish X" value={settings.parish_x} onChange={(v) => updateField("parish_x", v)} />
-                  <NumberField label="Parish Y" value={settings.parish_y} onChange={(v) => updateField("parish_y", v)} />
-                  <NumberField label="Ministry X" value={settings.ministry_x} onChange={(v) => updateField("ministry_x", v)} />
-                  <NumberField label="Ministry Y" value={settings.ministry_y} onChange={(v) => updateField("ministry_y", v)} />
-                  <NumberField label="Year X" value={settings.year_x} onChange={(v) => updateField("year_x", v)} />
-                  <NumberField label="Year Y" value={settings.year_y} onChange={(v) => updateField("year_y", v)} />
-                  <NumberField label="QR X" value={settings.qr_x} onChange={(v) => updateField("qr_x", v)} />
-                  <NumberField label="QR Y" value={settings.qr_y} onChange={(v) => updateField("qr_y", v)} />
-                  <NumberField label="QR Size" value={settings.qr_size} onChange={(v) => updateField("qr_size", v)} />
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Liturgical Year</label>
-                    <input
-                      type="text"
-                      value={settings.liturgical_year}
-                      onChange={(e) => updateField("liturgical_year", e.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                  </div>
-                </div>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Font Pairing
+                  </span>
+                  <select
+  value={
+    CERTIFICATE_FONT_PAIRINGS.find(
+      (pairing) =>
+        pairing.body === settings.font_family
+    )?.id ?? ""
+  }
+  onChange={(e) => applyFontPairing(e.target.value)}
+  className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+>
+  <option value="">Choose a font pairing</option>
 
-                <div className="flex justify-end pt-2 border-t border-border">
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
-                  >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Save Template Settings
-                  </button>
-                </div>
+  {CERTIFICATE_FONT_PAIRINGS.map((pairing) => (
+    <option key={pairing.id} value={pairing.id}>
+      {pairing.name}
+    </option>
+  ))}
+</select>
+                </label>
               </div>
             </>
           )}
 
-          {activeTab === "content" && (
-            <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
-              <h2 className="text-sm font-semibold flex items-center gap-1.5">
-                <Type className="h-4 w-4" />
-                Certificate Text Content & Font
-              </h2>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Font Family</label>
-                <select
-                  value={settings.font_family}
-                  onChange={(e) => updateField("font_family", e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {FONT_OPTIONS.map((f) => (
-                    <option key={f.value} value={f.value}>{f.label}</option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-muted-foreground">
-                  Applied to all text on the certificate (header, body, name, ministry, footer).
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Header Text</label>
-                <input
-                  type="text"
-                  value={settings.header_text}
-                  onChange={(e) => updateField("header_text", e.target.value)}
-                  placeholder="e.g. Diocese of Navotas"
-                  className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <p className="text-[11px] text-muted-foreground">Large title at the top of the certificate.</p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Body Text</label>
-                <textarea
-                  value={settings.body_text}
-                  onChange={(e) => updateField("body_text", e.target.value)}
-                  placeholder="e.g. This is to certify that"
-                  rows={2}
-                  className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
-                />
-                <p className="text-[11px] text-muted-foreground">Introductory line above the member&apos;s name.</p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Footer Text</label>
-                <textarea
-                  value={settings.footer_text}
-                  onChange={(e) => updateField("footer_text", e.target.value)}
-                  placeholder="e.g. has been duly commissioned as a liturgical minister"
-                  rows={2}
-                  className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
-                />
-                <p className="text-[11px] text-muted-foreground">Closing line below the ministry field.</p>
-              </div>
-
-              <div className="flex justify-end pt-2 border-t border-border">
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
-                >
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Save Template Settings
-                </button>
-              </div>
-            </div>
-          )}
-
           {activeTab === "signatories" && (
-            <div className="space-y-4">
+              <div className="space-y-4">
               {/* Add signatory form */}
               <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
                 <h2 className="text-sm font-semibold flex items-center gap-1.5">
@@ -677,7 +699,7 @@ export default function CertificateManagerPage() {
                   <label className="cursor-pointer">
                     <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
                       {sigUploading === "new" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                      {sigUploadUrlRef.current ? "Replace signature" : "Upload signature"}
+                      {sigUploadUrl ? "Replace signature" : "Upload signature"}
                     </span>
                     <input
                       type="file"
@@ -689,7 +711,7 @@ export default function CertificateManagerPage() {
                       }}
                     />
                   </label>
-                  {sigUploadUrlRef.current && (
+                  {sigUploadUrl && (
                     <p className="text-[11px] text-emerald-600 mt-1">Signature image uploaded.</p>
                   )}
                 </div>
@@ -738,7 +760,7 @@ export default function CertificateManagerPage() {
                             )}
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                            {sig.title} {sig.signature_url ? "· Has signature image" : "· No image"}
+                            {sig.title} {sig.signature_url ? "— Has signature image" : "— No image"}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -764,96 +786,42 @@ export default function CertificateManagerPage() {
           )}
         </div>
 
-        {/* Right: live preview */}
-        <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+{activeTab === "layout" && (
+  <>
+    {/* Right: visual certificate editor */}
+    <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold flex items-center gap-1.5">
             <Eye className="h-4 w-4" />
-            Live Preview
+            Certificate Designer
           </h2>
-          <div className="flex justify-center bg-muted/30 rounded-md p-4 overflow-auto">
-            <div
-              className="relative shadow-sm rounded-md overflow-hidden"
-              style={{ width: "100%", maxWidth: 600, aspectRatio: "600 / 850" }}
-            >
-              {settings.template_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={settings.template_url}
-                  alt="Certificate background"
-                  className="absolute inset-0 w-full h-full object-fill"
-                />
-              ) : (
-                <div className="absolute inset-0 bg-gradient-to-b from-amber-50 to-amber-100 border-2 border-amber-700/30" />
-              )}
-
-              {/* Saved active signatories */}
-              {signatories
-                .filter((s) => s.is_active)
-                .map((sig) => {
-                  const leftPct = (sig.position_x / 600) * 100;
-                  const topPct = (sig.position_y / 850) * 100;
-                  const widthPct = (sig.width / 600) * 100;
-                  return (
-                    <div
-                      key={sig.id}
-                      className="absolute"
-                      style={{
-                        left: `${leftPct}%`,
-                        top: `${topPct}%`,
-                        width: `${widthPct}%`,
-                        textAlign: sig.alignment ?? "left",
-                      }}
-                    >
-                      {sig.signature_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={sig.signature_url}
-                          alt="Signature"
-                          className="mb-1 max-w-full h-auto"
-                          style={{ width: "100%" }}
-                        />
-                      )}
-                      <div className="font-bold text-[11px] text-slate-900 leading-tight" style={{ fontFamily: "Georgia, serif" }}>
-                        {sig.name}
-                      </div>
-                      <div className="text-[9px] text-zinc-500 leading-tight" style={{ fontFamily: "Georgia, serif" }}>
-                        {sig.title}
-                      </div>
-                    </div>
-                  );
-                })}
-
-              {/* In-progress form preview (dashed outline) */}
-              {(sigForm.name || sigForm.title) && (
-                <div
-                  className="absolute border border-dashed border-primary/50 rounded-sm pointer-events-none"
-                  style={{
-                    left: `${(sigForm.position_x / 600) * 100}%`,
-                    top: `${(sigForm.position_y / 850) * 100}%`,
-                    width: `${(sigForm.width / 600) * 100}%`,
-                    textAlign: sigForm.alignment,
-                  }}
-                >
-                  <div className="font-bold text-[11px] text-slate-900 leading-tight" style={{ fontFamily: "Georgia, serif" }}>
-                    {sigForm.name || "Signatory Name"}
-                  </div>
-                  <div className="text-[9px] text-zinc-500 leading-tight" style={{ fontFamily: "Georgia, serif" }}>
-                    {sigForm.title || "Title"}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            The public certificate download uses the layout of the template
-            marked as the default. Signatories appear based on their display
-            type and the selected ministry. The dashed outline shows the
-            signatory being edited.
+          <p className="mt-1 text-xs text-muted-foreground">
+            Select and drag certificate elements directly on the canvas.
           </p>
         </div>
       </div>
 
-      {/* Saved templates list */}
+      <CertificateEditor
+        settings={settings}
+        onChange={setSettings}
+        signatories={signatories}
+        previewMember={{
+          firstName: "Juan",
+          lastName: "Dela Cruz",
+          parish: "St. Joseph Parish",
+          ministry: "Lector",
+          uid: "LMD-2026-0001",
+          liturgicalYear: settings.liturgical_year,
+        }}
+      />
+    </div>
+  </>
+)}
+
+</div>
+
+{/* Saved templates list */}
       <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div>

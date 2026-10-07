@@ -56,11 +56,71 @@ export default function AuditTrailPage() {
   }, [load]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const ACTIONS = ["All", "Manual Creation", "Status Update", "Profile Update"];
+  const ACTIONS = [
+    "All",
+    "Manual Creation",
+    "Status Update",
+    "Profile Update",
+    "Ministry Added",
+    "Ministry Update",
+    "Ministry Removed",
+  ];
+
+  function formatAuditDate(value: unknown): string {
+    if (!value) return "—";
+    const raw = String(value);
+    const date = new Date(raw.length === 10 ? `${raw}T00:00:00` : raw);
+    return Number.isNaN(date.getTime()) ? raw : date.toLocaleDateString();
+  }
 
   function diffSummary(log: AuditLog): string {
     const prev = log.previous_state as Record<string, unknown> | null;
     const next = log.new_state as Record<string, unknown> | null;
+    const entityType = next?.entity_type ?? prev?.entity_type;
+
+    if (entityType === "member_ministry") {
+      const before = prev ?? {};
+      const after = next ?? {};
+      const ministry = String(after.ministry ?? before.ministry ?? "Unknown ministry");
+
+      if (log.admin_action === "Ministry Added") {
+        return `${ministry} added with status "${String(after.status ?? "Pending Verification")}".`;
+      }
+      if (log.admin_action === "Ministry Removed") {
+        return `${ministry} removed.`;
+      }
+
+      const changes: string[] = [];
+      if (before.ministry !== after.ministry) {
+        changes.push(`Ministry: "${String(before.ministry ?? "—")}" → "${String(after.ministry ?? "—")}"`);
+      }
+      if (before.status !== after.status) {
+        changes.push(`Status: "${String(before.status ?? "—")}" → "${String(after.status ?? "—")}"`);
+      }
+      if (before.start_date !== after.start_date) {
+        changes.push(`Start date: ${formatAuditDate(before.start_date)} → ${formatAuditDate(after.start_date)}`);
+      }
+      if (before.expiration_date !== after.expiration_date) {
+        changes.push(`Expiration: ${formatAuditDate(before.expiration_date)} → ${formatAuditDate(after.expiration_date)}`);
+      }
+      if (before.renewal_date !== after.renewal_date) {
+        changes.push(`Renewal: ${formatAuditDate(before.renewal_date)} → ${formatAuditDate(after.renewal_date)}`);
+      }
+      if (before.document_url !== after.document_url) {
+        changes.push(after.document_url ? "Recommendation letter updated" : "Recommendation letter removed");
+      }
+      if (before.document_uploaded_at !== after.document_uploaded_at) {
+        changes.push("Recommendation letter timestamp updated");
+      }
+      if (JSON.stringify(before.archived_documents) !== JSON.stringify(after.archived_documents)) {
+        changes.push("Recommendation letter archive updated");
+      }
+
+      return changes.length > 0
+        ? `${ministry}: ${changes.join("; ")}`
+        : `${ministry}: no field-level changes.`;
+    }
+
     if (!prev) return "Initial creation of member record.";
     const changes: string[] = [];
     if (prev.status !== next?.status) {

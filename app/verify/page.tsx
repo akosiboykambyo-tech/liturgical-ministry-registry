@@ -1,13 +1,15 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/status-badge";
+import VerificationResultStack from "@/components/verification-result-stack";
 import { CertificateDesign } from "@/components/certificate-design";
 import type { CertificateDesignHandle } from "@/components/certificate-design";
-import type { Member, CertificateTemplateSettings, Signatory } from "@/lib/types";
+import type { Member, MemberMinistry, CertificateTemplateSettings, Signatory } from "@/lib/types";
+import { DEFAULT_TEMPLATE_SETTINGS, getExpirationStatus } from "@/lib/constants";
 import {
   Search,
   ShieldCheck,
@@ -15,6 +17,7 @@ import {
   Church,
   Lock,
   Download,
+  Printer,
   QrCode,
   CheckCircle2,
   Clock,
@@ -22,10 +25,10 @@ import {
   FileBadge,
   ExternalLink,
   Users,
-  Award,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { RegistryFooter } from "@/components/registry-footer";
 
 export default function VerifyPageWrapper() {
   return (
@@ -37,18 +40,40 @@ export default function VerifyPageWrapper() {
 
 function LoadingState() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+    <div role="status" aria-live="polite" className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 aria-hidden="true" className="h-6 w-6 animate-spin text-primary" />
+      <span className="sr-only">Loading verification portal...</span>
     </div>
   );
 }
 
+type PublicMembership = Pick<
+  MemberMinistry,
+  "id" | "member_id" | "ministry" | "status" | "expiration_date"
+>;
+
+interface PublicMember extends Pick<
+  Member,
+  | "id"
+  | "uid"
+  | "first_name"
+  | "last_name"
+  | "parish"
+  | "ministries"
+  | "status"
+  | "service_year"
+  | "expiration_date"
+> {
+  member_ministries: PublicMembership[];
+}
 function VerifyPage() {
   const supabase = getSupabaseBrowserClient();
   const params = useSearchParams();
   const uidParam = params.get("uid");
+  const printParam = params.get("print") === "1";
   const [query, setQuery] = useState(uidParam ?? "");
-  const [results, setResults] = useState<Member[]>([]);
+  const [results, setResults] = useState<PublicMember[]>([]);
+  const [printReady, setPrintReady] = useState(false);
   const [settings, setSettings] = useState<CertificateTemplateSettings | null>(null);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -57,9 +82,9 @@ function VerifyPage() {
   const [searchedByUid, setSearchedByUid] = useState(false);
   const [signatories, setSignatories] = useState<Signatory[]>([]);
   const [selectedMinistry, setSelectedMinistry] = useState<string | null>(null);
-  const [showMinistryDialog, setShowMinistryDialog] = useState(false);
   const [downloadCount, setDownloadCount] = useState(0);
   const certRef = useRef<CertificateDesignHandle>(null);
+  const downloadButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     // Load the default certificate template (public). The Admin Console
@@ -75,25 +100,7 @@ function VerifyPage() {
       if (data?.value) {
         setSettings(data.value as CertificateTemplateSettings);
       } else {
-        setSettings({
-          template_url: null,
-          name_x: 300,
-          name_y: 320,
-          parish_x: 300,
-          parish_y: 400,
-          ministry_x: 300,
-          ministry_y: 460,
-          year_x: 300,
-          year_y: 540,
-          qr_x: 440,
-          qr_y: 680,
-          qr_size: 120,
-          liturgical_year: String(new Date().getFullYear()),
-          font_family: "Georgia, serif",
-          header_text: "Diocese of Navotas",
-          body_text: "This is to certify that",
-          footer_text: "has been duly commissioned as a liturgical minister",
-        });
+        setSettings(DEFAULT_TEMPLATE_SETTINGS);
       }
 
       // Load active signatories (public read)
@@ -112,50 +119,185 @@ function VerifyPage() {
       setError(null);
       setResults([]);
       setSearched(true);
+
       const term = q.trim();
+
       if (!term) {
         setSearching(false);
         setSearchedByUid(false);
         setSearched(false);
+        setError("Enter a member name or Registry ID to verify.");
         return;
       }
 
-      // Check if the search term looks like a UID (starts with LMD-)
-      const isUidSearch = /^LMD-\d{4}-/i.test(term);
-      setSearchedByUid(isUidSearch);
+      // Public verification only needs these fields.
+      // Never expose internal document URLs, notes, or archived documents.
+      const publicFields =
+        "id,uid,first_name,last_name,parish,ministries,status,service_year,expiration_date";
 
-      let found: Member[] = [];
+      const attachMemberships = async (
+        members: Omit<PublicMember, "member_ministries">[]
+      ): Promise<PublicMember[]> => {
+        if (members.length === 0) return [];
 
-      // Try UID match first (exact or prefix match)
-      const uidRes = await supabase
-        .from("members")
-        .select("*")
-        .ilike("uid", term);
+        const memberIds = members.map((member) => member.id);
+        const { data: membershipRows, error: membershipError } = await supabase
+          .from("member_ministries")
+          .select("id,member_id,ministry,status,expiration_date")
+          .in("member_id", memberIds);
 
-      if (uidRes.data && uidRes.data.length > 0) {
-        found = uidRes.data as Member[];
-        setSearchedByUid(true);
+        if (membershipError) {
+          console.error("Unable to load public ministry memberships:", membershipError);
+          return members.map((member) => ({
+            ...member,
+            member_ministries: [],
+          }));
+        }
+
+        const rows = ((membershipRows as PublicMembership[]) ?? []).sort((a, b) =>
+          a.ministry.localeCompare(b.ministry)
+        );
+
+        return members.map((member) => ({
+          ...member,
+          member_ministries: rows.filter((row) => row.member_id === member.id),
+        }));
+      };
+
+      // A complete Registry ID must follow LMD-YYYY-NNNN.
+      const isCompleteUid = /^LMD-\d{4}-\d+$/i.test(term);
+      const looksLikeUid = /^LMD-/i.test(term);
+
+      setSearchedByUid(isCompleteUid);
+
+      let found: PublicMember[] = [];
+
+      // ------------------------------------------------------------
+      // 1. Exact Registry ID search
+      // ------------------------------------------------------------
+      if (isCompleteUid) {
+        const { data, error: uidError } = await supabase
+          .from("members")
+          .select(publicFields)
+          .ilike("uid", term)
+          .limit(1);
+
+        if (uidError) {
+          setError("Unable to complete the registry search. Please try again.");
+        } else {
+          try {
+            found = await attachMemberships(
+              ((data ?? []) as Omit<PublicMember, "member_ministries">[])
+            );
+          } catch (membershipError) {
+            console.error("Unable to attach ministry memberships:", membershipError);
+            found = ((data ?? []) as Omit<PublicMember, "member_ministries">[]).map(
+              (member) => ({
+                ...member,
+                member_ministries: [],
+              })
+            );
+          }
+        }
+
+        setResults(found);
+        setSearching(false);
+        return;
       }
 
-      // If UID search didn't find anything, try name search
-      if (found.length === 0) {
-        const parts = term.toLowerCase().split(/\s+/).filter(Boolean);
-        if (parts.length >= 2) {
-          const firstName = parts[0];
-          const lastName = parts.slice(1).join(" ");
-          const nameRes = await supabase
-            .from("members")
-            .select("*")
-            .ilike("first_name", firstName)
-            .ilike("last_name", lastName);
-          found = (nameRes.data as Member[]) ?? [];
-        } else {
-          const anyRes = await supabase
-            .from("members")
-            .select("*")
-            .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%`);
-          found = (anyRes.data as Member[]) ?? [];
+      // ------------------------------------------------------------
+      // 2. Incomplete UID-like input
+      // ------------------------------------------------------------
+      if (looksLikeUid) {
+        setError(
+          "Please enter the complete Registry ID, for example LMD-2027-0001."
+        );
+        setResults([]);
+        setSearching(false);
+        return;
+      }
+
+      // ------------------------------------------------------------
+      // 3. Name search
+      //
+      // Search each word independently, then require every word to
+      // appear somewhere in the member's first/last name.
+      //
+      // This supports:
+      //   Gerarda Pesa
+      //   Pesa Gerarda
+      //   Gerarda
+      //   Pesa
+      // ------------------------------------------------------------
+      const tokens = term
+        .toLowerCase()
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter(Boolean);
+
+      const escapeIlike = (value: string) =>
+        value.replace(/[%_\\]/g, (char) => `\\${char}`);
+
+      const candidateMap = new Map<string, PublicMember>();
+
+      for (const token of tokens) {
+        const safeToken = escapeIlike(token);
+
+        const { data, error: nameError } = await supabase
+          .from("members")
+          .select(publicFields)
+          .or(
+            `first_name.ilike.%${safeToken}%,last_name.ilike.%${safeToken}%`
+          )
+          .limit(100);
+
+        if (nameError) {
+          setError(
+            "Unable to complete the registry search. Please try again."
+          );
+          setResults([]);
+          setSearching(false);
+          return;
         }
+
+        for (const member of
+          ((data ?? []) as Omit<PublicMember, "member_ministries">[])) {
+          candidateMap.set(member.id, {
+            ...member,
+            member_ministries: [],
+          });
+        }
+      }
+
+      // Require every search token to occur somewhere in the full name.
+      found = Array.from(candidateMap.values()).filter((member) => {
+        const first = member.first_name.toLowerCase().trim();
+        const last = member.last_name.toLowerCase().trim();
+        const fullName = `${first} ${last}`;
+
+        return tokens.every((token) => fullName.includes(token));
+      });
+
+      // Prefer exact full-name matches, then shorter names / alphabetical.
+      found.sort((a, b) => {
+        const aFull = `${a.first_name} ${a.last_name}`.toLowerCase().trim();
+        const bFull = `${b.first_name} ${b.last_name}`.toLowerCase().trim();
+        const normalizedTerm = tokens.join(" ");
+
+        const aExact = aFull === normalizedTerm ? 1 : 0;
+        const bExact = bFull === normalizedTerm ? 1 : 0;
+
+        if (aExact !== bExact) return bExact - aExact;
+
+        return aFull.localeCompare(bFull);
+      });
+
+      try {
+        found = await attachMemberships(
+          found.map(({ member_ministries: _memberMinistries, ...member }) => member)
+        );
+      } catch (membershipError) {
+        console.error("Unable to attach ministry memberships:", membershipError);
       }
 
       setResults(found);
@@ -163,7 +305,6 @@ function VerifyPage() {
     },
     [supabase]
   );
-
   // Auto-search if ?uid= present
   useEffect(() => {
     if (uidParam) {
@@ -173,104 +314,297 @@ function VerifyPage() {
     }
   }, [uidParam, doSearch]);
 
-  // Reset download count and ministry selection when results change
+    // Print-only flow for the Admin "Print UID Certificate" action.
+  useEffect(() => {
+    if (!printParam || results.length !== 1 || !settings) return;
+
+    let cancelled = false;
+
+    const preparePrint = async () => {
+      setPrintReady(false);
+
+      const canvas = await certRef.current?.render();
+
+      if (!canvas || cancelled) return;
+
+      setPrintReady(true);
+
+      // Let React paint the print layout before opening the browser dialog.
+      window.requestAnimationFrame(() => {
+        if (!cancelled) {
+          window.print();
+        }
+      });
+    };
+
+    void preparePrint();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [printParam, results, settings]);
+
+  // Reset certificate selection when the search result changes.
+  // Prefer the first certificate-eligible ministry for a single result.
   useEffect(() => {
     setDownloadCount(0);
-    setSelectedMinistry(null);
-    setShowMinistryDialog(false);
-    // If single result, fetch current download count
-    if (results.length === 1) {
-      const member = results[0];
-      (async () => {
-        const { data } = await supabase
-          .from("certificate_downloads")
-          .select("*")
-          .eq("member_id", member.id);
-        const rows = (data as any[]) ?? [];
-        // Sum all download counts for this member across ministries
-        const total = rows.reduce((sum, r) => sum + (r.download_count ?? 0), 0);
-        setDownloadCount(total);
-      })();
+
+    if (results.length !== 1) {
+      setSelectedMinistry(null);
+      return;
     }
-  }, [results, supabase]);
+
+    const rows = results[0].member_ministries;
+    const preferred =
+      rows.find((membership) => {
+        const expiration = getExpirationStatus(membership.expiration_date);
+        return (
+          (membership.status === "New" || membership.status === "Renewed") &&
+          expiration !== "expired" &&
+          expiration !== "expiring_soon"
+        );
+      }) ?? rows[0];
+
+    setSelectedMinistry(preferred?.ministry ?? null);
+  }, [results]);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     doSearch(query);
   };
 
+  const singleMember = results.length === 1 ? results[0] : null;
+  const memberships = singleMember?.member_ministries ?? [];
+
+  const membershipIsEligible = (membership: PublicMembership) => {
+    const expirationStatus = getExpirationStatus(membership.expiration_date);
+    return (
+      (membership.status === "New" || membership.status === "Renewed") &&
+      expirationStatus !== "expired" &&
+      expirationStatus !== "expiring_soon"
+    );
+  };
+
+  const selectedMembership =
+    memberships.find((membership) => membership.ministry === selectedMinistry) ??
+    (memberships.length === 1 ? memberships[0] : null);
+
+  const eligibleMemberships = memberships.filter(membershipIsEligible);
+
   const canDownload =
-    results.length === 1 &&
-    settings &&
+    Boolean(singleMember) &&
+    Boolean(settings) &&
     searchedByUid &&
-    (results[0].status === "New" || results[0].status === "Renewed");
+    eligibleMemberships.length > 0;
 
-  const reprintSuffix = downloadCount > 0 ? `-R${downloadCount}` : "";
+  // Track reprint count for the selected ministry membership only.
+  useEffect(() => {
+    setDownloadCount(0);
 
-  const trackDownload = async (memberId: string, ministry: string | null) => {
+    if (!selectedMembership) return;
+
+    (async () => {
+      const { data } = await supabase
+        .from("certificate_downloads")
+        .select("download_count")
+        .eq("member_ministry_id", selectedMembership.id)
+        .maybeSingle();
+
+      setDownloadCount(data?.download_count ?? 0);
+    })();
+  }, [selectedMembership, supabase]);
+
+
+  const reprintSuffix =
+    downloadCount > 0 ? `-R${downloadCount + 1}` : "";
+
+  const waitForCertificateRender = () =>
+    new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+
+  const trackDownload = async (membership: PublicMembership) => {
     const { data: existing } = await supabase
       .from("certificate_downloads")
       .select("*")
-      .eq("member_id", memberId)
-      .is("ministry", ministry ?? null);
-    // .is() for nullable column — but we use COALESCE in the unique index, so query with filter
-    let row = (existing as any)?.[0];
-    if (!row) {
-      // Try querying with ministry as empty string match
-      const { data: existing2 } = await supabase
-        .from("certificate_downloads")
-        .select("*")
-        .eq("member_id", memberId);
-      const rows = (existing2 as any[]) ?? [];
-      row = rows.find(
-        (r) => (r.ministry ?? null) === (ministry ?? null)
-      );
-    }
+      .eq("member_ministry_id", membership.id)
+      .maybeSingle();
 
-    if (row) {
-      const newCount = (row.download_count ?? 0) + 1;
+    if (existing) {
+      const newCount = (existing.download_count ?? 0) + 1;
       await supabase
         .from("certificate_downloads")
-        .update({ download_count: newCount, updated_at: new Date().toISOString() })
-        .eq("id", row.id);
+        .update({
+          download_count: newCount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
       setDownloadCount(newCount);
-    } else {
-      await supabase.from("certificate_downloads").insert({
-        member_id: memberId,
-        ministry: ministry ?? null,
-        download_count: 1,
-      });
-      setDownloadCount(1);
+      return;
     }
+
+    const member = results[0];
+    if (!member) return;
+
+    await supabase.from("certificate_downloads").insert({
+      member_id: member.id,
+      member_ministry_id: membership.id,
+      ministry: membership.ministry,
+      download_count: 1,
+    });
+    setDownloadCount(1);
   };
 
   const handleDownload = async () => {
     const member = results[0];
     if (!member || !settings) return;
-    const ministry = member.ministries.length === 1
-      ? member.ministries[0]
-      : selectedMinistry;
-    if (member.ministries.length > 1 && !ministry) {
-      setShowMinistryDialog(true);
-      return;
-    }
+
+    if (!selectedMembership || !membershipIsEligible(selectedMembership)) return;
+
     setGenerating(true);
-    await trackDownload(member.id, ministry);
-    const verifyUrl = `${window.location.origin}/verify?uid=${member.uid}`;
-    await certRef.current?.download(`certificate-${member.uid}${reprintSuffix || ""}.png`);
-    setGenerating(false);
+
+    try {
+      await certRef.current?.download(
+        `certificate-${member.uid}${reprintSuffix}.png`
+      );
+
+      await trackDownload(selectedMembership);
+    } finally {
+      setGenerating(false);
+    }
   };
 
-  const handleMinistrySelect = async (ministry: string) => {
-    setShowMinistryDialog(false);
-    setSelectedMinistry(ministry);
-    const member = results[0];
-    if (!member || !settings) return;
-    setGenerating(true);
-    await trackDownload(member.id, ministry);
-    await certRef.current?.download(`certificate-${member.uid}.png`);
+    const handlePrint = async () => {
+  const member = results[0];
+  if (!member || !settings) return;
+
+  if (!selectedMembership || !membershipIsEligible(selectedMembership)) return;
+
+  // Open the print window immediately while this is still a user-initiated action.
+  const printWindow = window.open("", "_blank", "width=900,height=1000");
+
+  if (!printWindow) {
+    setError("Please allow pop-ups for this site to print the certificate.");
+    return;
+  }
+
+  setGenerating(true);
+
+  try {
+    // Render the exact same canvas used by the Download button.
+    const canvas = await certRef.current?.render();
+
+    if (!canvas) {
+      printWindow.close();
+      setError("Unable to render the certificate for printing.");
+      return;
+    }
+
+    await trackDownload(selectedMembership);
+
+    const png = canvas.toDataURL("image/png");
+
+    printWindow.document.open();
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>Certificate - ${member.uid}</title>
+          <style>
+            @page {
+              size: Letter portrait;
+              margin: 0;
+            }
+
+            html,
+            body {
+              width: 8.5in;
+              height: 11in;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              overflow: hidden;
+            }
+
+            body {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            img {
+              display: block;
+              width: 8.5in;
+              height: 11in;
+              object-fit: contain;
+              margin: 0;
+              padding: 0;
+            }
+
+            @media print {
+              html,
+              body {
+                width: 8.5in;
+                height: 11in;
+                margin: 0;
+                padding: 0;
+              }
+
+              img {
+                width: 8.5in;
+                height: 11in;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <img
+            src="${png}"
+            alt="Official certificate"
+          />
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    const image = printWindow.document.querySelector("img");
+
+    if (!image) {
+      printWindow.close();
+      setError("Unable to prepare the certificate for printing.");
+      return;
+    }
+
+    const print = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+
+    if (image.complete) {
+      print();
+    } else {
+      image.onload = print;
+      image.onerror = () => {
+        printWindow.close();
+        setError("Unable to load the certificate image for printing.");
+      };
+    }
+  } catch (error) {
+    printWindow.close();
+    setError(
+      error instanceof Error
+        ? error.message
+        : "Unable to prepare the certificate for printing."
+    );
+  } finally {
     setGenerating(false);
-  };
+  }
+};
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-red-50/40 to-background flex flex-col">
@@ -293,7 +627,11 @@ function VerifyPage() {
         </div>
       </header>
 
-      <main className="flex-1 mx-auto max-w-3xl w-full px-4 sm:px-6 py-8 sm:py-12">
+      <main
+        className={`flex-1 mx-auto max-w-3xl w-full px-4 sm:px-6 py-8 sm:py-12 ${
+          printParam ? "certificate-print-mode" : ""
+        }`}
+      >
         <div className="text-center mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             Verify a Member
@@ -305,8 +643,12 @@ function VerifyPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+          <label htmlFor="member-search" className="sr-only">Member name or Registry ID</label>
+          <Search aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
           <input
+            id="member-search"
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "member-search-error" : undefined}
             value={query}
             onChange={(e) => {
               const v = e.target.value;
@@ -324,12 +666,14 @@ function VerifyPage() {
           <button
             type="submit"
             disabled={searching}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
+            aria-label={searching ? "Verifying member" : "Verify member"}
+            aria-busy={searching}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             {searching ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
             ) : (
-              <><Search className="h-4 w-4" /> Verify</>
+              <><Search aria-hidden="true" className="h-4 w-4" /> Verify</>
             )}
           </button>
         </form>
@@ -343,28 +687,32 @@ function VerifyPage() {
               firstName: results[0].first_name,
               lastName: results[0].last_name,
               parish: results[0].parish,
-              ministries: results[0].ministries,
+              ministries: results[0].member_ministries.map((membership) => membership.ministry),
               uid: results[0].uid,
               liturgicalYear: settings.liturgical_year,
               verifyUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/verify?uid=${results[0].uid}`,
-              selectedMinistry: selectedMinistry ?? (results[0].ministries.length === 1 ? results[0].ministries[0] : null),
+              selectedMinistry:
+                selectedMinistry ??
+                (results[0].member_ministries.length === 1
+                  ? results[0].member_ministries[0].ministry
+                  : null),
               reprintSuffix,
             }}
             signatories={signatories}
-            className="hidden"
+            className={printParam ? "print-certificate-canvas" : "hidden"}
           />
         )}
 
         <div className="mt-8">
           {searching && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="h-7 w-7 animate-spin text-primary mb-3" />
+            <div role="status" className="flex flex-col items-center justify-center py-12">
+              <Loader2 aria-hidden="true" className="h-7 w-7 animate-spin text-primary mb-3" />
               <p className="text-sm text-muted-foreground">Searching the registry...</p>
             </div>
           )}
 
           {!searching && searched && results.length === 0 && !error && (
-            <div className="rounded-lg border border-dashed border-border py-12 text-center">
+            <div role="status" className="rounded-lg border border-dashed border-border py-12 text-center">
               <AlertCircle className="mx-auto h-9 w-9 text-muted-foreground/50" />
               <p className="mt-3 text-sm font-medium text-foreground">
                 No matching registry entries found.
@@ -377,7 +725,11 @@ function VerifyPage() {
           )}
 
           {error && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 py-8 text-center">
+            <div
+              id="member-search-error"
+              role="alert"
+              className="rounded-lg border border-destructive/30 bg-destructive/5 py-8 text-center"
+            >
               <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
               <p className="mt-3 text-sm text-destructive">{error}</p>
             </div>
@@ -397,49 +749,36 @@ function VerifyPage() {
                 </div>
               )}
 
-              {results.map((member) => {
-                const status = member.status;
-                return (
-                  <div key={member.id} className="space-y-4">
-                    {/* Status banner */}
-                    {status === "Pending Verification" && (
-                      <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-5 py-4">
-                        <div className="flex items-start gap-3">
-                          <Clock className="h-5 w-5 text-amber-700 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-semibold text-amber-900">
-                              Pending Recommendation Letter
-                            </p>
-                            <p className="text-sm text-amber-800 mt-0.5">
-                              Documents are currently processing at the Head Office.
-                              The member&apos;s certificate will be available once
-                              verification is complete.
-                            </p>
+              {results.length > 1 && (
+                <VerificationResultStack results={results} />
+              )}
+
+              <div className={results.length > 1 ? "hidden" : "block"}>
+                {results.map((member) => {
+                  const memberMemberships = member.member_ministries;
+                  const memberEligibleMemberships =
+                    memberMemberships.filter(membershipIsEligible);
+
+                  return (
+                    <div key={member.id} className="space-y-4">
+                      {memberMemberships.length === 0 && (
+                        <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-5 py-4">
+                          <div className="flex items-start gap-3">
+                            <Clock className="h-5 w-5 text-amber-700 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="font-semibold text-amber-900">
+                                Ministry Membership Pending
+                              </p>
+                              <p className="text-sm text-amber-800 mt-0.5">
+                                No ministry membership record is currently available for
+                                public verification.
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {status === "Inactive" && (
-                      <div className="rounded-lg border-2 border-rose-300 bg-rose-50 px-5 py-4">
-                        <div className="flex items-start gap-3">
-                          <AlertCircle className="h-5 w-5 text-rose-700 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-semibold text-rose-900">
-                              Member Inactive
-                            </p>
-                            <p className="text-sm text-rose-800 mt-0.5">
-                              This member is no longer serving in an active liturgical
-                              ministry capacity.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Privacy-safe result card */}
-                    <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
                         <div>
                           <div className="flex items-center gap-2">
                             <FileBadge className="h-5 w-5 text-primary" />
@@ -451,95 +790,261 @@ function VerifyPage() {
                             {member.parish}
                           </p>
                         </div>
-                        <StatusBadge status={status} />
-                      </div>
 
-                      <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="rounded-md bg-muted/40 p-3">
+                        <div className="mt-5 rounded-md bg-muted/40 p-3">
                           <p className="text-xs text-muted-foreground">Parish</p>
                           <p className="text-sm font-medium mt-0.5">{member.parish}</p>
                         </div>
-                        <div className="rounded-md bg-muted/40 p-3">
-                          <p className="text-xs text-muted-foreground">Registered Ministry/Ministries</p>
-                          <p className="text-sm font-medium mt-0.5">{member.ministries.join(", ")}</p>
-                        </div>
-                      </div>
 
-                      {(status === "New" || status === "Renewed") && (
-                        <div className="mt-4 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
-                          <CheckCircle2 className="h-4 w-4 shrink-0" />
-                          <span className="font-medium">Verified Active Member</span>
-                          <span className="text-emerald-700">— authorized to serve in the {settings?.liturgical_year} liturgical year.</span>
-                        </div>
-                      )}
+                        <div className="mt-4 space-y-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              Ministry Memberships
+                            </p>
+                            {memberEligibleMemberships.length > 0 && (
+                              <span className="text-xs text-emerald-700">
+                                {memberEligibleMemberships.length} certificate-eligible
+                              </span>
+                            )}
+                          </div>
 
-                      {/* Certificate section — only for single UID-verified result */}
-                      <div className="mt-6 pt-5 border-t border-border">
-                        {canDownload && results.length === 1 ? (
-                          <div className="space-y-3">
-                            {member.ministries.length > 1 && (
-                              <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
-                                <Award className="inline h-3.5 w-3.5 mr-1" />
-                                This member has {member.ministries.length} ministries. Select which certificate to download.
-                              </div>
-                            )}
-                            {downloadCount > 0 && (
-                              <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800 ring-1 ring-inset ring-blue-600/20">
-                                This certificate has been downloaded {downloadCount} time{downloadCount > 1 ? "s" : ""} before.
-                                The next download will include the suffix <code className="font-mono font-semibold">-R{downloadCount + 1}</code> on the UID.
-                              </div>
-                            )}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold flex items-center gap-1.5">
-                                  <ShieldCheck className="h-4 w-4 text-primary" />
-                                  Official Certificate Available
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  Download includes a QR code linking to this verification page.
-                                </p>
-                              </div>
-                              <button
-                                onClick={handleDownload}
-                                disabled={generating}
-                                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm w-full sm:w-auto"
+                          {memberMemberships.map((membership) => {
+                            const membershipExpiration =
+                              getExpirationStatus(membership.expiration_date);
+                            const eligible = membershipIsEligible(membership);
+
+                            return (
+                              <div
+                                key={membership.id}
+                                className="rounded-lg border border-border bg-background p-4"
                               >
-                                {generating ? (
-                                  <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
-                                ) : (
-                                  <><Download className="h-4 w-4" /> Download Official Certificate</>
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold">
+                                      {membership.ministry}
+                                    </p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {membership.expiration_date
+                                        ? `Valid through ${new Date(
+                                            `${membership.expiration_date}T00:00:00`
+                                          ).toLocaleDateString()}`
+                                        : "No expiration date recorded"}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <StatusBadge status={membership.status} />
+                                    {membershipExpiration === "expired" && (
+                                      <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 ring-1 ring-inset ring-rose-600/20">
+                                        Expired
+                                      </span>
+                                    )}
+                                    {membershipExpiration === "expiring_soon" && (
+                                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                                        Expiring Soon
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {eligible && (
+                                  <div
+                                    role="status"
+                                    className="mt-3 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-inset ring-emerald-600/20"
+                                  >
+                                    <CheckCircle2
+                                      aria-hidden="true"
+                                      className="h-3.5 w-3.5 shrink-0"
+                                    />
+                                    Verified active ministry membership.
+                                  </div>
                                 )}
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                              <QrCode className="h-3.5 w-3.5" />
-                              Verification URL: <code className="font-mono">{`${typeof window !== "undefined" ? window.location.origin : ""}/verify?uid=${member.uid}`}</code>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/20 px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                                <Lock className="h-4 w-4" />
+
+                                {membership.status === "Pending Verification" && (
+                                  <div className="mt-3 flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                                    <Clock
+                                      aria-hidden="true"
+                                      className="h-3.5 w-3.5 shrink-0"
+                                    />
+                                    Pending recommendation-letter verification.
+                                  </div>
+                                )}
+
+                                {membership.status === "Inactive" && (
+                                  <div className="mt-3 flex items-center gap-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-800 ring-1 ring-inset ring-rose-600/20">
+                                    <AlertCircle
+                                      aria-hidden="true"
+                                      className="h-3.5 w-3.5 shrink-0"
+                                    />
+                                    This ministry membership is inactive.
+                                  </div>
+                                )}
+
+                                {membershipExpiration === "expired" && (
+                                  <div className="mt-3 flex items-center gap-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-800 ring-1 ring-inset ring-rose-600/20">
+                                    <AlertCircle
+                                      aria-hidden="true"
+                                      className="h-3.5 w-3.5 shrink-0"
+                                    />
+                                    Recommendation letter expired; certificate unavailable
+                                    for this ministry.
+                                  </div>
+                                )}
+
+                                {membershipExpiration === "expiring_soon" && (
+                                  <div className="mt-3 flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                                    <Clock
+                                      aria-hidden="true"
+                                      className="h-3.5 w-3.5 shrink-0"
+                                    />
+                                    Recommendation letter is expiring soon; certificate is
+                                    temporarily unavailable for this ministry.
+                                  </div>
+                                )}
                               </div>
-                              <div>
-                                <p className="text-sm font-medium">Certificate Download Unavailable</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {!searchedByUid
-                                    ? "Search by UID (e.g., LMD-2026-0001) to download the certificate."
-                                    : results.length > 1
-                                    ? "Multiple entries matched this UID. Refine your search to a single record."
-                                    : "Download is locked until verification is complete."}
-                                </p>
+                            );
+                          })}
+                        </div>
+
+                        <div className="mt-6 pt-5 border-t border-border">
+                          {searchedByUid && memberMemberships.length > 1 && (
+                            <div className="mb-4 space-y-1.5">
+                              <label
+                                htmlFor="certificate-ministry"
+                                className="text-xs font-medium text-muted-foreground"
+                              >
+                                Certificate ministry
+                              </label>
+                              <select
+                                id="certificate-ministry"
+                                value={selectedMinistry ?? ""}
+                                onChange={(event) =>
+                                  setSelectedMinistry(event.target.value)
+                                }
+                                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              >
+                                {memberMemberships.map((membership) => {
+                                  const eligible =
+                                    membershipIsEligible(membership);
+                                  return (
+                                    <option
+                                      key={membership.id}
+                                      value={membership.ministry}
+                                    >
+                                      {membership.ministry}
+                                      {eligible ? "" : " — unavailable"}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
+                          )}
+
+                          {canDownload && selectedMembership ? (
+                            <div className="space-y-3">
+                              {downloadCount > 0 && (
+                                <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800 ring-1 ring-inset ring-blue-600/20">
+                                  This ministry certificate has been downloaded{" "}
+                                  {downloadCount} time{downloadCount > 1 ? "s" : ""} before.
+                                  The next download will include the suffix{" "}
+                                  <code className="font-mono font-semibold">
+                                    -R{downloadCount + 1}
+                                  </code>{" "}
+                                  on the UID.
+                                </div>
+                              )}
+
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                                    <ShieldCheck className="h-4 w-4 text-primary" />
+                                    Official Certificate Available
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    Certificate for {selectedMembership.ministry}.
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                  <button
+                                    type="button"
+                                    ref={downloadButtonRef}
+                                    onClick={handleDownload}
+                                    disabled={generating}
+                                    className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  >
+                                    {generating ? (
+                                      <>
+                                        <Loader2
+                                          aria-hidden="true"
+                                          className="h-4 w-4 animate-spin"
+                                        />
+                                        Generating...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Download
+                                          aria-hidden="true"
+                                          className="h-4 w-4"
+                                        />
+                                        Download Official Certificate
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={handlePrint}
+                                    disabled={generating}
+                                    className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-60 w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  >
+                                    <Printer
+                                      aria-hidden="true"
+                                      className="h-4 w-4"
+                                    />
+                                    Print Certificate
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                                <QrCode
+                                  aria-hidden="true"
+                                  className="h-3.5 w-3.5"
+                                />
+                                Verification URL:{" "}
+                                <code className="font-mono">
+                                  {`${typeof window !== "undefined" ? window.location.origin : ""}/verify?uid=${member.uid}`}
+                                </code>
                               </div>
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/20 px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                                  <Lock className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium">
+                                    Certificate Download Unavailable
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {!searchedByUid
+                                      ? "Certificate download requires the exact Registry ID. Search by UID to unlock eligible ministry certificates."
+                                      : selectedMembership
+                                      ? "The selected ministry is not currently eligible for certificate download or printing."
+                                      : "No certificate-eligible ministry membership is available."}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
 
               <p className="text-center text-xs text-muted-foreground">
                 This public lookup does not expose personal contact details or document links.
@@ -562,54 +1067,8 @@ function VerifyPage() {
         </div>
       </main>
 
-      <footer className="border-t border-border/60 mt-auto">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-5 flex flex-col items-center gap-3">
-          <Image
-            src="/images/Asset_1.svg"
-            alt="Liturgical Ministry Registry"
-            width={200}
-            height={80}
-            priority
-            className="h-16 sm:h-20 md:h-24 w-auto"
-          />
-          <p className="text-xs text-muted-foreground text-center">
-            Liturgical Ministry Registry — Public Verification Portal
-          </p>
-        </div>
-      </footer>
+      <RegistryFooter label="Public Verification Portal" />
 
-      {/* Ministry selection dialog for multi-ministry members */}
-      {showMinistryDialog && results.length === 1 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="rounded-xl border border-border bg-card p-6 shadow-xl max-w-md w-full mx-4 animate-in-fade">
-            <div className="flex items-center gap-2 mb-4">
-              <Award className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">Select Certificate Ministry</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              {results[0].first_name} {results[0].last_name} is registered in
-              multiple ministries. Choose which certificate to download:
-            </p>
-            <div className="space-y-2">
-              {results[0].ministries.map((min) => (
-                <button
-                  key={min}
-                  onClick={() => handleMinistrySelect(min)}
-                  className="w-full text-left rounded-md border border-border px-4 py-3 text-sm font-medium hover:bg-primary/5 hover:border-primary/30 transition-colors"
-                >
-                  {min}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setShowMinistryDialog(false)}
-              className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
