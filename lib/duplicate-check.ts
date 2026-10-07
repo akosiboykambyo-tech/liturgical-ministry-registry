@@ -4,6 +4,7 @@ import type { Member, MemberMinistry } from "@/lib/types";
 
 
 const MEMBER_PAGE_SIZE = 1000;
+const MEMBER_MINISTRY_PAGE_SIZE = 1000;
 
 async function fetchAllMembers(): Promise<Member[]> {
   const supabase = getSupabaseBrowserClient();
@@ -23,6 +24,29 @@ async function fetchAllMembers(): Promise<Member[]> {
     all.push(...batch);
 
     if (batch.length < MEMBER_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
+async function fetchAllMemberMinistries(): Promise<MemberMinistry[]> {
+  const supabase = getSupabaseBrowserClient();
+  const all: MemberMinistry[] = [];
+
+  for (let from = 0; ; from += MEMBER_MINISTRY_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("member_ministries")
+      .select("*")
+      .range(from, from + MEMBER_MINISTRY_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const batch = (data as MemberMinistry[]) ?? [];
+    all.push(...batch);
+
+    if (batch.length < MEMBER_MINISTRY_PAGE_SIZE) break;
   }
 
   return all;
@@ -641,6 +665,246 @@ export async function stageBatchRecords(
   }
 
   return { unique, duplicates, alreadyImported };
+}
+
+
+export type RenewalReviewReason =
+  | "multiple_exact_members"
+  | "missing_membership"
+  | "same_name_different_parish"
+  | "similar_name"
+  | "duplicate_csv_membership";
+
+export interface RenewalMatchCandidate {
+  member: Member;
+  memberships: MemberMinistry[];
+  matchType: "exact" | "same_name_different_parish" | "similar_name";
+  similarity: number;
+}
+
+export interface RenewableMembership {
+  incoming: IncomingRecord;
+  normalizedMinistry: string;
+  existing: Member;
+  membership: MemberMinistry;
+}
+
+export interface RenewalReviewItem {
+  incoming: IncomingRecord;
+  normalizedMinistry: string;
+  reason: RenewalReviewReason;
+  candidates: RenewalMatchCandidate[];
+}
+
+export interface RenewalUnmatchedItem {
+  incoming: IncomingRecord;
+  normalizedMinistry: string;
+}
+
+export interface RenewalBatchStagingResult {
+  renewable: RenewableMembership[];
+  review: RenewalReviewItem[];
+  unmatched: RenewalUnmatchedItem[];
+  totalMemberships: number;
+}
+
+/**
+ * Stage a parish/ministry renewal roster without writing anything to the DB.
+ *
+ * Classification rules:
+ * - exact member + exact existing member_ministries row => renewable
+ * - exact member + missing ministry membership => manual review
+ * - same name in another parish => manual review
+ * - fuzzy/similar name => manual review
+ * - no registry match => unmatched
+ * - repeated same person + parish + ministry within the CSV => manual review
+ *
+ * This function is intentionally read-only. It never creates members, never
+ * creates memberships, and never updates recommendation documents.
+ */
+export async function stageRenewalBatch(
+  records: IncomingRecord[]
+): Promise<RenewalBatchStagingResult> {
+  const [allMembers, allMemberships] = await Promise.all([
+    fetchAllMembers(),
+    fetchAllMemberMinistries(),
+  ]);
+
+  const membershipsByMemberId = new Map<string, MemberMinistry[]>();
+  for (const membership of allMemberships) {
+    const current = membershipsByMemberId.get(membership.member_id) ?? [];
+    current.push(membership);
+    membershipsByMemberId.set(membership.member_id, current);
+  }
+
+  const dbMembers = allMembers.map((member) => ({
+    member,
+    first: member.first_name.toLowerCase().trim(),
+    last: member.last_name.toLowerCase().trim(),
+    parish: member.parish.toLowerCase().trim(),
+  }));
+
+  const renewable: RenewableMembership[] = [];
+  const review: RenewalReviewItem[] = [];
+  const unmatched: RenewalUnmatchedItem[] = [];
+  const seenCsvMemberships = new Set<string>();
+  let totalMemberships = 0;
+
+  const buildCandidate = (
+    member: Member,
+    matchType: RenewalMatchCandidate["matchType"],
+    similarity: number
+  ): RenewalMatchCandidate => ({
+    member,
+    memberships: membershipsByMemberId.get(member.id) ?? [],
+    matchType,
+    similarity,
+  });
+
+  for (const record of records) {
+    const first = record.first_name.toLowerCase().trim();
+    const last = record.last_name.toLowerCase().trim();
+    const parish = record.parish.toLowerCase().trim();
+    const normalizedMinistries = normalizeMinistriesRaw(record.ministry);
+
+    for (const normalizedMinistry of normalizedMinistries) {
+      totalMemberships += 1;
+
+      const csvKey = [
+        first,
+        last,
+        parish,
+        normalizedMinistry.toLowerCase().trim(),
+      ].join("|");
+
+      if (seenCsvMemberships.has(csvKey)) {
+        const exactMembers = dbMembers.filter(
+          (entry) =>
+            entry.first === first &&
+            entry.last === last &&
+            entry.parish === parish
+        );
+
+        review.push({
+          incoming: record,
+          normalizedMinistry,
+          reason: "duplicate_csv_membership",
+          candidates: exactMembers.map((entry) =>
+            buildCandidate(entry.member, "exact", 1)
+          ),
+        });
+        continue;
+      }
+
+      seenCsvMemberships.add(csvKey);
+
+      const exactMembers = dbMembers.filter(
+        (entry) =>
+          entry.first === first &&
+          entry.last === last &&
+          entry.parish === parish
+      );
+
+      if (exactMembers.length > 1) {
+        review.push({
+          incoming: record,
+          normalizedMinistry,
+          reason: "multiple_exact_members",
+          candidates: exactMembers.map((entry) =>
+            buildCandidate(entry.member, "exact", 1)
+          ),
+        });
+        continue;
+      }
+
+      if (exactMembers.length === 1) {
+        const existing = exactMembers[0].member;
+        const existingMemberships =
+          membershipsByMemberId.get(existing.id) ?? [];
+
+        const exactMembership = existingMemberships.find(
+          (membership) =>
+            membership.ministry.toLowerCase().trim() ===
+            normalizedMinistry.toLowerCase().trim()
+        );
+
+        if (exactMembership) {
+          renewable.push({
+            incoming: record,
+            normalizedMinistry,
+            existing,
+            membership: exactMembership,
+          });
+        } else {
+          review.push({
+            incoming: record,
+            normalizedMinistry,
+            reason: "missing_membership",
+            candidates: [buildCandidate(existing, "exact", 1)],
+          });
+        }
+
+        continue;
+      }
+
+      const sameNameDifferentParish = dbMembers.filter(
+        (entry) =>
+          entry.first === first &&
+          entry.last === last &&
+          entry.parish !== parish
+      );
+
+      if (sameNameDifferentParish.length > 0) {
+        review.push({
+          incoming: record,
+          normalizedMinistry,
+          reason: "same_name_different_parish",
+          candidates: sameNameDifferentParish.map((entry) =>
+            buildCandidate(entry.member, "same_name_different_parish", 1)
+          ),
+        });
+        continue;
+      }
+
+      const similarMatches = dbMembers
+        .filter((entry) => {
+          const firstSimilar = areNamesSimilar(first, entry.first);
+          const lastSimilar = areNamesSimilar(last, entry.last);
+          return firstSimilar && lastSimilar;
+        })
+        .map((entry) => {
+          const similarity =
+            (similarityRatio(first, entry.first) +
+              similarityRatio(last, entry.last)) /
+            2;
+
+          return buildCandidate(entry.member, "similar_name", similarity);
+        })
+        .sort((a, b) => b.similarity - a.similarity);
+
+      if (similarMatches.length > 0) {
+        review.push({
+          incoming: record,
+          normalizedMinistry,
+          reason: "similar_name",
+          candidates: similarMatches,
+        });
+        continue;
+      }
+
+      unmatched.push({
+        incoming: record,
+        normalizedMinistry,
+      });
+    }
+  }
+
+  return {
+    renewable,
+    review,
+    unmatched,
+    totalMemberships,
+  };
 }
 
 export type BatchResult = {

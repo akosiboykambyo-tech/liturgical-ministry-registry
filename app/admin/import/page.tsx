@@ -5,10 +5,13 @@ import Papa from "papaparse";
 import {
   stageBatchRecords,
   importMemberBatch,
+  stageRenewalBatch,
   type BatchResult,
   type IncomingRecord,
   type StagedDuplicate,
   type DuplicateMatchType,
+  type RenewalBatchStagingResult,
+  type RenewalReviewItem,
 } from "@/lib/duplicate-check";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MINISTRIES, PARISHES, shortMinistry } from "@/lib/constants";
@@ -30,6 +33,7 @@ import {
   Layers,
   ShieldAlert,
   Copy,
+  FileCheck2,
 } from "lucide-react";
 
 const MAX_ROWS = 3000;
@@ -63,7 +67,7 @@ interface Progress {
   phase: string;
 }
 
-type Tab = "import" | "pending";
+type Tab = "import" | "renewal" | "pending";
 
 function normalizeMinistries(raw: string): string[] {
   const ministries: string[] = [];
@@ -132,6 +136,31 @@ function getMatchTypeBadge(matchType: DuplicateMatchType): {
   }
 }
 
+
+function getRenewalReviewLabel(item: RenewalReviewItem): string {
+  switch (item.reason) {
+    case "multiple_exact_members":
+      return "Multiple exact member matches";
+    case "missing_membership":
+      return "Member found, ministry membership missing";
+    case "same_name_different_parish":
+      return "Same name found in a different parish";
+    case "similar_name":
+      return "Similar name requires review";
+    case "duplicate_csv_membership":
+      return "Repeated membership in renewal CSV";
+    default:
+      return "Needs manual review";
+  }
+}
+
+function getDefaultNextRenewalDate(renewalDate: string): string {
+  const date = new Date(`${renewalDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setFullYear(date.getFullYear() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
 export default function CsvImportPage() {
   const supabase = getSupabaseBrowserClient();
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -146,6 +175,27 @@ export default function CsvImportPage() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("import");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Renewal import state
+  const renewalCsvInputRef = useRef<HTMLInputElement>(null);
+  const renewalLetterInputRef = useRef<HTMLInputElement>(null);
+  const [renewalRows, setRenewalRows] = useState<ParsedRow[]>([]);
+  const [renewalCsvName, setRenewalCsvName] = useState("");
+  const [renewalParseError, setRenewalParseError] = useState<string | null>(null);
+  const [renewalLetter, setRenewalLetter] = useState<File | null>(null);
+  const [renewalStaging, setRenewalStaging] = useState<RenewalBatchStagingResult | null>(null);
+  const [renewalProcessing, setRenewalProcessing] = useState(false);
+  const [renewalActionError, setRenewalActionError] = useState<string | null>(null);
+  const [renewalSelected, setRenewalSelected] = useState<Set<string>>(new Set());
+  const [renewalDate, setRenewalDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [nextRenewalDate, setNextRenewalDate] = useState(() =>
+    getDefaultNextRenewalDate(new Date().toISOString().slice(0, 10))
+  );
+  const [renewalNotes, setRenewalNotes] = useState("");
+  const [renewalSuccess, setRenewalSuccess] = useState<{
+    renewed: number;
+    batchId: string;
+  } | null>(null);
 
   // Idempotency state
   const [idempotencyWarning, setIdempotencyWarning] = useState<{
@@ -241,6 +291,244 @@ export default function CsvImportPage() {
     },
     [handleFile]
   );
+
+  const handleRenewalCsv = useCallback((file: File) => {
+    setRenewalParseError(null);
+    setRenewalStaging(null);
+    setRenewalActionError(null);
+    setRenewalSuccess(null);
+    setRenewalSelected(new Set());
+    setRenewalCsvName(file.name);
+
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setRenewalParseError("Please upload a .csv file.");
+      return;
+    }
+
+    Papa.parse<ParsedRow>(file, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (h) =>
+        h.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/\s+/g, "_"),
+      complete: (res) => {
+        const valid: ParsedRow[] = [];
+        const skipped: string[] = [];
+
+        for (const r of res.data as ParsedRow[]) {
+          const firstName = (r.first_name ?? "").trim();
+          const lastName = (r.last_name ?? "").trim();
+          const rawParish = (r.parish ?? "").trim();
+          const normalizedParish = rawParish.normalize("NFC");
+          const parish =
+            PARISHES.find(
+              (candidate) => candidate.normalize("NFC") === normalizedParish
+            ) ?? "";
+          const ministry = (r.ministry ?? "").trim();
+
+          if (!firstName || !lastName || !rawParish || !ministry) {
+            skipped.push(`${firstName || "?"} ${lastName || "?"}`.trim());
+            continue;
+          }
+
+          if (!parish) {
+            skipped.push(
+              `${firstName} ${lastName} (invalid parish: "${rawParish}")`
+            );
+            continue;
+          }
+
+          if (valid.length >= MAX_ROWS) {
+            skipped.push(
+              `${firstName} ${lastName} (exceeds ${MAX_ROWS.toLocaleString()}-row limit)`
+            );
+            continue;
+          }
+
+          valid.push({
+            first_name: firstName,
+            last_name: lastName,
+            parish,
+            ministry,
+          });
+        }
+
+        setRenewalRows(valid);
+
+        if (skipped.length > 0) {
+          setRenewalParseError(
+            `${skipped.length} row(s) skipped: ${skipped.slice(0, 5).join(", ")}` +
+              (skipped.length > 5 ? ` ...and ${skipped.length - 5} more` : "")
+          );
+        }
+      },
+      error: (err) => setRenewalParseError(err.message),
+    });
+  }, []);
+
+  const resetRenewalWorkflow = () => {
+    setRenewalRows([]);
+    setRenewalCsvName("");
+    setRenewalParseError(null);
+    setRenewalLetter(null);
+    setRenewalStaging(null);
+    setRenewalActionError(null);
+    setRenewalSelected(new Set());
+    setRenewalNotes("");
+    setRenewalSuccess(null);
+    if (renewalCsvInputRef.current) renewalCsvInputRef.current.value = "";
+    if (renewalLetterInputRef.current) renewalLetterInputRef.current.value = "";
+  };
+
+  const stageRenewalRoster = async () => {
+    if (renewalRows.length === 0) return;
+
+    setRenewalProcessing(true);
+    setRenewalActionError(null);
+    setRenewalSuccess(null);
+
+    const parishSet = new Set(renewalRows.map((row) => row.parish));
+    if (parishSet.size !== 1) {
+      setRenewalProcessing(false);
+      setRenewalActionError(
+        "A renewal batch must contain exactly one parish because one shared recommendation letter is applied to the batch."
+      );
+      return;
+    }
+
+    try {
+      const result = await stageRenewalBatch(
+        renewalRows.map((row) => ({
+          first_name: row.first_name,
+          last_name: row.last_name,
+          parish: row.parish,
+          ministry: row.ministry,
+        }))
+      );
+
+      setRenewalStaging(result);
+      setRenewalSelected(
+        new Set(result.renewable.map((item) => item.membership.id))
+      );
+    } catch (error) {
+      setRenewalActionError(
+        error instanceof Error ? error.message : "Unable to stage renewal roster."
+      );
+    } finally {
+      setRenewalProcessing(false);
+    }
+  };
+
+  const toggleRenewalMembership = (membershipId: string) => {
+    setRenewalSelected((previous) => {
+      const next = new Set(previous);
+      if (next.has(membershipId)) next.delete(membershipId);
+      else next.add(membershipId);
+      return next;
+    });
+  };
+
+  const toggleAllRenewableMemberships = () => {
+    if (!renewalStaging) return;
+
+    const ids = renewalStaging.renewable.map((item) => item.membership.id);
+    const allSelected =
+      ids.length > 0 && ids.every((id) => renewalSelected.has(id));
+
+    setRenewalSelected(allSelected ? new Set() : new Set(ids));
+  };
+
+  const processRenewalBatch = async () => {
+    if (!renewalStaging) return;
+
+    const selectedIds = renewalStaging.renewable
+      .map((item) => item.membership.id)
+      .filter((id) => renewalSelected.has(id));
+
+    if (selectedIds.length === 0) {
+      setRenewalActionError("Select at least one exact membership to renew.");
+      return;
+    }
+
+    if (!renewalLetter) {
+      setRenewalActionError(
+        "Upload the shared recommendation letter before processing the renewal."
+      );
+      return;
+    }
+
+    if (!renewalDate || !nextRenewalDate) {
+      setRenewalActionError("Renewal date and next renewal date are required.");
+      return;
+    }
+
+    if (nextRenewalDate < renewalDate) {
+      setRenewalActionError(
+        "The next renewal date cannot be earlier than the renewal date."
+      );
+      return;
+    }
+
+    const selectedItems = renewalStaging.renewable.filter((item) =>
+      renewalSelected.has(item.membership.id)
+    );
+    const parishes = Array.from(
+      new Set(selectedItems.map((item) => item.existing.parish))
+    );
+
+    if (parishes.length !== 1) {
+      setRenewalActionError(
+        "Selected renewal memberships must belong to exactly one parish."
+      );
+      return;
+    }
+
+    setRenewalProcessing(true);
+    setRenewalActionError(null);
+
+    const batchId = crypto.randomUUID();
+    const ext = renewalLetter.name.includes(".")
+      ? renewalLetter.name.split(".").pop()?.toLowerCase() || "pdf"
+      : "pdf";
+    const storagePath = `batch-renewals/${batchId}/recommendation-letter.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("member-documents")
+      .upload(storagePath, renewalLetter, {
+        upsert: false,
+        contentType: renewalLetter.type || undefined,
+      });
+
+    if (uploadError) {
+      setRenewalProcessing(false);
+      setRenewalActionError(uploadError.message);
+      return;
+    }
+
+    const { error: renewalError } = await supabase.rpc(
+      "process_recommendation_renewal_batch",
+      {
+        p_batch_id: batchId,
+        p_parish: parishes[0],
+        p_ministry: null,
+        p_document_url: storagePath,
+        p_renewal_date: renewalDate,
+        p_next_renewal_date: nextRenewalDate,
+        p_membership_ids: selectedIds,
+        p_notes: renewalNotes.trim() || null,
+      }
+    );
+
+    if (renewalError) {
+      await supabase.storage.from("member-documents").remove([storagePath]);
+      setRenewalProcessing(false);
+      setRenewalActionError(renewalError.message);
+      return;
+    }
+
+    setRenewalProcessing(false);
+    setRenewalSuccess({ renewed: selectedIds.length, batchId });
+    setRenewalSelected(new Set());
+  };
 
   // ============================================================
   // STAGING + IMPORT FLOW
@@ -678,6 +966,17 @@ export default function CsvImportPage() {
           )}
         </button>
         <button
+          onClick={() => setActiveTab("renewal")}
+          className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === "renewal"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          <FileCheck2 className="h-4 w-4" />
+          Renewal Import
+        </button>
+        <button
           onClick={() => setActiveTab("pending")}
           className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === "pending"
@@ -1086,6 +1385,465 @@ export default function CsvImportPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ============================================================ */}
+      {/* RENEWAL IMPORT TAB */}
+      {/* ============================================================ */}
+      {activeTab === "renewal" && (
+        <div className="space-y-5">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <FileCheck2 className="h-6 w-6 text-primary" />
+              Parish Recommendation Renewal
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Upload one parish renewal roster CSV and one shared recommendation
+              letter. Exact existing member + ministry matches can be renewed in
+              place; ambiguous and unmatched rows are held for review and are not
+              changed automatically.
+            </p>
+          </div>
+
+          {renewalSuccess && (
+            <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="h-5 w-5 mt-0.5 text-emerald-700 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-emerald-900">
+                    Renewal batch completed
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-800">
+                    {renewalSuccess.renewed} ministry membership
+                    {renewalSuccess.renewed === 1 ? "" : "s"} renewed. Review and
+                    unmatched rows were not modified.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={resetRenewalWorkflow}
+                    className="mt-3 rounded-md border border-emerald-400 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                  >
+                    Start another renewal batch
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {renewalActionError && (
+            <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{renewalActionError}</span>
+            </div>
+          )}
+
+          {!renewalSuccess && (
+            <>
+              <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-5">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold">1. Renewal roster CSV</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Required columns: First Name, Last Name, Parish, Ministry.
+                        The file must contain exactly one parish.
+                      </p>
+                    </div>
+                    <input
+                      ref={renewalCsvInputRef}
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleRenewalCsv(file);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => renewalCsvInputRef.current?.click()}
+                      disabled={renewalProcessing}
+                      className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                      {renewalCsvName || "Choose renewal CSV"}
+                    </button>
+                    {renewalRows.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {renewalRows.length.toLocaleString()} valid row
+                        {renewalRows.length === 1 ? "" : "s"} ready to stage.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        2. Shared recommendation letter
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        This document becomes the current recommendation letter
+                        for every confirmed membership in the batch.
+                      </p>
+                    </div>
+                    <input
+                      ref={renewalLetterInputRef}
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.webp"
+                      className="hidden"
+                      onChange={(e) =>
+                        setRenewalLetter(e.target.files?.[0] ?? null)
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => renewalLetterInputRef.current?.click()}
+                      disabled={renewalProcessing}
+                      className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {renewalLetter?.name || "Choose recommendation letter"}
+                    </button>
+                  </div>
+                </div>
+
+                {renewalParseError && (
+                  <div className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2.5 text-sm text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>{renewalParseError}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      htmlFor="renewal-date"
+                      className="text-sm font-semibold"
+                    >
+                      Renewal date
+                    </label>
+                    <input
+                      id="renewal-date"
+                      type="date"
+                      value={renewalDate}
+                      disabled={renewalProcessing}
+                      onChange={(e) => {
+                        setRenewalDate(e.target.value);
+                        setNextRenewalDate(
+                          getDefaultNextRenewalDate(e.target.value)
+                        );
+                      }}
+                      className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="renewal-next-date"
+                      className="text-sm font-semibold"
+                    >
+                      Next renewal / expiration date
+                    </label>
+                    <input
+                      id="renewal-next-date"
+                      type="date"
+                      value={nextRenewalDate}
+                      min={renewalDate || undefined}
+                      disabled={renewalProcessing}
+                      onChange={(e) => setNextRenewalDate(e.target.value)}
+                      className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="renewal-notes"
+                    className="text-sm font-semibold"
+                  >
+                    Processing notes (optional)
+                  </label>
+                  <textarea
+                    id="renewal-notes"
+                    rows={3}
+                    value={renewalNotes}
+                    disabled={renewalProcessing}
+                    onChange={(e) => setRenewalNotes(e.target.value)}
+                    placeholder="Optional note about this parish renewal cycle..."
+                    className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-2">
+                  {(renewalRows.length > 0 || renewalStaging) && (
+                    <button
+                      type="button"
+                      onClick={resetRenewalWorkflow}
+                      disabled={renewalProcessing}
+                      className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={stageRenewalRoster}
+                    disabled={renewalProcessing || renewalRows.length === 0}
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                  >
+                    {renewalProcessing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Layers className="h-4 w-4" />
+                    )}
+                    Stage Renewal Roster
+                  </button>
+                </div>
+              </div>
+
+              {renewalStaging && (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-2xl font-bold text-emerald-700">
+                        {renewalStaging.renewable.length}
+                      </p>
+                      <p className="text-xs font-semibold text-emerald-800">
+                        Ready to Renew
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-2xl font-bold text-amber-700">
+                        {renewalStaging.review.length}
+                      </p>
+                      <p className="text-xs font-semibold text-amber-800">
+                        Needs Review
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-2xl font-bold text-slate-700">
+                        {renewalStaging.unmatched.length}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-800">
+                        Unmatched
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 border-b border-border bg-emerald-50/60 px-4 py-3">
+                      <div>
+                        <h2 className="text-sm font-semibold text-emerald-900">
+                          Ready to Renew
+                        </h2>
+                        <p className="text-xs text-emerald-800">
+                          Exact existing member + exact existing ministry.
+                          Checked rows will be renewed in place.
+                        </p>
+                      </div>
+                      {renewalStaging.renewable.length > 0 && (
+                        <label className="inline-flex items-center gap-2 text-xs font-medium text-emerald-900">
+                          <input
+                            type="checkbox"
+                            checked={
+                              renewalStaging.renewable.length > 0 &&
+                              renewalStaging.renewable.every((item) =>
+                                renewalSelected.has(item.membership.id)
+                              )
+                            }
+                            onChange={toggleAllRenewableMemberships}
+                            disabled={renewalProcessing}
+                            className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                          />
+                          Select all exact matches
+                        </label>
+                      )}
+                    </div>
+
+                    {renewalStaging.renewable.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        No exact existing membership matches were found.
+                      </div>
+                    ) : (
+                      <div className="max-h-80 overflow-y-auto divide-y divide-border">
+                        {renewalStaging.renewable.map((item) => {
+                          const checked = renewalSelected.has(item.membership.id);
+                          return (
+                            <label
+                              key={item.membership.id}
+                              className={`flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-muted/30 ${
+                                checked ? "bg-primary/5" : ""
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={renewalProcessing}
+                                onChange={() =>
+                                  toggleRenewalMembership(item.membership.id)
+                                }
+                                className="mt-0.5 h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  <span className="font-medium">
+                                    {item.existing.first_name}{" "}
+                                    {item.existing.last_name}
+                                  </span>
+                                  <code className="text-[11px] text-muted-foreground">
+                                    {item.existing.uid}
+                                  </code>
+                                </span>
+                                <span className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                                  <span>{item.existing.parish}</span>
+                                  <span>•</span>
+                                  <span>{item.membership.ministry}</span>
+                                  <span>•</span>
+                                  <span>{item.membership.status}</span>
+                                  {item.membership.expiration_date && (
+                                    <>
+                                      <span>•</span>
+                                      <span>
+                                        current expiry{" "}
+                                        {new Date(
+                                          `${item.membership.expiration_date}T00:00:00`
+                                        ).toLocaleDateString()}
+                                      </span>
+                                    </>
+                                  )}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+                    <div className="border-b border-border bg-amber-50/70 px-4 py-3">
+                      <h2 className="text-sm font-semibold text-amber-900">
+                        Needs Review
+                      </h2>
+                      <p className="text-xs text-amber-800">
+                        These rows are excluded from batch processing. Review them
+                        manually before deciding whether they represent a transfer,
+                        new ministry assignment, typo, or repeated CSV entry.
+                      </p>
+                    </div>
+                    {renewalStaging.review.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                        No ambiguous rows.
+                      </div>
+                    ) : (
+                      <div className="max-h-72 overflow-y-auto divide-y divide-border">
+                        {renewalStaging.review.map((item, index) => (
+                          <div key={`${item.incoming.first_name}-${item.incoming.last_name}-${item.normalizedMinistry}-${index}`} className="px-4 py-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-medium">
+                                  {item.incoming.first_name}{" "}
+                                  {item.incoming.last_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {item.incoming.parish} •{" "}
+                                  {item.normalizedMinistry}
+                                </p>
+                              </div>
+                              <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800">
+                                {getRenewalReviewLabel(item)}
+                              </span>
+                            </div>
+                            {item.candidates.length > 0 && (
+                              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                {item.candidates.slice(0, 3).map((candidate) => (
+                                  <p key={candidate.member.id}>
+                                    Possible: {candidate.member.first_name}{" "}
+                                    {candidate.member.last_name} (
+                                    {candidate.member.uid}) —{" "}
+                                    {candidate.member.parish}
+                                    {candidate.matchType === "similar_name"
+                                      ? ` — ${Math.round(candidate.similarity * 100)}% similar`
+                                      : ""}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+                    <div className="border-b border-border bg-muted/50 px-4 py-3">
+                      <h2 className="text-sm font-semibold">Unmatched</h2>
+                      <p className="text-xs text-muted-foreground">
+                        No registry member matched these rows. Renewal mode does
+                        not create new members automatically.
+                      </p>
+                    </div>
+                    {renewalStaging.unmatched.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                        No unmatched rows.
+                      </div>
+                    ) : (
+                      <div className="max-h-64 overflow-y-auto divide-y divide-border">
+                        {renewalStaging.unmatched.map((item, index) => (
+                          <div
+                            key={`${item.incoming.first_name}-${item.incoming.last_name}-${item.normalizedMinistry}-${index}`}
+                            className="px-4 py-3"
+                          >
+                            <p className="text-sm font-medium">
+                              {item.incoming.first_name}{" "}
+                              {item.incoming.last_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.incoming.parish} • {item.normalizedMinistry}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-5 shadow-sm">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold">
+                          Confirm batch renewal
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {renewalSelected.size} exact membership
+                          {renewalSelected.size === 1 ? "" : "s"} selected. Their
+                          previous recommendation letters will be archived before
+                          the shared letter becomes current. Review and unmatched
+                          rows will not be changed.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={processRenewalBatch}
+                        disabled={
+                          renewalProcessing ||
+                          renewalSelected.size === 0 ||
+                          !renewalLetter
+                        }
+                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                      >
+                        {renewalProcessing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        Renew selected memberships
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {/* ============================================================ */}
