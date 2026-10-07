@@ -213,6 +213,9 @@ export function MemberDetailDrawer({
     membershipDrafts[0] ??
     null;
 
+  const selectedDocumentIsSharedBatch =
+    selectedMembership?.document_url?.startsWith("batch-renewals/") ?? false;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -390,8 +393,9 @@ export function MemberDetailDrawer({
     setError(null);
 
     const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
-    const path = `${member.id}/${selectedMembership.id}/recommendation-letter.${ext}`;
     const nowIso = new Date().toISOString();
+    const uploadId = crypto.randomUUID();
+    const path = `${member.id}/${selectedMembership.id}/recommendation-letter-${uploadId}.${ext}`;
 
     const archivedDocuments = selectedMembership.archived_documents ?? [];
     const nextArchivedDocuments = selectedMembership.document_url
@@ -409,7 +413,7 @@ export function MemberDetailDrawer({
 
     const { error: upErr } = await supabase.storage
       .from("member-documents")
-      .upload(path, file, { upsert: true });
+      .upload(path, file, { upsert: false });
 
     if (upErr) {
       setError(upErr.message);
@@ -435,6 +439,9 @@ export function MemberDetailDrawer({
       .eq("id", selectedMembership.id);
 
     if (membershipRenewalError) {
+      // The DB update failed, so this newly uploaded object is not referenced.
+      // Remove only this new immutable object; never remove the previous letter.
+      await supabase.storage.from("member-documents").remove([path]);
       setError(membershipRenewalError.message);
       setUploading(false);
       return;
@@ -469,13 +476,25 @@ export function MemberDetailDrawer({
   const handleDeleteDocument = async () => {
     if (!selectedMembership?.id || !selectedMembership.document_url) return;
 
-    const { error: storageError } = await supabase.storage
-      .from("member-documents")
-      .remove([selectedMembership.document_url]);
+    setError(null);
 
-    if (storageError) {
-      setError(storageError.message);
-      return;
+    const documentPath = selectedMembership.document_url;
+    const isSharedBatchDocument = documentPath.startsWith("batch-renewals/");
+
+    // Batch-renewal letters are intentionally shared by many memberships and
+    // are also part of the durable renewal history. Never delete that physical
+    // storage object from an individual member drawer. Detaching this one
+    // membership is safe; the shared file remains available to the rest of the
+    // batch and to renewal-history records.
+    if (!isSharedBatchDocument) {
+      const { error: storageError } = await supabase.storage
+        .from("member-documents")
+        .remove([documentPath]);
+
+      if (storageError) {
+        setError(storageError.message);
+        return;
+      }
     }
 
     const { error: membershipUpdateError } = await supabase
@@ -493,12 +512,19 @@ export function MemberDetailDrawer({
     }
 
     // Clear the legacy mirror only when it points at the same document.
-    if (member?.document_url === selectedMembership.document_url) {
+    if (member?.document_url === documentPath) {
       await supabase
         .from("members")
         .update({ document_url: null, expiration_date: null })
         .eq("id", member.id);
     }
+
+    toast({
+      title: isSharedBatchDocument ? "Batch letter detached" : "Document removed",
+      description: isSharedBatchDocument
+        ? "This membership no longer uses the shared letter. The batch document was retained for other members and renewal history."
+        : "The recommendation letter was removed from this membership.",
+    });
 
     load();
     onUpdated?.();
@@ -957,11 +983,19 @@ export function MemberDetailDrawer({
                         <span>Generating secure link...</span>
                       </div>
                     )}
+                    {selectedDocumentIsSharedBatch && (
+                      <div className="rounded-md bg-sky-50 px-3 py-2.5 text-xs text-sky-800 ring-1 ring-inset ring-sky-600/20">
+                        This recommendation letter belongs to a batch renewal and may
+                        be shared by other memberships. Detaching it here will not
+                        delete the stored batch file or its renewal history.
+                      </div>
+                    )}
                     <button
                       onClick={handleDeleteDocument}
                       className="inline-flex items-center gap-1.5 text-xs text-destructive hover:underline"
                     >
-                      <Trash2 className="h-3 w-3" /> Remove document
+                      <Trash2 className="h-3 w-3" />{" "}
+                      {selectedDocumentIsSharedBatch ? "Detach from membership" : "Remove document"}
                     </button>
                   </div>
                 ) : (
@@ -989,8 +1023,8 @@ export function MemberDetailDrawer({
                   </label>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Uploading a new letter archives the previous one and renews the
-                  selected ministry for one year.
+                  Uploading a new letter keeps the previous file intact in the
+                  membership archive and renews the selected ministry for one year.
                 </p>
               </div>
 
