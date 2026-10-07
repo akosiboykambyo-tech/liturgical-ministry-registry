@@ -93,8 +93,12 @@ export default function MembersListPage() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectingAllFiltered, setSelectingAllFiltered] = useState(false);
+  const [loadingReport, setLoadingReport] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMembers, setReportMembers] = useState<MemberWithMemberships[]>([]);
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
+  const [attendanceMembers, setAttendanceMembers] = useState<MemberWithMemberships[]>([]);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [attention, setAttention] = useState<"pending" | "missing-documents" | "expiring" | null>(null);
 
@@ -286,6 +290,165 @@ export default function MembersListPage() {
 
   const parishOptions = [...PARISHES].sort((a, b) => a.localeCompare(b));
 
+  const buildFilteredMembersQuery = useCallback(
+    (mode: "ids" | "full") => {
+      const dashboardAttention = new URLSearchParams(window.location.search).get(
+        "attention"
+      );
+      const hasMembershipFilter =
+        filters.ministry.length > 0 ||
+        filters.status.length > 0 ||
+        dashboardAttention === "pending" ||
+        dashboardAttention === "missing-documents" ||
+        dashboardAttention === "expiring";
+
+      const membershipFields =
+        "id,member_id,ministry,status,start_date,expiration_date,renewal_date,document_url,document_uploaded_at,archived_documents,created_at,updated_at";
+
+      const selectClause =
+        mode === "full"
+          ? hasMembershipFilter
+            ? `*,member_ministries(${membershipFields}),matched_memberships:member_ministries!inner(id,ministry,status,expiration_date,document_url)`
+            : `*,member_ministries(${membershipFields})`
+          : hasMembershipFilter
+            ? `id,matched_memberships:member_ministries!inner(id,ministry,status,expiration_date,document_url)`
+            : "id";
+
+      let query = supabase.from("members").select(selectClause);
+
+      const searchTrimmed = search.trim();
+      if (searchTrimmed) {
+        query = query.or(
+          `first_name.ilike.%${searchTrimmed}%,last_name.ilike.%${searchTrimmed}%,parish.ilike.%${searchTrimmed}%,uid.ilike.%${searchTrimmed}%`
+        );
+      }
+
+      if (filters.parish.length > 0) {
+        query = query.in("parish", filters.parish);
+      }
+
+      if (filters.ministry.length > 0) {
+        query = query.in("matched_memberships.ministry", filters.ministry);
+      }
+
+      if (filters.year && filters.year !== "All") {
+        query = query.ilike("uid", `LMD-${filters.year}-%`);
+      }
+
+      if (dashboardAttention === "pending") {
+        query = query.eq("matched_memberships.status", "Pending Verification");
+      }
+
+      if (dashboardAttention === "missing-documents") {
+        query = query.is("matched_memberships.document_url", null);
+      }
+
+      if (dashboardAttention === "expiring") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const future = new Date(today);
+        future.setDate(future.getDate() + 30);
+
+        query = query
+          .not("matched_memberships.document_url", "is", null)
+          .not("matched_memberships.expiration_date", "is", null)
+          .gte(
+            "matched_memberships.expiration_date",
+            today.toISOString().slice(0, 10)
+          )
+          .lte(
+            "matched_memberships.expiration_date",
+            future.toISOString().slice(0, 10)
+          );
+      }
+
+      if (filters.status.length > 0) {
+        query = query.in("matched_memberships.status", filters.status);
+      }
+
+      return query;
+    },
+    [supabase, search, filters, attention]
+  );
+
+  const fetchAllFilteredMemberIds = useCallback(async (): Promise<string[]> => {
+    const ids: string[] = [];
+    const pageSize = 1000;
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await buildFilteredMembersQuery("ids")
+        .range(from, from + pageSize - 1)
+        .order("created_at", { ascending: false });
+
+      if (error) throw new Error(error.message);
+
+      const batch = ((data ?? []) as unknown as Array<{ id: string }>).map(
+        (row) => row.id
+      );
+      ids.push(...batch);
+
+      if (batch.length < pageSize) break;
+    }
+
+    return Array.from(new Set(ids));
+  }, [buildFilteredMembersQuery]);
+
+  const fetchAllFilteredMembers = useCallback(
+    async (): Promise<MemberWithMemberships[]> => {
+      const all: MemberWithMemberships[] = [];
+      const pageSize = 1000;
+
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await buildFilteredMembersQuery("full")
+          .range(from, from + pageSize - 1)
+          .order("created_at", { ascending: false });
+
+        if (error) throw new Error(error.message);
+
+        const batch = ((data ?? []) as unknown as Array<
+          MemberWithMemberships & { matched_memberships?: unknown }
+        >).map(({ matched_memberships: _matchedMemberships, ...member }) => ({
+          ...member,
+          member_ministries: [...(member.member_ministries ?? [])].sort((a, b) =>
+            a.ministry.localeCompare(b.ministry)
+          ),
+        }));
+
+        all.push(...batch);
+        if (batch.length < pageSize) break;
+      }
+
+      return all;
+    },
+    [buildFilteredMembersQuery]
+  );
+
+  const fetchMembersByIds = useCallback(
+    async (ids: string[]): Promise<MemberWithMemberships[]> => {
+      const all: MemberWithMemberships[] = [];
+      const chunkSize = 500;
+
+      for (let index = 0; index < ids.length; index += chunkSize) {
+        const chunk = ids.slice(index, index + chunkSize);
+        const { data, error } = await supabase
+          .from("members")
+          .select("*,member_ministries(*)")
+          .in("id", chunk);
+
+        if (error) throw new Error(error.message);
+        all.push(...(((data ?? []) as MemberWithMemberships[]) ?? []));
+      }
+
+      const position = new Map(ids.map((id, index) => [id, index]));
+      return all.sort(
+        (a, b) =>
+          (position.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (position.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+      );
+    },
+    [supabase]
+  );
+
   // --- Selection logic ---
   const pageMemberIds = members.map((m) => m.id);
   const allOnPageSelected =
@@ -315,6 +478,33 @@ export default function MembersListPage() {
 
   const clearSelection = () => setSelected(new Set());
 
+  const selectAllFiltered = async () => {
+    setSelectingAllFiltered(true);
+    try {
+      const ids = await fetchAllFilteredMemberIds();
+      setSelected(new Set(ids));
+      toast({
+        title: "All matching members selected",
+        description: `${ids.length.toLocaleString()} member(s) across all pages are selected.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Selection failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Unable to select all filtered members.",
+        variant: "destructive",
+      });
+    } finally {
+      setSelectingAllFiltered(false);
+    }
+  };
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [search, filters, attention]);
+
   // --- CSV export ---
   const exportCsv = async () => {
     const escape = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
@@ -339,21 +529,18 @@ export default function MembersListPage() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("members")
-      .select("*,member_ministries(*)")
-      .in("id", selectedList);
-
-    if (error) {
+    let membersToExport: MemberWithMemberships[] = [];
+    try {
+      membersToExport = await fetchMembersByIds(selectedList);
+    } catch (error) {
       toast({
         title: "Export failed",
-        description: error.message,
+        description:
+          error instanceof Error ? error.message : "Unable to load selected members.",
         variant: "destructive",
       });
       return;
     }
-
-    const membersToExport = (data as MemberWithMemberships[]) ?? [];
     const rows = membersToExport.map((m) =>
       [
         escape(m.uid),
@@ -383,6 +570,36 @@ export default function MembersListPage() {
       title: "CSV exported",
       description: `${membersToExport.length} member(s) downloaded.`,
     });
+  };
+
+  const openAttendanceSheetForSelected = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) {
+      toast({
+        title: "No members selected",
+        description: "Select the members to include in the attendance sheet.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoadingReport(true);
+    try {
+      const selectedMembers = await fetchMembersByIds(ids);
+      setAttendanceMembers(selectedMembers);
+      setAttendanceOpen(true);
+    } catch (error) {
+      toast({
+        title: "Attendance sheet failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Unable to load selected members.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingReport(false);
+    }
   };
 
   // --- Inline name correction (fix typos that cause duplicate flags) ---
@@ -490,13 +707,33 @@ export default function MembersListPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              setReportMembers(members);
-              setReportOpen(true);
+            onClick={async () => {
+              setLoadingReport(true);
+              try {
+                const filteredMembers = await fetchAllFilteredMembers();
+                setReportMembers(filteredMembers);
+                setReportOpen(true);
+              } catch (error) {
+                toast({
+                  title: "Report failed",
+                  description:
+                    error instanceof Error
+                      ? error.message
+                      : "Unable to load the filtered member list.",
+                  variant: "destructive",
+                });
+              } finally {
+                setLoadingReport(false);
+              }
             }}
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:bg-muted transition-colors shadow-sm print:hidden"
+            disabled={loadingReport}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:bg-muted transition-colors shadow-sm print:hidden disabled:opacity-60"
           >
-            <Printer className="h-4 w-4" />
+            {loadingReport ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Printer className="h-4 w-4" />
+            )}
             Print List
           </button>
           <Link
@@ -846,6 +1083,35 @@ export default function MembersListPage() {
         </div>
       )}
 
+      {allOnPageSelected &&
+        totalCount > pageMemberIds.length &&
+        selected.size < totalCount && (
+          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-muted-foreground">
+                All {pageMemberIds.length.toLocaleString()} members on this page are selected.
+              </p>
+              <button
+                type="button"
+                onClick={() => void selectAllFiltered()}
+                disabled={selectingAllFiltered}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              >
+                {selectingAllFiltered && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                )}
+                Select all {totalCount.toLocaleString()} matching members
+              </button>
+            </div>
+          </div>
+        )}
+
+      {selected.size === totalCount && totalCount > PAGE_SIZE && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          All {totalCount.toLocaleString()} matching members across every page are selected.
+        </div>
+      )}
+
       {/* Floating Action Bar */}
       {selected.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-200">
@@ -866,17 +1132,42 @@ export default function MembersListPage() {
               onClick={async () => {
                 const ids = Array.from(selected);
                 if (ids.length === 0) return;
-                const { data } = await supabase
-                  .from("members")
-                  .select("*,member_ministries(*)")
-                  .in("id", ids);
-                setReportMembers((data as MemberWithMemberships[]) ?? []);
-                setReportOpen(true);
+
+                setLoadingReport(true);
+                try {
+                  const selectedMembers = await fetchMembersByIds(ids);
+                  setReportMembers(selectedMembers);
+                  setReportOpen(true);
+                } catch (error) {
+                  toast({
+                    title: "Report failed",
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : "Unable to load selected members.",
+                    variant: "destructive",
+                  });
+                } finally {
+                  setLoadingReport(false);
+                }
               }}
-              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              disabled={loadingReport}
+              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+            >
+              {loadingReport ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4" />
+              )}
+              Print Selected
+            </button>
+            <button
+              onClick={() => void openAttendanceSheetForSelected()}
+              disabled={loadingReport}
+              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-60"
             >
               <Printer className="h-4 w-4" />
-              Print Selected
+              Attendance Sheet
             </button>
             <div className="h-5 w-px bg-border" />
             <button
@@ -895,6 +1186,14 @@ export default function MembersListPage() {
         <PrintReport
           members={reportMembers}
           onClose={() => setReportOpen(false)}
+        />
+      )}
+
+      {attendanceOpen && (
+        <AttendanceSheet
+          members={attendanceMembers}
+          selectedMinistries={filters.ministry}
+          onClose={() => setAttendanceOpen(false)}
         />
       )}
 
@@ -1038,6 +1337,51 @@ function FilterSelect({
   );
 }
 
+function sortMembersAlphabetically(
+  members: MemberWithMemberships[]
+): MemberWithMemberships[] {
+  return [...members].sort((a, b) => {
+    const lastNameCompare = a.last_name.localeCompare(b.last_name, undefined, {
+      sensitivity: "base",
+    });
+    if (lastNameCompare !== 0) return lastNameCompare;
+
+    const firstNameCompare = a.first_name.localeCompare(b.first_name, undefined, {
+      sensitivity: "base",
+    });
+    if (firstNameCompare !== 0) return firstNameCompare;
+
+    return a.uid.localeCompare(b.uid, undefined, { sensitivity: "base" });
+  });
+}
+
+function getPrintThemeColors(): {
+  primary: string;
+  primaryForeground: string;
+} {
+  if (typeof document === "undefined") {
+    return {
+      primary: "rgb(220, 38, 38)",
+      primaryForeground: "rgb(255, 255, 255)",
+    };
+  }
+
+  const probe = document.createElement("div");
+  probe.className = "bg-primary text-primary-foreground";
+  probe.style.position = "fixed";
+  probe.style.pointerEvents = "none";
+  probe.style.opacity = "0";
+  document.body.appendChild(probe);
+
+  const computed = window.getComputedStyle(probe);
+  const primary = computed.backgroundColor || "rgb(220, 38, 38)";
+  const primaryForeground = computed.color || "rgb(255, 255, 255)";
+
+  probe.remove();
+
+  return { primary, primaryForeground };
+}
+
 function PrintReport({
   members,
   onClose,
@@ -1053,89 +1397,395 @@ function PrintReport({
   }, []);
 
   const generatedAt = new Date().toLocaleString();
+  const alphabetizedMembers = sortMembersAlphabetically(members);
 
   const handlePrint = () => {
     const logoSrc = "/images/Asset_1.svg";
-    const rowsHtml = members
-      .map(
-        (m, i) => `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${m.uid}</td>
-          <td>${escapeHtml(`${m.first_name} ${m.last_name}`)}</td>
-          <td>${escapeHtml(m.parish)}</td>
-          <td>${escapeHtml((m.member_ministries ?? []).map((membership) => membership.ministry).join(", "))}</td>
-          <td>${escapeHtml(
-            (m.member_ministries ?? [])
-              .map((membership) => `${shortMinistry(membership.ministry)}: ${membership.status}`)
-              .join("; ")
-          )}</td>
-        </tr>`
+    const { primary, primaryForeground } = getPrintThemeColors();
+    const rowsPerPage = 22;
+    const totalPages = Math.max(1, Math.ceil(alphabetizedMembers.length / rowsPerPage));
+
+    const parishNames = Array.from(
+      new Set(alphabetizedMembers.map((member) => member.parish).filter(Boolean))
+    );
+    const ministryNames = Array.from(
+      new Set(
+        alphabetizedMembers.flatMap((member) =>
+          (member.member_ministries ?? []).map((membership) => membership.ministry)
+        )
       )
-      .join("");
+    );
+
+    const reportScope =
+      parishNames.length === 1
+        ? parishNames[0]
+        : parishNames.length > 1
+          ? `${parishNames.length} parishes / mission stations`
+          : "Member registry";
+
+    const ministryScope =
+      ministryNames.length === 1
+        ? ministryNames[0]
+        : ministryNames.length > 1
+          ? `${ministryNames.length} ministries represented`
+          : "No ministry assignment";
+
+    const pagesHtml = Array.from({ length: totalPages }, (_, pageIndex) => {
+      const startIndex = pageIndex * rowsPerPage;
+      const pageMembers = alphabetizedMembers.slice(startIndex, startIndex + rowsPerPage);
+
+      const rowsHtml = pageMembers
+        .map(
+          (m, rowIndex) => `
+          <tr>
+            <td class="row-number">${startIndex + rowIndex + 1}</td>
+            <td class="uid">${escapeHtml(m.uid)}</td>
+            <td class="member-name">${escapeHtml(`${m.last_name}, ${m.first_name}`)}</td>
+            <td>${escapeHtml(m.parish)}</td>
+            <td>${escapeHtml(
+              (m.member_ministries ?? [])
+                .map((membership) => membership.ministry)
+                .join(", ")
+            )}</td>
+            <td>${escapeHtml(
+              (m.member_ministries ?? [])
+                .map(
+                  (membership) =>
+                    `${shortMinistry(membership.ministry)}: ${membership.status}`
+                )
+                .join("; ")
+            )}</td>
+          </tr>`
+        )
+        .join("");
+
+      return `
+        <section class="report-page">
+          <header class="report-header">
+            <img src="${logoSrc}" alt="Liturgical Ministry Registry" />
+            <div class="report-heading">
+              <div class="eyebrow">Liturgical Ministry Registry</div>
+              <h1>Official Member Report</h1>
+              <div class="scope">${escapeHtml(reportScope)}</div>
+            </div>
+          </header>
+
+          <div class="report-meta">
+            <div>
+              <span class="meta-label">Scope</span>
+              <strong>${escapeHtml(reportScope)}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Ministry</span>
+              <strong>${escapeHtml(ministryScope)}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Records</span>
+              <strong>${alphabetizedMembers.length}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Generated</span>
+              <strong>${escapeHtml(generatedAt)}</strong>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th class="col-number">#</th>
+                <th class="col-name">Name</th>
+                <th class="col-parish">Parish</th>
+                <th class="col-ministry">Ministries</th>
+                <th class="col-status">Status</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+
+          <footer class="report-footer">
+            <span>Generated by Liturgical Ministry Registry · For official use only</span>
+            <span>Page ${pageIndex + 1} of ${totalPages}</span>
+          </footer>
+        </section>`;
+    }).join("");
 
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Liturgical Ministry Registry - Member Report</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Liturgical Ministry Registry — Member Report</title>
   <style>
-    @page { margin: 1.5cm; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; margin: 0; padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1e3a5f; padding-bottom: 12px; margin-bottom: 20px; }
-    .header img { height: 56px; width: auto; }
-    .header h1 { font-size: 16px; font-weight: 600; color: #1e3a5f; margin: 0; text-align: right; }
-    .header .subtitle { font-size: 11px; color: #6b7280; text-align: right; margin-top: 2px; }
-    .meta { font-size: 11px; color: #6b7280; margin-bottom: 16px; display: flex; justify-content: space-between; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    thead th { background: #1e3a5f; color: #fff; text-align: left; padding: 8px 10px; font-weight: 600; }
-    tbody td { padding: 6px 10px; border-bottom: 1px solid #e5e7eb; }
-    tbody tr:nth-child(even) { background: #f9fafb; }
-    .footer { margin-top: 24px; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 8px; text-align: center; }
-    @media print { body { padding: 0; } }
+    :root {
+      color-scheme: light;
+      --print-primary: ${primary};
+      --print-primary-foreground: ${primaryForeground};
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1f2937;
+      background: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+
+    body {
+      padding: 20px;
+    }
+
+    .report-page {
+      width: 100%;
+      min-height: 25.7cm;
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+    }
+
+    .report-page + .report-page {
+      margin-top: 28px;
+      padding-top: 4px;
+      border-top: 1px dashed #d1d5db;
+    }
+
+    .report-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      border-bottom: 2px solid var(--print-primary);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+
+    .report-header img {
+      height: 50px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .report-heading {
+      text-align: right;
+      min-width: 0;
+    }
+
+    .eyebrow {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    .report-heading h1 {
+      margin: 2px 0 0;
+      font-size: 17px;
+      line-height: 1.2;
+      font-weight: 700;
+      color: var(--print-primary);
+    }
+
+    .scope {
+      margin-top: 3px;
+      font-size: 10px;
+      color: #64748b;
+    }
+
+    .report-meta {
+      display: grid;
+      grid-template-columns: 1.4fr 1.4fr 0.55fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      background: #f8fafc;
+      font-size: 9px;
+    }
+
+    .report-meta > div {
+      min-width: 0;
+    }
+
+    .meta-label {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+
+    .report-meta strong {
+      display: block;
+      overflow-wrap: anywhere;
+      color: #334155;
+      font-weight: 600;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 9.25px;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    thead th {
+      background: var(--print-primary);
+      color: var(--print-primary-foreground);
+      text-align: left;
+      padding: 6px 7px;
+      font-weight: 650;
+      line-height: 1.2;
+    }
+
+    tbody tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    tbody td {
+      padding: 5px 7px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    .row-number {
+      color: #64748b;
+      text-align: right;
+    }
+
+    .member-name {
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .col-number { width: 4%; text-align: right; }
+    .col-uid { width: 15%; }
+    .col-name { width: 19%; }
+    .col-parish { width: 21%; }
+    .col-ministry { width: 21%; }
+    .col-status { width: 20%; }
+
+    .report-footer {
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 8px;
+      color: #94a3b8;
+    }
+
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 1.15cm 1.2cm 1cm;
+      }
+
+      html, body {
+        width: 100%;
+        background: #ffffff !important;
+      }
+
+      body {
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .report-page {
+        min-height: 27.55cm;
+        break-after: page;
+        page-break-after: always;
+      }
+
+      .report-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+
+      .report-page + .report-page {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+      }
+
+      thead {
+        display: table-header-group;
+      }
+
+      tfoot {
+        display: table-footer-group;
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <img src="${logoSrc}" alt="Liturgical Ministry Registry" />
-    <div>
-      <h1>Official Member Report</h1>
-      <div class="subtitle">Liturgical Ministry Registry</div>
-    </div>
-  </div>
-  <div class="meta">
-    <span><strong>Records:</strong> ${members.length}</span>
-    <span><strong>Generated:</strong> ${generatedAt}</span>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>UID</th>
-        <th>Name</th>
-        <th>Parish</th>
-        <th>Ministries</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>${rowsHtml}</tbody>
-  </table>
-  <div class="footer">
-    This report was generated from the Liturgical Ministry Registry. For official use only.
-  </div>
+  ${pagesHtml}
 </body>
 </html>`;
 
-    const w = window.open("", "_blank", "width=900,height=700");
+    const w = window.open("", "_blank", "width=1000,height=800");
     if (!w) {
       alert("Please allow pop-ups to generate the printable report.");
       return;
     }
+
     w.document.open();
     w.document.write(html);
     w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 400);
+
+    try {
+      w.document.title = "Liturgical Ministry Registry — Member Report";
+      w.history.replaceState({}, "", "/admin/members/report");
+    } catch {
+      // The report still prints correctly if the browser does not allow
+      // replacing the temporary print-window URL.
+    }
+
+    const printWhenReady = async () => {
+      const images = Array.from(w.document.images);
+
+      await Promise.all(
+        images.map(
+          (image) =>
+            new Promise<void>((resolve) => {
+              if (image.complete) {
+                resolve();
+                return;
+              }
+
+              image.addEventListener("load", () => resolve(), { once: true });
+              image.addEventListener("error", () => resolve(), { once: true });
+            })
+        )
+      );
+
+      if (w.document.fonts?.ready) {
+        await w.document.fonts.ready;
+      }
+
+      w.focus();
+      w.print();
+    };
+
+    void printWhenReady();
   };
 
   return (
@@ -1169,7 +1819,7 @@ function PrintReport({
 
         <div className="flex items-center justify-between px-5 py-2.5 bg-muted/40 border-b border-border">
           <span className="text-xs text-muted-foreground">
-            {members.length} member(s) - Generated {generatedAt}
+            {alphabetizedMembers.length} member(s) - Generated {generatedAt}
           </span>
           <button
             onClick={handlePrint}
@@ -1181,7 +1831,7 @@ function PrintReport({
         </div>
 
         <div className="overflow-auto scrollbar-thin p-5">
-          {members.length === 0 ? (
+          {alphabetizedMembers.length === 0 ? (
             <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
               No members to print.
             </div>
@@ -1197,14 +1847,14 @@ function PrintReport({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {members.map((m, i) => (
+                {alphabetizedMembers.map((m, i) => (
                   <tr key={m.id} className="hover:bg-muted/30">
                     <td className="py-2 pr-2 text-muted-foreground">{i + 1}</td>
                     <td className="py-2 pr-2">
                       <code className="text-xs">{m.uid}</code>
                     </td>
                     <td className="py-2 pr-2 font-medium">
-                      {m.first_name} {m.last_name}
+                      {m.last_name}, {m.first_name}
                     </td>
                     <td className="py-2 pr-2 text-muted-foreground">{m.parish}</td>
                     <td className="py-2 pr-2">
@@ -1224,6 +1874,515 @@ function PrintReport({
               </tbody>
             </table>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function AttendanceSheet({
+  members,
+  selectedMinistries,
+  onClose,
+}: {
+  members: MemberWithMemberships[];
+  selectedMinistries: string[];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  const alphabetizedMembers = sortMembersAlphabetically(members);
+
+  const parishNames = Array.from(
+    new Set(alphabetizedMembers.map((member) => member.parish).filter(Boolean))
+  );
+
+  const ministryNames = Array.from(
+    new Set(
+      alphabetizedMembers.flatMap((member) =>
+        (member.member_ministries ?? []).map((membership) => membership.ministry)
+      )
+    )
+  );
+
+  const parishLabel =
+    parishNames.length === 1
+      ? parishNames[0]
+      : parishNames.length > 1
+        ? `${parishNames.length} parishes / mission stations`
+        : "—";
+
+  const ministryLabel =
+    selectedMinistries.length === 1
+      ? selectedMinistries[0]
+      : selectedMinistries.length > 1
+        ? selectedMinistries.join(", ")
+        : ministryNames.length === 1
+          ? ministryNames[0]
+          : ministryNames.length > 1
+            ? `${ministryNames.length} ministries represented`
+            : "—";
+
+  const generatedAt = new Date().toLocaleString();
+
+  const handlePrint = () => {
+    const logoSrc = "/images/Asset_1.svg";
+    const { primary, primaryForeground } = getPrintThemeColors();
+    const rowsPerPage = 25;
+    const totalPages = Math.max(1, Math.ceil(alphabetizedMembers.length / rowsPerPage));
+
+    const pagesHtml = Array.from({ length: totalPages }, (_, pageIndex) => {
+      const startIndex = pageIndex * rowsPerPage;
+      const pageMembers = alphabetizedMembers.slice(startIndex, startIndex + rowsPerPage);
+
+      const rowsHtml = pageMembers
+        .map(
+          (member, rowIndex) => `
+          <tr>
+            <td class="row-number">${startIndex + rowIndex + 1}</td>
+            <td class="member-name">${escapeHtml(`${member.last_name}, ${member.first_name}`)}</td>
+            <td class="signature">&nbsp;</td>
+            <td class="time">&nbsp;</td>
+            <td class="time">&nbsp;</td>
+          </tr>`
+        )
+        .join("");
+
+      return `
+        <section class="report-page">
+          <header class="report-header">
+            <img src="${logoSrc}" alt="Liturgical Ministry Registry" />
+            <div class="report-heading">
+              <div class="eyebrow">Liturgical Ministry Registry</div>
+              <h1>Official Attendance Sheet</h1>
+              <div class="scope">${escapeHtml(parishLabel)}</div>
+            </div>
+          </header>
+
+          <div class="report-meta">
+            <div>
+              <span class="meta-label">Parish / Mission Station</span>
+              <strong>${escapeHtml(parishLabel)}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Ministry</span>
+              <strong>${escapeHtml(ministryLabel)}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Date / Activity</span>
+              <strong class="write-line">&nbsp;</strong>
+            </div>
+            <div>
+              <span class="meta-label">Records</span>
+              <strong>${alphabetizedMembers.length}</strong>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th class="col-number">#</th>
+                <th class="col-name">Name</th>
+                <th class="col-signature">Signature</th>
+                <th class="col-time">Time In</th>
+                <th class="col-time">Time Out</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+
+          <footer class="report-footer">
+            <span>Generated by Liturgical Ministry Registry · For official use only</span>
+            <span>Page ${pageIndex + 1} of ${totalPages}</span>
+          </footer>
+        </section>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Liturgical Ministry Registry — Attendance Sheet</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --print-primary: ${primary};
+      --print-primary-foreground: ${primaryForeground};
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1f2937;
+      background: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+
+    body {
+      padding: 20px;
+    }
+
+    .report-page {
+      width: 100%;
+      min-height: 25.7cm;
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+    }
+
+    .report-page + .report-page {
+      margin-top: 28px;
+      padding-top: 4px;
+      border-top: 1px dashed #d1d5db;
+    }
+
+    .report-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      border-bottom: 2px solid var(--print-primary);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+
+    .report-header img {
+      height: 50px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .report-heading {
+      text-align: right;
+      min-width: 0;
+    }
+
+    .eyebrow {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    .report-heading h1 {
+      margin: 2px 0 0;
+      font-size: 17px;
+      line-height: 1.2;
+      font-weight: 700;
+      color: var(--print-primary);
+    }
+
+    .scope {
+      margin-top: 3px;
+      font-size: 10px;
+      color: #64748b;
+    }
+
+    .report-meta {
+      display: grid;
+      grid-template-columns: 1.45fr 1.45fr 1.2fr 0.55fr;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      background: #f8fafc;
+      font-size: 9px;
+    }
+
+    .report-meta > div {
+      min-width: 0;
+    }
+
+    .meta-label {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+
+    .report-meta strong {
+      display: block;
+      min-height: 14px;
+      color: #334155;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+
+    .write-line {
+      border-bottom: 1px solid #94a3b8;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 9.5px;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    thead th {
+      background: var(--print-primary);
+      color: var(--print-primary-foreground);
+      text-align: left;
+      padding: 7px 8px;
+      font-weight: 650;
+      line-height: 1.2;
+    }
+
+    tbody tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    tbody td {
+      min-height: 30px;
+      height: 30px;
+      padding: 5px 8px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: middle;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    .row-number {
+      color: #64748b;
+      text-align: right;
+    }
+
+    .member-name {
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .signature,
+    .time {
+      border-left: 1px solid #eef2f7;
+    }
+
+    .col-number { width: 5%; text-align: right; }
+    .col-name { width: 34%; }
+    .col-signature { width: 37%; }
+    .col-time { width: 12%; }
+
+    .report-footer {
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 8px;
+      color: #94a3b8;
+    }
+
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 1.15cm 1.2cm 1cm;
+      }
+
+      html, body {
+        width: 100%;
+        background: #ffffff !important;
+      }
+
+      body {
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .report-page {
+        min-height: 27.55cm;
+        break-after: page;
+        page-break-after: always;
+      }
+
+      .report-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+
+      .report-page + .report-page {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+      }
+
+      thead {
+        display: table-header-group;
+      }
+    }
+  </style>
+</head>
+<body>
+  ${pagesHtml}
+</body>
+</html>`;
+
+    const w = window.open("", "_blank", "width=1000,height=800");
+    if (!w) {
+      alert("Please allow pop-ups to generate the attendance sheet.");
+      return;
+    }
+
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+
+    try {
+      w.document.title = "Liturgical Ministry Registry — Attendance Sheet";
+      w.history.replaceState({}, "", "/admin/members/attendance-sheet");
+    } catch {
+      // Printing still works if the browser keeps the temporary URL.
+    }
+
+    const printWhenReady = async () => {
+      const images = Array.from(w.document.images);
+
+      await Promise.all(
+        images.map(
+          (image) =>
+            new Promise<void>((resolve) => {
+              if (image.complete) {
+                resolve();
+                return;
+              }
+
+              image.addEventListener("load", () => resolve(), { once: true });
+              image.addEventListener("error", () => resolve(), { once: true });
+            })
+        )
+      );
+
+      if (w.document.fonts?.ready) {
+        await w.document.fonts.ready;
+      }
+
+      w.focus();
+      w.print();
+    };
+
+    void printWhenReady();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-lg bg-background shadow-xl flex flex-col"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/images/Asset_1.svg"
+              alt="Liturgical Ministry Registry"
+              width={120}
+              height={48}
+              className="h-8 w-auto"
+            />
+            <div>
+              <p className="text-sm font-semibold">Printable Attendance Sheet</p>
+              <p className="text-xs text-muted-foreground">
+                {parishLabel} · {ministryLabel}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 hover:bg-muted"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-2.5 bg-muted/40 border-b border-border">
+          <span className="text-xs text-muted-foreground">
+            {alphabetizedMembers.length} member{alphabetizedMembers.length === 1 ? "" : "s"} · Generated {generatedAt}
+          </span>
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Printer className="h-4 w-4" />
+            Print Attendance Sheet
+          </button>
+        </div>
+
+        <div className="overflow-auto scrollbar-thin p-5">
+          <div className="mb-4 rounded-lg border border-border bg-muted/20 p-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Parish / Mission Station
+                </p>
+                <p className="mt-1 text-sm font-medium">{parishLabel}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Ministry
+                </p>
+                <p className="mt-1 text-sm font-medium">{ministryLabel}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Date / Activity
+                </p>
+                <div className="mt-2 h-5 border-b border-border" />
+              </div>
+            </div>
+          </div>
+
+          <table className="w-full min-w-[760px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="py-2 pr-2 font-semibold text-muted-foreground">#</th>
+                <th className="py-2 pr-2 font-semibold text-muted-foreground">Name</th>
+                <th className="py-2 pr-2 font-semibold text-muted-foreground">Signature</th>
+                <th className="py-2 pr-2 font-semibold text-muted-foreground">Time In</th>
+                <th className="py-2 font-semibold text-muted-foreground">Time Out</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {alphabetizedMembers.map((member, index) => (
+                <tr key={member.id} className="hover:bg-muted/30">
+                  <td className="py-3 pr-2 text-muted-foreground">{index + 1}</td>
+                  <td className="py-3 pr-2 font-medium">
+                    {member.last_name}, {member.first_name}
+                  </td>
+                  <td className="py-3 pr-2">&nbsp;</td>
+                  <td className="py-3 pr-2">&nbsp;</td>
+                  <td className="py-3">&nbsp;</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
