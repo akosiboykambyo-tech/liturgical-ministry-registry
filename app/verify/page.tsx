@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
@@ -14,7 +14,6 @@ import {
   Search,
   ShieldCheck,
   Loader2,
-  Church,
   Lock,
   Download,
   Printer,
@@ -29,12 +28,37 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { RegistryFooter } from "@/components/registry-footer";
+import "./verification.css";
 
 export default function VerifyPageWrapper() {
   return (
     <Suspense fallback={<LoadingState />}>
       <VerifyPage />
     </Suspense>
+  );
+}
+
+function RegistryAnnouncement() {
+  const [paused, setPaused] = useState(false);
+  return (
+    <div className={`verification-announcement${paused ? " is-paused" : ""}`} role="region" aria-label="Diocesan announcement">
+      <div className="verification-announcement-viewport">
+        <div className="verification-announcement-track">
+          {[false, true].map((duplicate) => (
+            <div className="verification-announcement-copy" key={String(duplicate)} aria-hidden={duplicate || undefined}>
+              ROMAN CATHOLIC DIOCESE OF KALOOKAN
+              <span aria-hidden="true">·</span>
+              Diocesan Commission on Worship &amp; Liturgy
+            </div>
+          ))}
+        </div>
+      </div>
+      <button type="button" className="verification-announcement-toggle" aria-label={paused ? "Resume scrolling announcement" : "Pause scrolling announcement"} aria-pressed={paused} onClick={() => setPaused((value) => !value)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+          {paused ? <path d="m9 5 10 7-10 7z" /> : <path d="M8 5v14M16 5v14" />}
+        </svg>
+      </button>
+    </div>
   );
 }
 
@@ -67,6 +91,7 @@ interface PublicMember extends Pick<
   member_ministries: PublicMembership[];
 }
 function VerifyPage() {
+  const pageRef = useRef<HTMLDivElement>(null);
   const supabase = getSupabaseBrowserClient();
   const params = useSearchParams();
   const uidParam = params.get("uid");
@@ -85,6 +110,40 @@ function VerifyPage() {
   const [downloadCount, setDownloadCount] = useState(0);
   const certRef = useRef<CertificateDesignHandle>(null);
   const downloadButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const root = pageRef.current;
+    if (!root || printParam) return;
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let observer: IntersectionObserver | undefined;
+    const elements = root.querySelectorAll<HTMLElement>(".verification-results > div, .verification-empty, footer");
+    const initialize = () => {
+      observer?.disconnect();
+      elements.forEach((element) => element.classList.remove("verification-reveal-pending"));
+      if (preference.matches || !("IntersectionObserver" in window)) return;
+      observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.remove("verification-reveal-pending");
+          observer?.unobserve(entry.target);
+        });
+      }, { threshold: 0.06 });
+      elements.forEach((element) => {
+        element.classList.add("verification-reveal");
+        if (element.getBoundingClientRect().top < window.innerHeight - 20) return;
+        element.classList.add("verification-reveal-pending");
+        observer?.observe(element);
+      });
+    };
+    initialize();
+    preference.addEventListener("change", initialize);
+    return () => {
+      observer?.disconnect();
+      preference.removeEventListener("change", initialize);
+      elements.forEach((element) => element.classList.remove("verification-reveal-pending"));
+    };
+  }, [results, searched, printParam]);
+
 
   useEffect(() => {
     // Load the default certificate template (public). The Admin Console
@@ -607,48 +666,42 @@ function VerifyPage() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-red-50/40 to-background flex flex-col">
-      <header className="border-b border-border/60 bg-background/80 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-              <Church className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold leading-tight">
-                Public Verification
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                Liturgical Ministry Registry
-              </p>
-            </div>
-          </Link>
-          <ShieldCheck className="h-5 w-5 text-primary" />
+    <div ref={pageRef} className="verification-page min-h-screen flex flex-col">
+      <a href="#verification-main" className="verification-skip">Skip to verification</a>
+      <RegistryAnnouncement />
+      <header className="verification-header">
+        <div className="verification-header-inner">
+          <a href="/" aria-label="Liturgical Ministry Registry home" className="verification-brand">
+            <Image src="/images/Asset_1.svg" alt="Roman Catholic Diocese of Kalookan — Diocesan Commission on Worship & Liturgy" width={280} height={96} priority />
+          </a>
+          <a href="/" className="verification-back">Back to registry</a>
         </div>
       </header>
 
       <main
-        className={`flex-1 mx-auto max-w-3xl w-full px-4 sm:px-6 py-8 sm:py-12 ${
+        id="verification-main"
+        className={`verification-main flex-1 mx-auto max-w-4xl w-full px-4 sm:px-6 py-8 sm:py-12 ${
           printParam ? "certificate-print-mode" : ""
         }`}
       >
-        <div className="text-center mb-8">
+        <div className="verification-search-panel">
+        <div className="verification-heading">
+          <span className="verification-eyebrow"><ShieldCheck aria-hidden="true" size={18} /> PUBLIC VERIFICATION</span>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            Verify a Member
+            Verify a minister
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Enter a member&apos;s full name or Unique Identifier (UID) to confirm
-            their liturgical ministry standing.
+            Search the official diocesan registry by full name or Registry ID to confirm a minister’s standing.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="relative">
-          <label htmlFor="member-search" className="sr-only">Member name or Registry ID</label>
-          <Search aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+        <form onSubmit={handleSubmit} className="verification-search-form">
+          <label htmlFor="member-search" className="verification-search-label">Member name or Registry ID</label>
+          <div className="verification-search-controls"><Search aria-hidden="true" className="verification-search-icon" />
           <input
             id="member-search"
             aria-invalid={Boolean(error)}
-            aria-describedby={error ? "member-search-error" : undefined}
+            aria-describedby={error ? "member-search-hint member-search-error" : "member-search-hint"}
             value={query}
             onChange={(e) => {
               const v = e.target.value;
@@ -661,22 +714,25 @@ function VerifyPage() {
               }
             }}
             placeholder="e.g. Juan Dela Cruz or LMD-2026-0001"
-            className="w-full rounded-full border border-input bg-background pl-11 pr-28 py-3.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring"
+            className="verification-search-input"
           />
           <button
             type="submit"
             disabled={searching}
             aria-label={searching ? "Verifying member" : "Verify member"}
             aria-busy={searching}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="verification-submit"
           >
             {searching ? (
-              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+              <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Verifying…</>
             ) : (
               <><Search aria-hidden="true" className="h-4 w-4" /> Verify</>
             )}
           </button>
+          </div>
+          <p id="member-search-hint" className="verification-search-hint">Use the exact Registry ID to access eligible ministry certificates.</p>
         </form>
+        </div>
 
         {/* Hidden certificate canvas (used for download rendering) */}
         {results.length === 1 && settings && (
@@ -712,7 +768,7 @@ function VerifyPage() {
           )}
 
           {!searching && searched && results.length === 0 && !error && (
-            <div role="status" className="rounded-lg border border-dashed border-border py-12 text-center">
+            <div role="status" className="verification-empty rounded-lg border border-dashed border-border py-12 text-center">
               <AlertCircle className="mx-auto h-9 w-9 text-muted-foreground/50" />
               <p className="mt-3 text-sm font-medium text-foreground">
                 No matching registry entries found.
@@ -736,7 +792,7 @@ function VerifyPage() {
           )}
 
           {results.length > 0 && (
-            <div className="space-y-5 animate-in-fade">
+            <div className="verification-results space-y-5">
               {results.length > 1 && (
                 <div className="flex items-center gap-2 rounded-md bg-primary/5 px-4 py-2.5 text-sm text-primary ring-1 ring-inset ring-primary/20">
                   <Users className="h-4 w-4 shrink-0" />
@@ -1053,7 +1109,7 @@ function VerifyPage() {
           )}
 
           {!searched && !searching && (
-            <div className="rounded-lg border border-dashed border-border py-12 text-center">
+            <div className="verification-empty rounded-lg border border-dashed border-border py-12 text-center">
               <ShieldCheck className="mx-auto h-9 w-9 text-muted-foreground/50" />
               <p className="mt-3 text-sm font-medium text-foreground">
                 Enter a name or UID above to verify a member.
