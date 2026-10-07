@@ -27,30 +27,32 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
           </span>
         </Link>
 
-        <nav aria-label="Primary navigation" className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <Link
-            href="/verify"
-            aria-current={current === 'verify' ? 'page' : undefined}
-            className={[
-              'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-[transform,background-color,box-shadow] duration-150 focus-ring',
-              current === 'verify'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-md active:scale-[0.98]',
-            ].join(' ')}
-          >
-            <Search className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Verify a Member</span>
-            <span className="sm:hidden">Verify</span>
-          </Link>
-          <Link
-            href="/admin"
-            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition-[transform,background-color,box-shadow] duration-150 hover:bg-muted hover:shadow-sm active:scale-[0.98] focus-ring sm:px-3.5"
-          >
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Admin Portal</span>
-            <span className="sm:hidden">Admin</span>
-          </Link>
-        </nav>
+        {current !== 'home' && (
+          <nav aria-label="Primary navigation" className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <Link
+              href="/verify"
+              aria-current={current === 'verify' ? 'page' : undefined}
+              className={[
+                'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-[transform,background-color,box-shadow] duration-150 focus-ring',
+                current === 'verify'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-md active:scale-[0.98]',
+              ].join(' ')}
+            >
+              <Search className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Verify a Member</span>
+              <span className="sm:hidden">Verify</span>
+            </Link>
+            <Link
+              href="/admin"
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition-[transform,background-color,box-shadow] duration-150 hover:bg-muted hover:shadow-sm active:scale-[0.98] focus-ring sm:px-3.5"
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Admin Portal</span>
+              <span className="sm:hidden">Admin</span>
+            </Link>
+          </nav>
+        )}
       </div>
     </header>
   );

@@ -45,25 +45,23 @@ export default function Home() {
               </Link>
             </div>
 
-            <div className="mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-3 border-t border-border/70 pt-6 text-left sm:mt-12 sm:grid-cols-3 sm:gap-5">
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                <div>
-                  <p className="text-sm font-semibold">Official registry</p>
+            <div className="mx-auto mt-10 max-w-2xl border-t border-border/70 pt-6 sm:mt-12">
+              <div className="grid grid-cols-1 gap-6 text-center sm:grid-cols-3 sm:gap-5">
+                <div className="flex flex-col items-center">
+                  <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <p className="mt-2 text-sm font-semibold">Official registry</p>
                   <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Head Office records</p>
                 </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <Search className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                <div>
-                  <p className="text-sm font-semibold">Public verification</p>
+
+                <div className="flex flex-col items-center">
+                  <Search className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <p className="mt-2 text-sm font-semibold">Public verification</p>
                   <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Search by name or ID</p>
                 </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <QrCode className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                <div>
-                  <p className="text-sm font-semibold">QR-enabled</p>
+
+                <div className="flex flex-col items-center">
+                  <QrCode className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <p className="mt-2 text-sm font-semibold">QR-enabled</p>
                   <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Verify official certificates</p>
                 </div>
               </div>
