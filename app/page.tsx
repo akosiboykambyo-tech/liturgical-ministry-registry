@@ -1,116 +1,185 @@
-import Link from 'next/link';
-import { ShieldCheck, Search, ArrowRight, CheckCircle2, QrCode } from 'lucide-react';
-import { RegistryHeader } from '@/components/registry-header';
-import { RegistryFooter } from '@/components/registry-footer';
+import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
+import { LandingVerificationHero } from "@/components/landing-verification-hero";
+import { RegistryHeader } from "@/components/registry-header";
+import { RegistryFooter } from "@/components/registry-footer";
+import { ebGaramond } from "@/app/fonts";
+
+const verificationSteps = [
+  {
+    number: "01",
+    title: "Find the member",
+    text: "Enter a full name or Registry ID in the official verification portal.",
+  },
+  {
+    number: "02",
+    title: "Review the record",
+    text: "Check the member’s standing and registered ministry against the Head Office record.",
+  },
+  {
+    number: "03",
+    title: "Confirm the identity",
+    text: "Use the exact Registry ID or certificate QR code for official verification.",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-red-50/40 via-background to-background flex flex-col animate-page-in">
-      <RegistryHeader current="home" />
+    <div id="smooth-wrapper">
+      <div
+        id="smooth-content"
+        className="min-h-screen bg-background text-foreground"
+      >
+        <RegistryHeader current="home" />
 
-      <main className="flex-1">
-        <section className="mx-auto flex w-full max-w-6xl items-center px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
-          <div className="mx-auto w-full max-w-3xl text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground ring-1 ring-inset ring-primary/20">
-              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              Official Head Office Registry
-            </span>
+        <main>
+        <LandingVerificationHero displayFontClassName={ebGaramond.className} />
 
-            <h1 className="mt-5 text-[clamp(2.5rem,8vw,4.25rem)] font-bold leading-[0.98] tracking-[-0.035em] text-foreground sm:mt-6">
-              Liturgical Ministry
-              <span className="mt-1 block text-primary">Registry &amp; Verification</span>
-            </h1>
-
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:mt-6 sm:text-lg sm:leading-8">
-              A centralized registry for verifying registered liturgical ministers
-              across the six standard ministries.
-              <span className="hidden sm:inline"> Confirm a member&apos;s standing through a public lookup or the QR code on an official certificate.</span>
-            </p>
-
-            <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:justify-center">
-              <Link
-                href="/verify"
-                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-semibold text-background shadow-sm transition-[transform,background-color,box-shadow] duration-150 hover:bg-foreground/90 hover:shadow-md active:scale-[0.98] focus-ring"
-              >
-                <Search className="h-4 w-4" aria-hidden="true" />
-                Search the Public Registry
-                <ArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true" />
-              </Link>
-              <Link
-                href="/admin"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-border bg-background px-5 py-3 text-sm font-semibold text-foreground transition-[transform,background-color,box-shadow] duration-150 hover:bg-muted hover:shadow-sm active:scale-[0.98] focus-ring"
-              >
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                Admin Portal
-              </Link>
-            </div>
-
-            <div className="mx-auto mt-10 max-w-2xl border-t border-border/70 pt-6 sm:mt-12">
-              <div className="grid grid-cols-1 gap-6 text-center sm:grid-cols-3 sm:gap-5">
-                <div className="flex flex-col items-center">
-                  <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <p className="mt-2 text-sm font-semibold">Official registry</p>
-                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Head Office records</p>
-                </div>
-
-                <div className="flex flex-col items-center">
-                  <Search className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <p className="mt-2 text-sm font-semibold">Public verification</p>
-                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Search by name or ID</p>
-                </div>
-
-                <div className="flex flex-col items-center">
-                  <QrCode className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <p className="mt-2 text-sm font-semibold">QR-enabled</p>
-                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Verify official certificates</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="border-t border-border/70 bg-muted/25">
-          <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-14">
-            <div className="mx-auto max-w-2xl text-center">
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
-                Public verification
+        <section
+          id="how-it-works"
+          className="mx-auto w-full max-w-[1240px] px-5 pb-14 sm:px-7 lg:px-12 lg:pb-16"
+        >
+          <div
+            data-landing-reveal="section-title"
+            className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"
+          >
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#970e24]">
+                A simple, reliable check
               </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              <h2
+                className={`${ebGaramond.className} mt-2 text-3xl font-medium tracking-tight sm:text-4xl`}
+              >
                 How verification works
               </h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-                Confirm a registered liturgical minister through the official diocesan registry.
+            </div>
+
+            <p className="max-w-md text-sm leading-6 text-muted-foreground sm:text-right">
+              From a name to a confirmed record, in three straightforward steps.
+            </p>
+          </div>
+
+          <ol className="mt-8 grid gap-7 md:grid-cols-3">
+            {verificationSteps.map((step) => (
+              <li
+                key={step.number}
+                data-landing-reveal="step"
+                className="flex gap-5 border-t-2 border-[#970e24] pt-5"
+              >
+                <span
+                  className={`${ebGaramond.className} text-3xl text-[#970e24]`}
+                >
+                  {step.number}
+                </span>
+                <div>
+                  <h3 className="mt-1 font-semibold">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                    {step.text}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="mx-auto grid w-full max-w-[1240px] gap-8 border-t border-border px-5 py-12 sm:px-7 lg:grid-cols-[0.9fr_1.3fr] lg:gap-16 lg:px-12 lg:py-16">
+          <div data-landing-reveal="guidance-title">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#970e24]">
+              Before you verify
+            </p>
+            <h2
+              className={`${ebGaramond.className} mt-2 text-3xl font-medium tracking-tight`}
+            >
+              A little guidance
+            </h2>
+            <p className="mt-3 max-w-sm text-sm leading-7 text-muted-foreground">
+              For parish priests, ministry coordinators, and those checking a
+              member&apos;s credentials.
+            </p>
+          </div>
+
+          <div>
+            <details
+              data-landing-reveal="question"
+              className="border-b border-border py-5 first:pt-0"
+            >
+              <summary className="cursor-pointer font-semibold leading-6 transition-colors hover:text-[#970e24]">
+                Which is more precise: a name or a Registry ID?
+              </summary>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                A full name helps locate a member. An exact Registry ID
+                distinguishes the record when names are similar. Check that the
+                identity matches the certificate you are reviewing.
+              </p>
+            </details>
+
+            <details
+              data-landing-reveal="question"
+              className="border-b border-border py-5"
+            >
+              <summary className="cursor-pointer font-semibold leading-6 transition-colors hover:text-[#970e24]">
+                How do I verify an official certificate?
+              </summary>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                Use your phone&apos;s camera to scan the certificate&apos;s QR code.
+                It opens the linked registry record so you can review the
+                member&apos;s identity, ministry, and standing.
+              </p>
+            </details>
+
+            <details
+              data-landing-reveal="question"
+              className="border-b border-border py-5"
+            >
+              <summary className="cursor-pointer font-semibold leading-6 transition-colors hover:text-[#970e24]">
+                Where do Head Office staff manage records?
+              </summary>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                Authorized staff can access the{" "}
+                <Link
+                  href="/admin"
+                  className="font-medium text-[#970e24] underline-offset-4 hover:underline"
+                >
+                  Admin Portal
+                </Link>{" "}
+                to manage registry records and certificates.
+              </p>
+            </details>
+          </div>
+        </section>
+
+        <section className="bg-[#730a1c] text-white">
+          <div
+            data-landing-reveal="office"
+            className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-5 py-9 sm:px-7 lg:flex-row lg:items-center lg:justify-between lg:px-12"
+          >
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/80">
+                Head Office Access
+              </p>
+              <h2
+                className={`${ebGaramond.className} mt-2 text-3xl font-medium`}
+              >
+                Stewarding our ministry records.
+              </h2>
+              <p className="mt-2 text-sm text-white/80">
+                The administrative portal is for authorized registry staff.
               </p>
             </div>
 
-            <ol className="mx-auto mt-8 grid max-w-4xl gap-4 md:grid-cols-3">
-              <li className="rounded-xl border border-border/70 bg-background p-5 shadow-sm">
-                <Search className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h3 className="mt-4 font-semibold text-foreground">Search</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Look up a member by name or Registry ID.
-                </p>
-              </li>
-              <li className="rounded-xl border border-border/70 bg-background p-5 shadow-sm">
-                <CheckCircle2 className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h3 className="mt-4 font-semibold text-foreground">Confirm</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Review the member&apos;s standing and registered ministry.
-                </p>
-              </li>
-              <li className="rounded-xl border border-border/70 bg-background p-5 shadow-sm">
-                <QrCode className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h3 className="mt-4 font-semibold text-foreground">Verify</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Use an exact Registry ID or certificate QR code for official verification.
-                </p>
-              </li>
-            </ol>
+            <Link
+              href="/admin"
+              className="inline-flex w-fit items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-[#730a1c] transition-colors hover:bg-[#f9e7eb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#730a1c]"
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              Admin Portal
+            </Link>
           </div>
         </section>
-      </main>
+        </main>
 
-      <RegistryFooter label="Authorized Head Office System" />
+        <RegistryFooter label="Authorized Head Office System" />
+      </div>
     </div>
   );
 }
