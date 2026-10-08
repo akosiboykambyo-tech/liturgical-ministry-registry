@@ -154,16 +154,13 @@ export default function Home() {
             className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-5 py-9 sm:px-7 lg:flex-row lg:items-center lg:justify-between lg:px-12"
           >
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/80">
-                Head Office Access
-              </p>
               <h2
-                className={`${ebGaramond.className} mt-2 text-3xl font-medium`}
+                className={`${ebGaramond.className} text-3xl font-medium`}
               >
-                Stewarding our ministry records.
+                Head Office staff
               </h2>
               <p className="mt-2 text-sm text-white/80">
-                The administrative portal is for authorized registry staff.
+                Sign in to manage ministry records.
               </p>
             </div>
 

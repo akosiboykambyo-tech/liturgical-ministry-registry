@@ -47,244 +47,238 @@ export function LandingVerificationHero({
 
       const mm = gsap.matchMedia();
 
-        mm.add(
-          "(min-width: 1024px) and (prefers-reduced-motion: no-preference)",
-          () => {
-            // ScrollSmoother must be created before page ScrollTriggers so
-            // ScrollTrigger can account for the transformed smooth-content.
-            const smoother = ScrollSmoother.create({
-              wrapper: "#smooth-wrapper",
-              content: "#smooth-content",
-              smooth: 0.85,
-              effects: false,
-              smoothTouch: 0,
-            });
+      mm.add(
+        "(min-width: 1024px) and (prefers-reduced-motion: no-preference)",
+        () => {
+          const smoother = ScrollSmoother.create({
+            wrapper: "#smooth-wrapper",
+            content: "#smooth-content",
+            smooth: 0.85,
+            effects: false,
+            smoothTouch: 0,
+          });
 
-            gsap.set(hero, {
-              width: "100%",
-              borderTopRightRadius: "0.75rem",
-              borderBottomRightRadius: "0.75rem",
-            });
+          gsap.set(hero, {
+            width: "100%",
+            borderTopRightRadius: "0.75rem",
+            borderBottomRightRadius: "0.75rem",
+          });
 
-            gsap.set(card, {
-              autoAlpha: 0,
-              xPercent: 18,
-              clipPath: "inset(0 0 0 100%)",
-              pointerEvents: "none",
-            });
+          gsap.set(card, {
+            autoAlpha: 0,
+            xPercent: 18,
+            clipPath: "inset(0 0 0 100%)",
+            pointerEvents: "none",
+          });
 
-            const timeline = gsap.timeline({
-              defaults: { ease: "none" },
-              scrollTrigger: {
-                trigger: section,
-                start: "top top",
-                end: () => `+=${Math.round(window.innerHeight * 1.35)}`,
-                pin: true,
-                pinSpacing: true,
-                scrub: 0.75,
-                anticipatePin: 1,
-                invalidateOnRefresh: true,
+          const timeline = gsap.timeline({
+            defaults: { ease: "none" },
+            scrollTrigger: {
+              trigger: section,
+              start: "top top",
+              end: () => `+=${Math.round(window.innerHeight * 1.35)}`,
+              pin: true,
+              pinSpacing: true,
+              scrub: 0.75,
+              anticipatePin: 1,
+              invalidateOnRefresh: true,
+            },
+          });
+
+          timeline
+            .to(
+              hero,
+              {
+                width: "54%",
+                borderTopRightRadius: 0,
+                borderBottomRightRadius: 0,
+                duration: 1,
               },
-            });
-
-            timeline
-              .to(
-                hero,
-                {
-                  width: "54%",
-                  borderTopRightRadius: 0,
-                  borderBottomRightRadius: 0,
-                  duration: 1,
-                },
-                0
-              )
-              .to(
-                heroContent,
-                {
-                  scale: 0.82,
-                  transformOrigin: "left center",
-                  duration: 1,
-                },
-                0
-              )
-              .to(
-                card,
-                {
-                  autoAlpha: 1,
-                  xPercent: 0,
-                  clipPath: "inset(0 0 0 0%)",
-                  pointerEvents: "auto",
-                  duration: 0.9,
-                },
-                0.08
-              )
-              // Deliberately dwell on the finished state before unpinning.
-              .to({}, { duration: 0.45 });
-
-            window.requestAnimationFrame(() => ScrollTrigger.refresh());
-
-            return () => {
-              timeline.scrollTrigger?.kill();
-              timeline.kill();
-              smoother.kill();
-              gsap.set([hero, heroContent, card], { clearProps: "all" });
-            };
-          }
-        );
-
-        mm.add(
-          "(max-width: 1023px), (prefers-reduced-motion: reduce)",
-          () => {
-            gsap.set([hero, heroContent, card], { clearProps: "all" });
-          }
-        );
-
-        // Recreate the Sites-style lower-page reveals with GSAP so they
-        // coordinate with ScrollTrigger/ScrollSmoother instead of a separate
-        // IntersectionObserver animation system.
-        mm.add("(prefers-reduced-motion: no-preference)", () => {
-          const sectionTitles = gsap.utils.toArray<HTMLElement>(
-            '[data-landing-reveal="section-title"]'
-          );
-          const steps = gsap.utils.toArray<HTMLElement>(
-            '[data-landing-reveal="step"]'
-          );
-          const guidanceTitle = document.querySelector<HTMLElement>(
-            '[data-landing-reveal="guidance-title"]'
-          );
-          const questions = gsap.utils.toArray<HTMLElement>(
-            '[data-landing-reveal="question"]'
-          );
-          const office = document.querySelector<HTMLElement>(
-            '[data-landing-reveal="office"]'
-          );
-          const footer = document.querySelector<HTMLElement>("footer");
-
-          const revealTweens: gsap.core.Tween[] = [];
-
-          sectionTitles.forEach((target) => {
-            revealTweens.push(
-              gsap.fromTo(
-                target,
-                { autoAlpha: 0, y: 24 },
-                {
-                  autoAlpha: 1,
-                  y: 0,
-                  duration: 0.72,
-                  ease: "power3.out",
-                  scrollTrigger: {
-                    trigger: target,
-                    start: "top 84%",
-                    once: true,
-                  },
-                }
-              )
-            );
-          });
-
-          if (steps.length > 0) {
-            revealTweens.push(
-              gsap.fromTo(
-                steps,
-                { autoAlpha: 0, y: 24 },
-                {
-                  autoAlpha: 1,
-                  y: 0,
-                  duration: 0.68,
-                  stagger: 0.09,
-                  ease: "power3.out",
-                  scrollTrigger: {
-                    trigger: steps[0].parentElement ?? steps[0],
-                    start: "top 82%",
-                    once: true,
-                  },
-                }
-              )
-            );
-          }
-
-          if (guidanceTitle) {
-            revealTweens.push(
-              gsap.fromTo(
-                guidanceTitle,
-                { autoAlpha: 0, y: 22 },
-                {
-                  autoAlpha: 1,
-                  y: 0,
-                  duration: 0.7,
-                  ease: "power3.out",
-                  scrollTrigger: {
-                    trigger: guidanceTitle,
-                    start: "top 84%",
-                    once: true,
-                  },
-                }
-              )
-            );
-          }
-
-          if (questions.length > 0) {
-            revealTweens.push(
-              gsap.fromTo(
-                questions,
-                { autoAlpha: 0, y: 18 },
-                {
-                  autoAlpha: 1,
-                  y: 0,
-                  duration: 0.62,
-                  stagger: 0.08,
-                  ease: "power3.out",
-                  scrollTrigger: {
-                    trigger: questions[0].parentElement ?? questions[0],
-                    start: "top 84%",
-                    once: true,
-                  },
-                }
-              )
-            );
-          }
-
-          [office, footer].forEach((target) => {
-            if (!target) return;
-            revealTweens.push(
-              gsap.fromTo(
-                target,
-                { autoAlpha: 0, y: 20 },
-                {
-                  autoAlpha: 1,
-                  y: 0,
-                  duration: 0.7,
-                  ease: "power3.out",
-                  scrollTrigger: {
-                    trigger: target,
-                    start: "top 90%",
-                    once: true,
-                  },
-                }
-              )
-            );
-          });
+              0
+            )
+            .to(
+              heroContent,
+              {
+                scale: 0.82,
+                transformOrigin: "left center",
+                duration: 1,
+              },
+              0
+            )
+            .to(
+              card,
+              {
+                autoAlpha: 1,
+                xPercent: 0,
+                clipPath: "inset(0 0 0 0%)",
+                pointerEvents: "auto",
+                duration: 0.9,
+              },
+              0.08
+            )
+            .to({}, { duration: 0.45 });
 
           window.requestAnimationFrame(() => ScrollTrigger.refresh());
 
           return () => {
-            revealTweens.forEach((tween) => {
-              tween.scrollTrigger?.kill();
-              tween.kill();
-            });
-            gsap.set(
-              [
-                ...sectionTitles,
-                ...steps,
-                ...(guidanceTitle ? [guidanceTitle] : []),
-                ...questions,
-                ...(office ? [office] : []),
-                ...(footer ? [footer] : []),
-              ],
-              { clearProps: "opacity,visibility,transform" }
-            );
+            timeline.scrollTrigger?.kill();
+            timeline.kill();
+            smoother.kill();
+            gsap.set([hero, heroContent, card], { clearProps: "all" });
           };
+        }
+      );
+
+      mm.add(
+        "(max-width: 1023px), (prefers-reduced-motion: reduce)",
+        () => {
+          gsap.set([hero, heroContent, card], { clearProps: "all" });
+        }
+      );
+
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        const sectionTitles = gsap.utils.toArray<HTMLElement>(
+          '[data-landing-reveal="section-title"]'
+        );
+        const steps = gsap.utils.toArray<HTMLElement>(
+          '[data-landing-reveal="step"]'
+        );
+        const guidanceTitle = document.querySelector<HTMLElement>(
+          '[data-landing-reveal="guidance-title"]'
+        );
+        const questions = gsap.utils.toArray<HTMLElement>(
+          '[data-landing-reveal="question"]'
+        );
+        const office = document.querySelector<HTMLElement>(
+          '[data-landing-reveal="office"]'
+        );
+        const footer = document.querySelector<HTMLElement>("footer");
+
+        const revealTweens: gsap.core.Tween[] = [];
+
+        sectionTitles.forEach((target) => {
+          revealTweens.push(
+            gsap.fromTo(
+              target,
+              { autoAlpha: 0, y: 24 },
+              {
+                autoAlpha: 1,
+                y: 0,
+                duration: 0.72,
+                ease: "power3.out",
+                scrollTrigger: {
+                  trigger: target,
+                  start: "top 84%",
+                  once: true,
+                },
+              }
+            )
+          );
         });
+
+        if (steps.length > 0) {
+          revealTweens.push(
+            gsap.fromTo(
+              steps,
+              { autoAlpha: 0, y: 24 },
+              {
+                autoAlpha: 1,
+                y: 0,
+                duration: 0.68,
+                stagger: 0.09,
+                ease: "power3.out",
+                scrollTrigger: {
+                  trigger: steps[0].parentElement ?? steps[0],
+                  start: "top 82%",
+                  once: true,
+                },
+              }
+            )
+          );
+        }
+
+        if (guidanceTitle) {
+          revealTweens.push(
+            gsap.fromTo(
+              guidanceTitle,
+              { autoAlpha: 0, y: 22 },
+              {
+                autoAlpha: 1,
+                y: 0,
+                duration: 0.7,
+                ease: "power3.out",
+                scrollTrigger: {
+                  trigger: guidanceTitle,
+                  start: "top 84%",
+                  once: true,
+                },
+              }
+            )
+          );
+        }
+
+        if (questions.length > 0) {
+          revealTweens.push(
+            gsap.fromTo(
+              questions,
+              { autoAlpha: 0, y: 18 },
+              {
+                autoAlpha: 1,
+                y: 0,
+                duration: 0.62,
+                stagger: 0.08,
+                ease: "power3.out",
+                scrollTrigger: {
+                  trigger: questions[0].parentElement ?? questions[0],
+                  start: "top 84%",
+                  once: true,
+                },
+              }
+            )
+          );
+        }
+
+        [office, footer].forEach((target) => {
+          if (!target) return;
+          revealTweens.push(
+            gsap.fromTo(
+              target,
+              { autoAlpha: 0, y: 20 },
+              {
+                autoAlpha: 1,
+                y: 0,
+                duration: 0.7,
+                ease: "power3.out",
+                scrollTrigger: {
+                  trigger: target,
+                  start: "top 90%",
+                  once: true,
+                },
+              }
+            )
+          );
+        });
+
+        window.requestAnimationFrame(() => ScrollTrigger.refresh());
+
+        return () => {
+          revealTweens.forEach((tween) => {
+            tween.scrollTrigger?.kill();
+            tween.kill();
+          });
+          gsap.set(
+            [
+              ...sectionTitles,
+              ...steps,
+              ...(guidanceTitle ? [guidanceTitle] : []),
+              ...questions,
+              ...(office ? [office] : []),
+              ...(footer ? [footer] : []),
+            ],
+            { clearProps: "opacity,visibility,transform" }
+          );
+        };
+      });
 
       cleanup = () => {
         mm.revert();
@@ -328,15 +322,14 @@ export function LandingVerificationHero({
             <h1
               className={`${displayFontClassName} mt-7 text-[clamp(2.75rem,6vw,4.65rem)] font-medium leading-[1.03] tracking-[-0.025em]`}
             >
-              Serving the Church.
+              Is this person a registered minister?
               <span className="mt-1 block font-normal italic text-[#ffe0df]">
-                Verified with care.
+                Check here.
               </span>
             </h1>
 
             <p className="mt-6 max-w-md text-base leading-7 text-white/90 sm:text-lg sm:leading-8">
-              Confirm a liturgical minister&apos;s standing through the official
-              diocesan registry.
+              Find out if a minister is registered with the diocese.
             </p>
 
             <div className="mt-10 flex max-w-md items-start gap-4 border-t border-white/30 pt-6">
@@ -346,17 +339,14 @@ export function LandingVerificationHero({
               />
               <div>
                 <p className="text-sm font-semibold">
-                  One registry. A shared ministry.
-                </p>
-                <p className="mt-1.5 text-sm leading-6 text-white/80">
-                  Head Office records · Six standard ministries
+                  Maintained by the Diocesan Commission on Worship and Liturgy.
                 </p>
               </div>
             </div>
 
             <div className="mt-9 hidden items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-white/65 lg:flex">
               <span className="h-1.5 w-1.5 rounded-full bg-white/70" />
-              Scroll to verify a minister
+              Scroll down to start your search
             </div>
           </div>
         </div>
@@ -377,16 +367,17 @@ export function LandingVerificationHero({
           <h2
             className={`${displayFontClassName} mt-5 text-[2rem] font-medium leading-tight tracking-[-0.02em] text-foreground sm:text-[2.25rem]`}
           >
-            Verify a minister
+            Check a minister
           </h2>
 
           <p className="mt-3 max-w-md text-sm leading-7 text-muted-foreground sm:text-base">
-            Search by a member&apos;s full name or Registry ID to confirm their
-            registered ministry and standing.
+            Enter a name or Registry ID to see their ministry and status.
           </p>
 
           <div className="mt-6 rounded-md border border-[#e7e5e9] bg-[#f5f5f7] p-4">
-            <span className="text-sm text-muted-foreground">Have these ready</span>
+            <span className="text-sm text-muted-foreground">
+              You&apos;ll need one of these:
+            </span>
             <p className="mt-2 text-base font-semibold text-foreground">
               Full name{" "}
               <span className="mx-2 font-normal text-muted-foreground">or</span>
@@ -401,12 +392,12 @@ export function LandingVerificationHero({
             href="/verify"
             className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-[#970e24] px-5 py-3 text-sm font-semibold text-white transition-[transform,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-[#730a1c] hover:shadow-[0_8px_20px_rgba(151,14,36,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970e24]/30 focus-visible:ring-offset-2 active:translate-y-0"
           >
-            Search the official registry
+            Search
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
 
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Opens the diocesan verification portal.
+            You&apos;ll be taken to the diocesan portal shortly.
           </p>
 
           <div className="mt-6 flex gap-3 border-t border-border pt-5">
@@ -416,10 +407,10 @@ export function LandingVerificationHero({
             />
             <div>
               <p className="text-sm font-semibold text-foreground">
-                Have an official certificate?
+                Have a certificate?
               </p>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Scan its QR code to open the linked verification record.
+                Scan the QR code on it to see the record.
               </p>
             </div>
           </div>
