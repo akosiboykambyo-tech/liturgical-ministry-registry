@@ -1,24 +1,12 @@
-import './globals.css';
-import type { Metadata } from 'next';
-import { Inter, EB_Garamond } from 'next/font/google';
-import { AuthProvider } from '@/lib/auth-context';
-
-const inter = Inter({
-  subsets: ['latin', 'latin-ext'],
-  display: 'swap',
-});
-
-const ebGaramond = EB_Garamond({
-  subsets: ['latin', 'latin-ext'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-eb-garamond',
-  display: 'swap',
-});
+import "./globals.css";
+import type { Metadata } from "next";
+import { AuthProvider } from "@/lib/auth-context";
+import { inter, ebGaramond } from "@/app/fonts";
 
 export const metadata: Metadata = {
-  title: 'Liturgical Ministry Registry',
+  title: "Liturgical Ministry Registry",
   description:
-    'Centralized registry and verification system for liturgical ministry members.',
+    "Centralized registry and verification system for liturgical ministry members.",
 };
 
 export default function RootLayout({

@@ -17,8 +17,10 @@ import {
   Loader2,
   Menu,
   X,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { inter } from "@/app/fonts";
 
 const NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -27,6 +29,7 @@ const NAV = [
   { href: "/admin/import", label: "CSV Import", icon: Upload },
   { href: "/admin/audit", label: "Audit Trail", icon: ScrollText },
   { href: "/admin/certificates", label: "Certificate Templates", icon: ImageIcon },
+  { href: "/admin/site-settings", label: "Public Website", icon: Settings },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -56,7 +59,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   if (!user) {
-    return null; // redirect in flight
+    return null;
   }
 
   const handleSignOut = async () => {
@@ -65,8 +68,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      {/* Mobile top bar */}
+    <div className={`${inter.className} min-h-screen bg-muted/30`}>
       <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
@@ -84,7 +86,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       <div className="flex">
-        {/* Sidebar */}
         <aside
           className={cn(
             "fixed lg:sticky top-0 z-40 h-screen w-64 shrink-0 border-r border-border bg-background transition-transform lg:translate-x-0",
@@ -103,8 +104,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           <nav className="flex flex-col gap-0.5 p-3 overflow-y-auto h-[calc(100vh-4rem-8.5rem)] scrollbar-thin">
             {NAV.map((item) => {
-              const active = pathname === item.href || (item.href !== "/admin/dashboard" && pathname?.startsWith(item.href));
+              const active =
+                pathname === item.href ||
+                (item.href !== "/admin/dashboard" && pathname?.startsWith(item.href));
               const Icon = item.icon;
+
               return (
                 <Link
                   key={item.href}
@@ -154,7 +158,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           />
         )}
 
-        {/* Main content */}
         <main className="flex-1 min-w-0">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
             {children}
