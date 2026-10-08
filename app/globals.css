@@ -12,8 +12,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Primary: #D90416 → HSL(355, 96%, 43%) */
-    --primary: 355 96% 43%;
+    /* Diocesan red: #970e24 */
+    --primary: 350 83% 32%;
     --primary-foreground: 0 0% 100%;
 
     /* Secondary: light red-tinted neutral */
@@ -34,7 +34,7 @@
 
     --border: 355 10% 88%;
     --input: 355 10% 88%;
-    --ring: 355 96% 43%;
+    --ring: 350 83% 32%;
 
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
@@ -49,7 +49,7 @@
     --content-wide: 72rem;
     --focus-ring: 0 0 0 3px hsl(var(--primary) / 0.18);
 
-    --chart-1: 355 96% 43%;
+    --chart-1: 350 83% 32%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 355 60% 65%;
