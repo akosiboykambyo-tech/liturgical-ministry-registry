@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Church, ShieldCheck } from "lucide-react";
+import { Church } from "lucide-react";
 import type { MemberStatus } from "@/lib/types";
 
 export type VerificationCardMembership = {
@@ -79,9 +79,6 @@ export function VerificationMemberCard({
             </p>
           </div>
 
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#faedf0] text-[#970e24]">
-            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-          </div>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
@@ -113,13 +110,6 @@ export function VerificationMemberCard({
           </p>
 
           <div className="flex items-center gap-2">
-            {active && (
-              <span className="hidden items-center gap-1.5 text-xs font-semibold text-[#970e24] sm:inline-flex">
-                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                Selected
-              </span>
-            )}
-
             {onViewDetails && (
               <button
                 type="button"

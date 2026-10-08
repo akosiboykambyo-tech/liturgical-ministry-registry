@@ -23,6 +23,7 @@ type VerificationDepthCarouselProps = {
   activeIndex?: number;
   onChange?: (index: number) => void;
   className?: string;
+  hideControls?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -33,6 +34,7 @@ export function VerificationDepthCarousel({
   activeIndex = 0,
   onChange,
   className = "",
+  hideControls = false,
 }: VerificationDepthCarouselProps) {
   const count = items.length;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -346,7 +348,7 @@ export function VerificationDepthCarousel({
         ))}
       </div>
 
-      {count > 1 && (
+      {count > 1 && !hideControls && (
         <div className="verification-depth-carousel__controls">
           <button
             type="button"

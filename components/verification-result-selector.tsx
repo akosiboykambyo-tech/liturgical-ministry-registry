@@ -14,6 +14,7 @@ type VerificationResultSelectorProps = {
   activeIndex: number;
   onChange: (index: number) => void;
   onViewDetails: () => void;
+  hideControls?: boolean;
 };
 
 export function VerificationResultSelector({
@@ -21,6 +22,7 @@ export function VerificationResultSelector({
   activeIndex,
   onChange,
   onViewDetails,
+  hideControls = false,
 }: VerificationResultSelectorProps) {
   const items = useMemo(
     () =>
@@ -59,6 +61,7 @@ export function VerificationResultSelector({
       items={items}
       activeIndex={activeIndex}
       onChange={onChange}
+      hideControls={hideControls}
     />
   );
 }
