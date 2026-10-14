@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { AuthProvider } from "@/lib/auth-context";
 import { inter, ebGaramond } from "@/app/fonts";
+import { SiteMotion } from "@/components/site-motion";
 
 export const metadata: Metadata = {
   title: "Liturgical Ministry Registry",
@@ -20,7 +21,9 @@ export default function RootLayout({
         className={`${inter.className} ${ebGaramond.variable}`}
         suppressHydrationWarning
       >
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <SiteMotion>{children}</SiteMotion>
+        </AuthProvider>
       </body>
     </html>
   );

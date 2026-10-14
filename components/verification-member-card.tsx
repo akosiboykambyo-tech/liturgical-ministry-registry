@@ -1,7 +1,11 @@
 "use client";
 
-import { Church } from "lucide-react";
+import { ebGaramond } from "@/app/fonts";
 import type { MemberStatus } from "@/lib/types";
+import {
+  getCardPublicStatus,
+  shortPublicMinistry,
+} from "@/lib/verification-public-status";
 
 export type VerificationCardMembership = {
   id: string;
@@ -21,110 +25,55 @@ export type VerificationCardMember = {
 type VerificationMemberCardProps = {
   member: VerificationCardMember;
   active?: boolean;
-  compact?: boolean;
   onViewDetails?: () => void;
 };
-
-function statusSummary(memberships: VerificationCardMembership[]) {
-  const verified = memberships.filter(
-    (membership) =>
-      membership.status === "New" || membership.status === "Renewed"
-  ).length;
-
-  if (verified > 0) {
-    return `${verified} active ${verified === 1 ? "ministry" : "ministries"}`;
-  }
-
-  if (memberships.some((membership) => membership.status === "Pending Verification")) {
-    return "Verification pending";
-  }
-
-  if (memberships.length > 0) {
-    return "No active ministry";
-  }
-
-  return "Membership record pending";
-}
 
 export function VerificationMemberCard({
   member,
   active = false,
-  compact = false,
   onViewDetails,
 }: VerificationMemberCardProps) {
-  const ministries = member.member_ministries.slice(0, compact ? 2 : 3);
-  const remaining = Math.max(0, member.member_ministries.length - ministries.length);
-
   return (
     <article
       className={[
-        "flex min-h-[228px] flex-col bg-white",
-        active ? "ring-1 ring-inset ring-[#970e24]/20" : "",
+        "flex min-h-[250px] flex-col bg-[#FBF9F9] px-6 py-6 text-[#1E1114] sm:px-7",
+        active ? "" : "",
       ].join(" ")}
     >
-      <div className="h-1.5 w-full bg-[#970e24]" />
+      <h3
+        className={`${ebGaramond.className} text-[34px] font-medium leading-none tracking-[-0.02em] sm:text-[40px]`}
+      >
+        {member.first_name} {member.last_name}
+      </h3>
 
-      <div className="flex flex-1 flex-col p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#970e24]">
-              Registry member
-            </p>
-            <h3 className="mt-2 truncate text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-              {member.first_name} {member.last_name}
-            </h3>
-            <p className="mt-1 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
-              <Church className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{member.parish}</span>
-            </p>
-          </div>
+      <p className="mt-4 text-[16px] font-semibold leading-6">
+        {member.parish}
+      </p>
 
-        </div>
+      <p className="mt-2 text-[15px] leading-6 text-[#5F4A4F]">
+        {member.member_ministries.length > 0
+          ? member.member_ministries
+              .map((membership) => shortPublicMinistry(membership.ministry))
+              .join(" · ")
+          : "No ministry registration listed"}
+      </p>
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          {ministries.length > 0 ? (
-            ministries.map((membership) => (
-              <span
-                key={membership.id}
-                className="inline-flex max-w-full items-center rounded-full border border-[#e7c8cf] bg-[#fff8f9] px-2.5 py-1 text-xs font-medium text-[#730a1c]"
-              >
-                <span className="truncate">{membership.ministry}</span>
-              </span>
-            ))
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              No ministry membership available
-            </span>
-          )}
+      <p className="mt-5 text-[15px] font-semibold leading-6 text-[#0B5C5A]">
+        {getCardPublicStatus(member.member_ministries)}
+      </p>
 
-          {remaining > 0 && (
-            <span className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
-              +{remaining} more
-            </span>
-          )}
-        </div>
-
-        <div className="mt-auto flex items-center justify-between gap-3 border-t border-border/80 pt-4">
-          <p className="text-xs font-medium text-muted-foreground">
-            {statusSummary(member.member_ministries)}
-          </p>
-
-          <div className="flex items-center gap-2">
-            {onViewDetails && (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onViewDetails();
-                }}
-                className="inline-flex items-center rounded-md bg-[#970e24] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#730a1c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970e24]/25 focus-visible:ring-offset-2"
-              >
-                View details
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      {onViewDetails && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onViewDetails();
+          }}
+          className="mt-auto min-h-12 w-full rounded-[3px] bg-[#970E24] px-5 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#7f0c1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970E24]/35 focus-visible:ring-offset-2 sm:w-fit"
+        >
+          View record
+        </button>
+      )}
     </article>
   );
 }

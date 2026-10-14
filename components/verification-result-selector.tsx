@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  VerificationDepthCarousel,
-} from "@/components/verification-depth-carousel";
+import { ebGaramond } from "@/app/fonts";
+import { VerificationDepthCarousel } from "@/components/verification-depth-carousel";
 import {
   VerificationMemberCard,
   type VerificationCardMember,
@@ -33,35 +32,52 @@ export function VerificationResultSelector({
           <VerificationMemberCard
             member={member}
             active={index === activeIndex}
-            compact={results.length > 1}
             onViewDetails={index === activeIndex ? onViewDetails : undefined}
           />
         ),
       })),
-    [activeIndex, results]
+    [activeIndex, onViewDetails, results]
   );
 
   if (results.length === 0) return null;
 
   if (results.length === 1) {
     return (
-      <div className="mx-auto w-full max-w-[560px] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_58px_-34px_rgba(52,9,20,0.42)]">
+      <div className="mx-auto w-full max-w-[650px] border border-[#E6DADC] bg-[#FBF9F9]">
         <VerificationMemberCard
           member={results[0]}
           active
-          compact
           onViewDetails={onViewDetails}
         />
       </div>
     );
   }
 
+  const next = results[activeIndex + 1] ?? null;
+
   return (
-    <VerificationDepthCarousel
-      items={items}
-      activeIndex={activeIndex}
-      onChange={onChange}
-      hideControls={hideControls}
-    />
+    <div>
+      <VerificationDepthCarousel
+        items={items}
+        activeIndex={activeIndex}
+        onChange={onChange}
+        hideControls={hideControls}
+      />
+
+      {!hideControls && (
+        <div className="mx-auto mt-3 max-w-[650px] text-center">
+          <p
+            className={`${ebGaramond.className} text-[25px] font-medium leading-none text-[#1E1114]`}
+          >
+            {activeIndex + 1} of {results.length}
+          </p>
+          {next && (
+            <p className="mt-2 text-[14px] leading-6 text-[#5F4A4F]">
+              Next: {next.first_name} {next.last_name}, {next.parish}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Pause, Play, ShieldCheck } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type RegistryHeaderProps = {
@@ -17,36 +17,41 @@ const DEFAULT_MARQUEE_TEXT =
 type PublicMarqueeSetting = {
   enabled: boolean;
   text: string;
+  expires_at: string | null;
 };
 
 function normalizeMarqueeSetting(value: unknown): PublicMarqueeSetting {
   if (!value || typeof value !== "object") {
-    return { enabled: true, text: DEFAULT_MARQUEE_TEXT };
+    return { enabled: true, text: DEFAULT_MARQUEE_TEXT, expires_at: null };
   }
 
   const record = value as Record<string, unknown>;
-  const text =
-    typeof record.text === "string" && record.text.trim()
-      ? record.text.trim()
-      : DEFAULT_MARQUEE_TEXT;
-
   return {
     enabled: record.enabled !== false,
-    text,
+    text:
+      typeof record.text === "string" && record.text.trim()
+        ? record.text.trim()
+        : DEFAULT_MARQUEE_TEXT,
+    expires_at:
+      typeof record.expires_at === "string" && record.expires_at
+        ? record.expires_at
+        : null,
   };
 }
 
 export function RegistryHeader({ current }: RegistryHeaderProps) {
-  const [paused, setPaused] = useState(false);
   const [marquee, setMarquee] = useState<PublicMarqueeSetting>({
     enabled: true,
     text: DEFAULT_MARQUEE_TEXT,
+    expires_at: null,
   });
+  const [dismissed, setDismissed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadMarquee = async () => {
+    const load = async () => {
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase
         .from("system_settings")
@@ -55,139 +60,135 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
         .maybeSingle();
 
       if (cancelled || error || !data) return;
-
       setMarquee(normalizeMarqueeSetting(data.value));
     };
 
-    void loadMarquee();
-
+    void load();
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const noticeKey = useMemo(
+    () => `public-notice:${marquee.text}:${marquee.expires_at ?? "none"}`,
+    [marquee.text, marquee.expires_at]
+  );
+
+  useEffect(() => {
+    try {
+      setDismissed(window.localStorage.getItem(noticeKey) === "dismissed");
+    } catch {
+      setDismissed(false);
+    }
+  }, [noticeKey]);
+
+  const expired =
+    marquee.expires_at !== null &&
+    Number.isFinite(Date.parse(marquee.expires_at)) &&
+    Date.now() >= Date.parse(marquee.expires_at);
+
+  const showNotice = marquee.enabled && !expired && !dismissed;
+
+  const dismissNotice = () => {
+    setDismissed(true);
+    try {
+      window.localStorage.setItem(noticeKey, "dismissed");
+    } catch {
+      // Dismissal still works for the current page when storage is unavailable.
+    }
+  };
+
   return (
     <>
-      {marquee.enabled && (
-      <div
-        className={[
-          "registry-marquee relative flex items-center overflow-hidden bg-[#970e24] text-white",
-          paused ? "is-paused" : "",
-        ].join(" ")}
-        role="region"
-        aria-label="Diocesan announcement"
-      >
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <div className="registry-marquee-track flex w-max items-center">
-            <p className="registry-marquee-copy">{marquee.text}</p>
-            <p className="registry-marquee-copy" aria-hidden="true">
-              {marquee.text}
-            </p>
-            <p className="registry-marquee-copy" aria-hidden="true">
-              {marquee.text}
-            </p>
-            <p className="registry-marquee-copy" aria-hidden="true">
-              {marquee.text}
-            </p>
+      {showNotice && (
+        <div className="bg-[#3A0010] text-white">
+          <div className="mx-auto flex min-h-[44px] w-full max-w-[1120px] items-center gap-5 px-6 py-2 sm:px-8 lg:px-0">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <div className="registry-marquee-track flex w-max items-center">
+                {[0, 1, 2, 3].map((copy) => (
+                  <p
+                    key={copy}
+                    className="shrink-0 pr-14 text-[14px] leading-6"
+                    aria-hidden={copy > 0 ? "true" : undefined}
+                  >
+                    {marquee.text}
+                  </p>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissNotice}
+              aria-label="Dismiss announcement"
+              className="grid h-10 w-10 shrink-0 place-items-center text-white transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setPaused((value) => !value)}
-          aria-label={
-            paused
-              ? "Resume scrolling announcement"
-              : "Pause scrolling announcement"
-          }
-          aria-pressed={paused}
-          className="registry-marquee-toggle mr-3 grid h-8 w-8 shrink-0 place-items-center rounded-md border border-white/40 bg-transparent text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#970e24] sm:mr-5"
-        >
-          {paused ? (
-            <Play className="h-4 w-4" aria-hidden="true" />
-          ) : (
-            <Pause className="h-4 w-4" aria-hidden="true" />
-          )}
-        </button>
-      </div>
       )}
 
-      <header className="border-b border-border/70 bg-background">
-        <div className="mx-auto flex w-full max-w-[1240px] items-center justify-between gap-4 px-5 py-5 sm:px-7 lg:px-12">
+      <header className="border-b border-[#E6DADC] bg-[#FBF9F9]">
+        <div className="mx-auto flex min-h-[96px] w-full max-w-[1120px] items-center justify-between gap-6 px-6 py-4 sm:px-8 lg:px-0">
           <Link
             href="/"
-            className="min-w-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970e24]/30 focus-visible:ring-offset-2"
             aria-label="Liturgical Ministry Registry home"
+            className="min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970E24]/35"
           >
             <Image
               src="/images/Asset_1.svg"
               alt="Roman Catholic Diocese of Kalookan — Diocesan Commission on Worship & Liturgy"
-              width={280}
-              height={96}
+              width={460}
+              height={120}
               priority
-              className="h-auto w-[190px] sm:w-[245px] lg:w-[280px]"
+              className="h-auto w-[300px] max-w-[72vw] sm:w-[390px] lg:w-[430px]"
             />
           </Link>
 
-          <nav
-            aria-label="Primary navigation"
-            className="flex shrink-0 items-center gap-3 text-sm font-semibold sm:gap-5"
-          >
-            {current === "home" && (
-              <Link
-                href="#how-it-works"
-                className="hidden rounded-md px-1 py-2 transition-colors hover:text-[#970e24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970e24]/30 sm:inline-flex"
-              >
-                How it works
-              </Link>
-            )}
-
-            {current === "verify" && (
-              <Link
-                href="/"
-                className="hidden rounded-md px-1 py-2 transition-colors hover:text-[#970e24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970e24]/30 sm:inline-flex"
-              >
-                Home
-              </Link>
-            )}
-
+          <nav aria-label="Primary navigation" className="hidden items-center gap-10 text-[15px] font-medium md:flex">
             <Link
-              href="/admin"
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-background px-3.5 py-2 text-sm font-semibold transition-[transform,background-color,border-color] duration-200 hover:-translate-y-0.5 hover:border-[#bd6474] hover:bg-[#faedf0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970e24]/30 active:translate-y-0"
+              href="/how-it-works"
+              className="hover:text-[#970E24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970E24]/30"
             >
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Admin Portal</span>
-              <span className="sm:hidden">Admin</span>
+              How it works
+            </Link>
+            <Link
+              href="/report"
+              className="hover:text-[#970E24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970E24]/30"
+            >
+              Report a concern
             </Link>
           </nav>
+
+          <button
+            type="button"
+            aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}
+            className="grid h-11 w-11 shrink-0 place-items-center md:hidden"
+          >
+            {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-7 w-7" />}
+          </button>
         </div>
+
+        {menuOpen && (
+          <nav aria-label="Mobile navigation" className="border-t border-[#E6DADC] px-6 py-3 md:hidden">
+            <div className="mx-auto flex max-w-[1120px] flex-col text-[16px] font-medium">
+              <Link href="/how-it-works" className="border-b border-[#E6DADC] py-4" onClick={() => setMenuOpen(false)}>
+                How it works
+              </Link>
+              <Link href="/report" className="py-4" onClick={() => setMenuOpen(false)}>
+                Report a concern
+              </Link>
+            </div>
+          </nav>
+        )}
       </header>
 
       <style jsx global>{`
-        .registry-marquee {
-          min-height: 40px;
-        }
-
         .registry-marquee-track {
           animation: registry-marquee-scroll 38s linear infinite;
           will-change: transform;
-        }
-
-        .registry-marquee-copy {
-          margin: 0;
-          flex: 0 0 auto;
-          padding: 8px 56px 8px 24px;
-          white-space: nowrap;
-          font-size: 12px;
-          font-weight: 600;
-          line-height: 1.7;
-          letter-spacing: 0.09em;
-        }
-
-        .registry-marquee.is-paused .registry-marquee-track,
-        .registry-marquee:hover .registry-marquee-track,
-        .registry-marquee:focus-within .registry-marquee-track {
-          animation-play-state: paused;
         }
 
         @keyframes registry-marquee-scroll {
@@ -196,42 +197,14 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
           }
         }
 
-        @media (max-width: 720px) {
-          .registry-marquee {
-            min-height: 36px;
-          }
-
-          .registry-marquee-copy {
-            padding: 6px 52px 6px 15px;
-            font-size: 11px;
-            letter-spacing: 0.07em;
-          }
-        }
-
         @media (prefers-reduced-motion: reduce) {
-          .registry-marquee {
-            padding: 6px 15px;
-          }
-
           .registry-marquee-track {
             width: auto;
             animation: none;
             will-change: auto;
           }
 
-          .registry-marquee-copy {
-            padding: 0;
-            white-space: normal;
-            font-size: 11px;
-            line-height: 1.6;
-            letter-spacing: 0.04em;
-          }
-
-          .registry-marquee-copy[aria-hidden="true"] {
-            display: none;
-          }
-
-          .registry-marquee-toggle {
+          .registry-marquee-track p[aria-hidden="true"] {
             display: none;
           }
         }

@@ -1,25 +1,26 @@
 import Link from "next/link";
+import { ebGaramond } from "@/app/fonts";
 
 export function RegistryFooter({
-  label = "Public Verification Portal",
+  label: _label,
 }: {
   label?: string;
 }) {
-  void label;
-
   return (
-    <footer className="bg-background">
-      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-5 py-8 sm:px-7 md:flex-row md:items-center md:justify-between lg:px-12">
-        <div className="max-w-xl">
-          <p className="text-sm font-semibold">Liturgical Ministry Registry</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Diocesan Commission on Worship and Liturgy - Diocese of Kalookan
+    <footer className="bg-[#FBF9F9] text-[#1E1114]">
+      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-7 px-6 py-8 sm:px-8 md:flex-row md:items-start md:justify-between lg:px-0">
+        <div>
+          <p className={`${ebGaramond.className} text-[18px] font-semibold not-italic leading-6`}>
+            Liturgical Ministry Registry
           </p>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Questions or can&apos;t find a minister? Email us at{" "}
+          <p className="mt-1 text-[13px] leading-5 text-[#5F4A4F]">
+            Diocesan Commission on Worship and Liturgy, Diocese of Kalookan
+          </p>
+          <p className="mt-1 text-[13px] leading-5 text-[#5F4A4F]">
+            Questions:{" "}
             <a
               href="mailto:cowlkalookan2025@gmail.com"
-              className="font-medium text-[#970e24] underline-offset-4 hover:underline"
+              className="underline underline-offset-3 hover:text-[#970E24]"
             >
               cowlkalookan2025@gmail.com
             </a>
@@ -27,20 +28,17 @@ export function RegistryFooter({
         </div>
 
         <nav
-          aria-label="Legal"
-          className="flex w-full items-center justify-center gap-5 text-center text-sm text-muted-foreground md:w-auto md:text-left"
+          aria-label="Footer navigation"
+          className="flex flex-wrap gap-x-7 gap-y-3 text-[13px] text-[#5F4A4F]"
         >
-          <Link
-            href="/privacy"
-            className="underline-offset-4 transition-colors hover:text-[#970e24] hover:underline"
-          >
+          <Link href="/privacy" className="underline underline-offset-3 hover:text-[#970E24]">
             Privacy Policy
           </Link>
-          <Link
-            href="/terms"
-            className="underline-offset-4 transition-colors hover:text-[#970e24] hover:underline"
-          >
+          <Link href="/terms" className="underline underline-offset-3 hover:text-[#970E24]">
             Terms &amp; Conditions
+          </Link>
+          <Link href="/admin" className="underline underline-offset-3 hover:text-[#970E24]">
+            Admin sign-in
           </Link>
         </nav>
       </div>

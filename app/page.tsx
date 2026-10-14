@@ -1,182 +1,148 @@
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
-import { LandingVerificationHero } from "@/components/landing-verification-hero";
 import { RegistryHeader } from "@/components/registry-header";
+import { PublicMaintenanceGate } from "@/components/public-maintenance-gate";
 import { RegistryFooter } from "@/components/registry-footer";
+import { VerificationMemberCard } from "@/components/verification-member-card";
 import { ebGaramond } from "@/app/fonts";
-
-const verificationSteps = [
-  {
-    number: "01",
-    title: "Find the member",
-    text: "Enter a full name or Registry ID in the official verification portal.",
-  },
-  {
-    number: "02",
-    title: "Review the record",
-    text: "Check the member’s standing and registered ministry against the Head Office record.",
-  },
-  {
-    number: "03",
-    title: "Confirm the identity",
-    text: "Use the exact Registry ID or certificate QR code for official verification.",
-  },
-];
 
 export default function Home() {
   return (
-    <div id="smooth-wrapper">
-      <div
-        id="smooth-content"
-        className="min-h-screen bg-background text-foreground"
-      >
-        <RegistryHeader current="home" />
+    <PublicMaintenanceGate>
+      <div className="min-h-screen bg-[#FBF9F9] text-[#1E1114]">
+      <RegistryHeader current="home" />
 
-        <main>
-        <LandingVerificationHero displayFontClassName={ebGaramond.className} />
+      <main>
+        <section className="bg-[#890022] text-white">
+          <div className="mx-auto w-full max-w-[1120px] px-6 py-14 sm:px-8 sm:py-16 lg:px-0 lg:py-20">
+            <p className={`${ebGaramond.className} text-[26px] font-normal italic leading-tight text-[#F3C6D0] sm:text-[32px] lg:text-[36px]`}>
+              Is this person a registered
+            </p>
+            <h1 className={`${ebGaramond.className} mt-1 max-w-[900px] text-[52px] font-medium not-italic leading-[0.95] tracking-[-0.035em] sm:text-[72px] lg:text-[100px]`}>
+              liturgical minister?
+            </h1>
 
-        <section
-          id="how-it-works"
-          className="mx-auto w-full max-w-[1240px] px-5 pb-14 sm:px-7 lg:px-12 lg:pb-16"
-        >
-          <div
-            data-landing-reveal="section-title"
-            className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"
-          >
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#970e24]">
-                A simple, reliable check
-              </p>
-              <h2
-                className={`${ebGaramond.className} mt-2 text-3xl font-medium tracking-tight sm:text-4xl`}
-              >
-                How verification works
-              </h2>
-            </div>
+            <p className="mt-8 max-w-[560px] text-[17px] leading-7 text-white/90 sm:text-[18px]">
+              Type a name or Registry ID to see their ministry, their parish, and
+              whether their registration is current.
+            </p>
 
-            <p className="max-w-md text-sm leading-6 text-muted-foreground sm:text-right">
-              From a name to a confirmed record, in three straightforward steps.
+            <form action="/verify" method="get" className="mt-8 max-w-[760px]">
+              <label htmlFor="home-registry-search" className="sr-only">
+                Full name or Registry ID
+              </label>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  id="home-registry-search"
+                  name="uid"
+                  type="search"
+                  required
+                  placeholder="Full name or Registry ID"
+                  className="min-h-14 flex-1 rounded-[3px] border-0 bg-white px-5 text-[17px] text-[#1E1114] outline-none ring-0 placeholder:text-[#766D70] focus-visible:ring-2 focus-visible:ring-white/80 sm:min-h-[58px]"
+                />
+                <button
+                  type="submit"
+                  className="min-h-14 shrink-0 rounded-[3px] bg-[#3A0010] px-8 text-[16px] font-semibold text-white transition-colors hover:bg-[#26000a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/90 sm:min-h-[58px]"
+                >
+                  Look up
+                </button>
+              </div>
+            </form>
+
+            <p className="mt-4 max-w-[780px] text-[14px] leading-6 text-[#F3C6D0]">
+              Registry IDs look like LMD-2026-0001. Have a certificate? Scan its
+              QR code with your phone&apos;s camera.
             </p>
           </div>
+        </section>
 
-          <ol className="mt-8 grid gap-7 md:grid-cols-3">
-            {verificationSteps.map((step) => (
-              <li
-                key={step.number}
-                data-landing-reveal="step"
-                className="flex gap-5 border-t-2 border-[#970e24] pt-5"
-              >
-                <span
-                  className={`${ebGaramond.className} text-3xl text-[#970e24]`}
-                >
-                  {step.number}
+        <section className="bg-[#FBF9F9]">
+          <div className="mx-auto grid w-full max-w-[1120px] gap-12 px-6 py-16 sm:px-8 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 lg:px-0 lg:py-20">
+            <div>
+              <h2 className={`${ebGaramond.className} text-[38px] font-medium not-italic leading-tight sm:text-[44px]`}>
+                What a result shows
+              </h2>
+
+              <p className="mt-6 max-w-[510px] text-[17px] leading-8 text-[#5F4A4F]">
+                <span className={`${ebGaramond.className} float-left mr-3 mt-1 text-[68px] font-semibold not-italic leading-[0.72] text-[#970E24]`}>
+                  T
                 </span>
-                <div>
-                  <h3 className="mt-1 font-semibold">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-muted-foreground">
-                    {step.text}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="mx-auto grid w-full max-w-[1240px] gap-8 border-t border-border px-5 py-12 sm:px-7 lg:grid-cols-[0.9fr_1.3fr] lg:gap-16 lg:px-12 lg:py-16">
-          <div data-landing-reveal="guidance-title">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#970e24]">
-              Before you verify
-            </p>
-            <h2
-              className={`${ebGaramond.className} mt-2 text-3xl font-medium tracking-tight`}
-            >
-              A little guidance
-            </h2>
-            <p className="mt-3 max-w-sm text-sm leading-7 text-muted-foreground">
-              For parish priests, ministry coordinators, and those checking a
-              member&apos;s credentials.
-            </p>
-          </div>
-
-          <div>
-            <details
-              data-landing-reveal="question"
-              className="border-b border-border py-5 first:pt-0"
-            >
-              <summary className="cursor-pointer font-semibold leading-6 transition-colors hover:text-[#970e24]">
-                Which is more precise: a name or a Registry ID?
-              </summary>
-              <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                A full name helps locate a member. An exact Registry ID
-                distinguishes the record when names are similar. Check that the
-                identity matches the certificate you are reviewing.
-              </p>
-            </details>
-
-            <details
-              data-landing-reveal="question"
-              className="border-b border-border py-5"
-            >
-              <summary className="cursor-pointer font-semibold leading-6 transition-colors hover:text-[#970e24]">
-                How do I verify an official certificate?
-              </summary>
-              <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                Use your phone&apos;s camera to scan the certificate&apos;s QR code.
-                It opens the linked registry record so you can review the
-                member&apos;s identity, ministry, and standing.
-              </p>
-            </details>
-
-            <details
-              data-landing-reveal="question"
-              className="border-b border-border py-5"
-            >
-              <summary className="cursor-pointer font-semibold leading-6 transition-colors hover:text-[#970e24]">
-                Where do Head Office staff manage records?
-              </summary>
-              <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                Authorized staff can access the{" "}
-                <Link
-                  href="/admin"
-                  className="font-medium text-[#970e24] underline-offset-4 hover:underline"
-                >
-                  Admin Portal
-                </Link>{" "}
-                to manage registry records and certificates.
-              </p>
-            </details>
-          </div>
-        </section>
-
-        <section className="bg-[#730a1c] text-white">
-          <div
-            data-landing-reveal="office"
-            className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-5 py-9 sm:px-7 lg:flex-row lg:items-center lg:justify-between lg:px-12"
-          >
-            <div>
-              <h2
-                className={`${ebGaramond.className} text-3xl font-medium`}
-              >
-                Head Office staff
-              </h2>
-              <p className="mt-2 text-sm text-white/80">
-                Sign in to manage ministry records.
+                he minister&apos;s name, the ministry they serve in, their parish,
+                and the date their registration is valid until. A registered
+                result means the person currently has at least one active
+                ministry registration.
               </p>
             </div>
 
-            <Link
-              href="/admin"
-              className="inline-flex w-fit items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-[#730a1c] transition-colors hover:bg-[#f9e7eb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#730a1c]"
-            >
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              Admin Portal
-            </Link>
+            <div>
+              <p className={`${ebGaramond.className} mb-3 text-[14px] font-medium not-italic uppercase tracking-[0.16em] text-[#5F4A4F]`}>
+                Example result
+              </p>
+
+              <div className="border border-[#E6DADC] bg-[#FBF9F9]">
+                <VerificationMemberCard
+                  member={{
+                    id: "sample-member",
+                    first_name: "Maria",
+                    last_name: "Santos",
+                    parish: "San Roque Cathedral Parish",
+                    member_ministries: [
+                      {
+                        id: "sample-ministry",
+                        ministry: "Ministry of Lectors and Commentators",
+                        status: "Renewed",
+                        expiration_date: "2027-10-14",
+                      },
+                    ],
+                  }}
+                  active
+                />
+              </div>
+
+              <p className="mt-3 text-[13px] leading-5 text-[#7A6C70]">
+                Example only. Search the registry above for a current record.
+              </p>
+            </div>
           </div>
         </section>
-        </main>
 
-        <RegistryFooter label="Authorized Head Office System" />
+        <section className="bg-[#3A0010] text-white">
+          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-10 px-6 py-16 sm:px-8 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16 lg:px-0 lg:py-20">
+            <div className="max-w-[590px]">
+              <h2 className={`${ebGaramond.className} text-[38px] font-medium not-italic leading-tight sm:text-[44px]`}>
+                If there is no result
+              </h2>
+              <p className="mt-5 text-[17px] leading-8 text-[#EBCDD5]">
+                That does not always mean the person is not a minister. A
+                registration may be recent, or the name may be spelled
+                differently. Ask the commission first.
+              </p>
+              <p className={`${ebGaramond.className} mt-6 text-[24px] font-normal italic leading-8 text-white`}>
+                Or write to{" "}
+                <a
+                  href="mailto:cowlkalookan2025@gmail.com"
+                  className="underline decoration-white/40 underline-offset-4 hover:decoration-white"
+                >
+                  cowlkalookan2025@gmail.com
+                </a>.
+              </p>
+            </div>
+
+            <figure className="overflow-hidden">
+              <div className="aspect-[3/2] w-full">
+                <img
+                  src="/images/church-facade-placeholder.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="h-full w-full object-contain opacity-40"
+                />
+              </div>
+            </figure>
+          </div>
+        </section>
+      </main>
+
+      <RegistryFooter />
       </div>
-    </div>
+    </PublicMaintenanceGate>
   );
 }
