@@ -64,7 +64,6 @@
     --popover: 222 45% 10%;
     --popover-foreground: 0 10% 96%;
 
-    /* Slightly lighter red in dark mode for readability */
     --primary: 355 96% 55%;
     --primary-foreground: 0 0% 100%;
 
@@ -85,15 +84,86 @@
     --warning: 38 92% 55%;
     --warning-foreground: 0 0% 100%;
   }
-}
 
-@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 1.5rem;
+  }
+
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgba(151, 14, 36, 0.16);
+  }
+}
+
+/*
+ * Public-site motion polish.
+ * Kept restrained so typography and content remain the focus.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .public-page-motion {
+    animation: publicPageEnter 440ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: center top;
+    transition:
+      opacity 140ms ease,
+      transform 180ms cubic-bezier(0.4, 0, 1, 1);
+  }
+
+  html[data-route-pending="true"] .public-page-motion {
+    opacity: 0.94;
+    transform: translateY(3px);
+  }
+
+  .public-page-motion a[href],
+  .public-page-motion button:not(:disabled),
+  .public-page-motion input,
+  .public-page-motion select,
+  .public-page-motion textarea {
+    transition:
+      color 180ms ease,
+      background-color 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      opacity 180ms ease,
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .public-page-motion a[href]:active,
+  .public-page-motion button:not(:disabled):active {
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .public-page-motion input:hover,
+  .public-page-motion select:hover,
+  .public-page-motion textarea:hover {
+    border-color: rgba(151, 14, 36, 0.34);
+  }
+
+  .public-page-motion input:focus-visible,
+  .public-page-motion select:focus-visible,
+  .public-page-motion textarea:focus-visible {
+    box-shadow: 0 0 0 3px rgba(151, 14, 36, 0.12);
+  }
+
+  @keyframes publicPageEnter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 
@@ -124,8 +194,6 @@
     }
   }
 
-  /* Page-level enter transition, used by app/admin/template.tsx and can be
-     applied directly to a page's root wrapper anywhere else in the app. */
   .animate-page-in {
     animation: pageIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   }
@@ -140,8 +208,6 @@
     }
   }
 
-  /* Generic hover-lift for clickable cards (dashboard stat cards, result
-     cards, feature cards, etc.) — subtle raise + shadow on hover/focus. */
   .hover-lift {
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
@@ -172,18 +238,18 @@
   }
 }
 
-  body.member-certificate-print-mode .member-certificate-print-canvas {
-    display: block !important;
-    width: 100% !important;
-    max-width: none !important;
-    height: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
+body.member-certificate-print-mode .member-certificate-print-canvas {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
 
-  body.member-certificate-print-mode .member-certificate-print-target ~ * {
-    visibility: hidden !important;
-  }
+body.member-certificate-print-mode .member-certificate-print-target ~ * {
+  visibility: hidden !important;
+}
 
 /*
  * Member drawer certificate printing.
@@ -192,7 +258,6 @@
  */
 
 @media print {
-  /* Strip the about:blank footer and reset page margins */
   @page {
     size: auto;
     margin: 0mm;
@@ -200,25 +265,21 @@
   body {
     margin: 1.5cm;
   }
-  /* Hide all chrome by default when printing */
   .print\:hidden {
     display: none !important;
   }
-  /* Hide admin layout shell: sidebar, top nav, header bars */
   aside,
   nav,
   header,
   [data-print-hidden="true"] {
     display: none !important;
   }
-  /* Hide interactive controls that don't belong on paper */
   input,
   select,
   textarea,
   button {
     display: none !important;
   }
-  /* Reset page margins and use the full A4/Letter width */
   html,
   body {
     margin: 0 !important;
@@ -228,7 +289,6 @@
     font-size: 11pt;
     color: #000 !important;
   }
-  /* The printable report container takes full width */
   .print-area,
   .print-report-table {
     width: 100% !important;
@@ -238,7 +298,6 @@
     box-shadow: none !important;
     border: none !important;
   }
-  /* Tables: clean borders, avoid row breaks across pages */
   table {
     width: 100% !important;
     border-collapse: collapse;
@@ -262,7 +321,6 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  /* Keep headings visible */
   h1,
   h2,
   h3 {
@@ -369,5 +427,114 @@
     height: auto !important;
     max-width: 100% !important;
     margin: 0 auto !important;
+  }
+}
+
+/* ------------------------------------------------------------
+   Public motion system v2
+   Visible enough to feel polished, still restrained.
+   ------------------------------------------------------------ */
+@media (prefers-reduced-motion: no-preference) {
+  .public-page-motion [data-motion-reveal="true"] {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 620ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--motion-delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  .public-page-motion [data-motion-reveal="true"][data-motion-visible="true"] {
+    opacity: 1;
+    transform: translateY(0);
+    will-change: auto;
+  }
+
+  .public-page-motion main a[href]:not([class*="rounded-full"]),
+  .public-page-motion footer a[href] {
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.22em;
+  }
+
+  .public-page-motion main a[href]:hover,
+  .public-page-motion footer a[href]:hover {
+    text-underline-offset: 0.3em;
+  }
+
+  .public-page-motion button:not(:disabled),
+  .public-page-motion a[href][class*="bg-"],
+  .public-page-motion a[href][class*="border"] {
+    transform: translateZ(0);
+  }
+
+  .public-page-motion button:not(:disabled):hover,
+  .public-page-motion a[href][class*="bg-"]:hover,
+  .public-page-motion a[href][class*="border"]:hover {
+    transform: translateY(-1px);
+  }
+
+  .public-page-motion button:not(:disabled):active,
+  .public-page-motion a[href][class*="bg-"]:active,
+  .public-page-motion a[href][class*="border"]:active {
+    transform: translateY(0) scale(0.985);
+  }
+
+  .public-page-motion article,
+  .public-page-motion [data-motion-card="true"] {
+    transition:
+      transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 260ms ease,
+      border-color 220ms ease,
+      background-color 220ms ease;
+  }
+
+  .public-page-motion article:hover,
+  .public-page-motion [data-motion-card="true"]:hover {
+    transform: translateY(-2px);
+  }
+
+  .public-page-motion input,
+  .public-page-motion select,
+  .public-page-motion textarea {
+    transition:
+      border-color 180ms ease,
+      box-shadow 220ms ease,
+      background-color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .public-page-motion input:focus-visible,
+  .public-page-motion select:focus-visible,
+  .public-page-motion textarea:focus-visible {
+    transform: translateY(-1px);
+  }
+
+  .public-page-motion header a,
+  .public-page-motion nav a {
+    transition:
+      color 180ms ease,
+      opacity 180ms ease,
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .public-page-motion header a:hover,
+  .public-page-motion nav a:hover {
+    transform: translateY(-1px);
+  }
+
+  .public-page-motion [role="dialog"] > div {
+    animation: publicDialogIn 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes publicDialogIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.992);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 }
