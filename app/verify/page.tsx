@@ -79,7 +79,6 @@ interface PublicMember
   extends Pick<
     Member,
     | "id"
-    | "uid"
     | "first_name"
     | "last_name"
     | "parish"
@@ -88,6 +87,7 @@ interface PublicMember
     | "service_year"
     | "expiration_date"
   > {
+  uid?: string;
   member_ministries: PublicMembership[];
 }
 
@@ -170,130 +170,38 @@ function VerifyPage() {
         return;
       }
 
-      const publicFields =
-        "id,uid,first_name,last_name,parish,ministries,status,service_year,expiration_date";
+      try {
+        const response = await fetch("/api/verify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+          body: JSON.stringify({ query: term }),
+        });
 
-      const attachMemberships = async (
-        members: Omit<PublicMember, "member_ministries">[]
-      ): Promise<PublicMember[]> => {
-        if (members.length === 0) return [];
+        const data = (await response.json()) as {
+          error?: string;
+          results?: PublicMember[];
+          searchedByUid?: boolean;
+        };
 
-        const { data, error: membershipError } = await supabase
-          .from("member_ministries")
-          .select("id,member_id,ministry,status,expiration_date")
-          .in(
-            "member_id",
-            members.map((member) => member.id)
-          );
-
-        if (membershipError) {
-          return members.map((member) => ({
-            ...member,
-            member_ministries: [],
-          }));
-        }
-
-        const memberships = ((data as PublicMembership[]) ?? []).sort((a, b) =>
-          a.ministry.localeCompare(b.ministry)
-        );
-
-        return members.map((member) => ({
-          ...member,
-          member_ministries: memberships.filter(
-            (membership) => membership.member_id === member.id
-          ),
-        }));
-      };
-
-      const isCompleteUid = /^LMD-\d{4}-\d+$/i.test(term);
-      const looksLikeUid = /^LMD-/i.test(term);
-
-      setSearchedByUid(isCompleteUid);
-
-      if (isCompleteUid) {
-        const { data, error: uidError } = await supabase
-          .from("members")
-          .select(publicFields)
-          .ilike("uid", term)
-          .limit(1);
-
-        if (uidError) {
-          setError("We could not complete the lookup. Please try again.");
-        } else {
-          setResults(
-            await attachMemberships(
-              ((data ?? []) as Omit<PublicMember, "member_ministries">[])
-            )
-          );
-        }
-
-        setSearching(false);
-        return;
-      }
-
-      if (looksLikeUid) {
-        setError(
-          "Enter the complete Registry ID, for example LMD-2026-0001."
-        );
-        setSearching(false);
-        return;
-      }
-
-      const tokens = term
-        .toLowerCase()
-        .split(/\s+/)
-        .map((token) => token.trim())
-        .filter(Boolean);
-
-      const escapeIlike = (value: string) =>
-        value.replace(/[%_\\]/g, (char) => `\\${char}`);
-
-      const candidateMap = new Map<
-        string,
-        Omit<PublicMember, "member_ministries">
-      >();
-
-      for (const token of tokens) {
-        const safeToken = escapeIlike(token);
-
-        const { data, error: nameError } = await supabase
-          .from("members")
-          .select(publicFields)
-          .or(
-            `first_name.ilike.%${safeToken}%,last_name.ilike.%${safeToken}%`
-          )
-          .limit(100);
-
-        if (nameError) {
-          setError("We could not complete the lookup. Please try again.");
-          setSearching(false);
+        if (!response.ok) {
+          setError(data.error ?? "Verification is unavailable.");
+          setSearchedByUid(false);
           return;
         }
 
-        for (const member of
-          ((data ?? []) as Omit<PublicMember, "member_ministries">[])) {
-          candidateMap.set(member.id, member);
-        }
+        setResults(data.results ?? []);
+        setSearchedByUid(Boolean(data.searchedByUid));
+      } catch {
+        setError("We could not complete the lookup. Please try again.");
+        setSearchedByUid(false);
+      } finally {
+        setSearching(false);
       }
-
-      let found = Array.from(candidateMap.values()).filter((member) => {
-        const fullName = `${member.first_name} ${member.last_name}`
-          .toLowerCase()
-          .trim();
-
-        return tokens.every((token) => fullName.includes(token));
-      });
-
-      found.sort((a, b) => {
-        const aName = `${a.last_name} ${a.first_name}`.toLowerCase();
-        const bName = `${b.last_name} ${b.first_name}`.toLowerCase();
-        return aName.localeCompare(bName);
-      });
-
-      setResults(await attachMemberships(found));
-      setSearching(false);
     },
-    [supabase]
+    []
   );
 
   useEffect(() => {
@@ -659,7 +567,7 @@ function VerifyPage() {
                 </div>
 
                 <p className="mt-3 text-[14px] leading-6 text-[#F3C6D0]">
-                  Registry IDs look like LMD-2026-0001. Have a certificate? Scan
+                  Registry IDs look like LMD-2026-K7M9-Q2RX-T5WA. Have a certificate? Scan
                   its QR code with your phone&apos;s camera.
                 </p>
               </form>
@@ -667,7 +575,7 @@ function VerifyPage() {
           </section>
         )}
 
-        {results.length === 1 && settings && (
+        {results.length === 1 && results[0].uid && settings && (
           <CertificateDesign
             ref={certRef}
             settings={settings}
@@ -933,7 +841,7 @@ function VerifyPage() {
                     <NameCorrectionForm
                       member={{
                         memberId: activeMember.id,
-                        registryId: activeMember.uid,
+                        registryId: activeMember.uid ?? "",
                         currentName: `${activeMember.first_name} ${activeMember.last_name}`,
                         parish: activeMember.parish,
                       }}
@@ -1059,9 +967,7 @@ function VerifyPage() {
                         <Link
                           href={`/report?memberId=${encodeURIComponent(
                             activeMember.id
-                          )}&registryId=${encodeURIComponent(
-                            activeMember.uid
-                          )}&name=${encodeURIComponent(
+                          )}&registryId=${encodeURIComponent(activeMember.uid ?? "")}&name=${encodeURIComponent(
                             `${activeMember.first_name} ${activeMember.last_name}`
                           )}&parish=${encodeURIComponent(activeMember.parish)}`}
                           className="font-semibold text-[#0B5C5A] underline underline-offset-3"
