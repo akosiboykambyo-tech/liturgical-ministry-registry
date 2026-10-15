@@ -17,14 +17,14 @@ export default function ReportPage() {
           <section className="bg-[#890022] text-white">
             <div className="mx-auto w-full max-w-[1120px] px-6 py-14 sm:px-8 lg:px-0">
               <p className={`${ebGaramond.className} text-[30px] font-normal italic text-[#F3C6D0]`}>
-                Tell us
+                Reach out
               </p>
               <h1 className={`${ebGaramond.className} mt-1 text-[52px] font-medium leading-none sm:text-[68px]`}>
-                what&apos;s wrong.
+                inquiries &amp; concerns.
               </h1>
               <p className="mt-5 max-w-[650px] text-[17px] leading-8 text-white/90">
-                Report a wrong record detail, a certificate or registration you
-                are unsure about, or another registry concern.
+                Ask about renewal procedures, request liturgical assistance or vestments,
+                report an incident, or correct a registry record.
               </p>
             </div>
           </section>
