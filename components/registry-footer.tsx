@@ -19,10 +19,10 @@ export function RegistryFooter({
           <p className="mt-1 text-[13px] leading-5 text-[#5F4A4F]">
             Questions:{" "}
             <a
-              href="mailto:cowlkalookan2025@gmail.com"
+              href="mailto:help@cowl-dok.online"
               className="underline underline-offset-3 hover:text-[#970E24]"
             >
-              cowlkalookan2025@gmail.com
+              help@cowl-dok.online
             </a>
           </p>
         </div>

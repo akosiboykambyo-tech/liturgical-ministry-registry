@@ -4,7 +4,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { inter, ebGaramond } from "@/app/fonts";
 import { SiteMotion } from "@/components/site-motion";
 
-const siteUrl = "https://liturgical-ministry-registry-dcwd.vercel.app";
+const siteUrl = "https://cowl-dok.online";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

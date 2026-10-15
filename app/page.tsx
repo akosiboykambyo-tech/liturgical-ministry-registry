@@ -15,10 +15,10 @@ export default function Home() {
         <section className="bg-[#890022] text-white">
           <div className="mx-auto w-full max-w-[1120px] px-6 py-14 sm:px-8 sm:py-16 lg:px-0 lg:py-20">
             <p className={`${ebGaramond.className} text-[26px] font-normal italic leading-tight text-[#F3C6D0] sm:text-[32px] lg:text-[36px]`}>
-              Is this person a registered
+              Is this person a
             </p>
-            <h1 className={`${ebGaramond.className} mt-1 max-w-[900px] text-[52px] font-medium not-italic leading-[0.95] tracking-[-0.035em] sm:text-[72px] lg:text-[100px]`}>
-              liturgical minister?
+            <h1 className={`${ebGaramond.className} mt-1 max-w-[980px] text-[52px] font-medium not-italic leading-[0.95] tracking-[-0.035em] sm:text-[72px] lg:text-[100px]`}>
+              registered liturgical minister?
             </h1>
 
             <p className="mt-8 max-w-[560px] text-[17px] leading-7 text-white/90 sm:text-[18px]">
@@ -119,11 +119,11 @@ export default function Home() {
               <p className={`${ebGaramond.className} mt-6 text-[24px] font-normal italic leading-8 text-white`}>
                 Or write to{" "}
                 <a
-                  href="mailto:cowlkalookan2025@gmail.com"
+                  href="mailto:help@cowl-dok.online"
                   className="underline decoration-white/40 underline-offset-4 hover:decoration-white"
                 >
-                  cowlkalookan2025@gmail.com
-                </a>.
+                  help@cowl-dok.online
+                </a>
               </p>
             </div>
 

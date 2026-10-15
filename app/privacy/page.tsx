@@ -250,10 +250,10 @@ export default function PrivacyPolicyPage() {
                 </p>
                 <p className="mt-1 text-muted-foreground">
                   <a
-                    href="mailto:cowlkalookan2025@gmail.com"
+                    href="mailto:help@cowl-dok.online"
                     className="underline underline-offset-2 hover:text-foreground"
                   >
-                    cowlkalookan2025@gmail.com
+                    help@cowl-dok.online
                   </a>
                 </p>
               </div>
