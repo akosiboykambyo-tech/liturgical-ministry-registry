@@ -57,7 +57,6 @@ export async function POST(request: Request) {
 
   if (
     !["record_detail", "authenticity", "renewal", "incident", "liturgy_assistance", "vestment_loan", "other"].includes(reportKind) ||
-    !subject ||
     !details ||
     !reporterName ||
     !reporterEmail
