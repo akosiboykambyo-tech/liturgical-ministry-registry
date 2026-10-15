@@ -156,7 +156,7 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
               href="/report"
               className="hover:text-[#970E24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970E24]/30"
             >
-              Report a concern
+              Inquiries & Concerns
             </Link>
           </nav>
 
@@ -178,7 +178,7 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
                 How it works
               </Link>
               <Link href="/report" className="py-4" onClick={() => setMenuOpen(false)}>
-                Report a concern
+                Inquiries & Concerns
               </Link>
             </div>
           </nav>
