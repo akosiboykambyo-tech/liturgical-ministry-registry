@@ -4,7 +4,27 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ebGaramond } from "@/app/fonts";
 
-type ReportKind = "record_detail" | "authenticity" | "other";
+type ReportKind = "record_detail" | "authenticity" | "renewal" | "incident" | "liturgy_assistance" | "vestment_loan" | "other";
+
+const REPORT_OPTIONS: { value: ReportKind; label: string }[] = [
+  { value: "record_detail", label: "Correction of a registry record" },
+  { value: "authenticity", label: "Certificate or registration verification" },
+  { value: "renewal", label: "Renewal procedures and requirements" },
+  { value: "incident", label: "Report an incident involving a liturgical minister" },
+  { value: "liturgy_assistance", label: "Assistance with liturgical celebrations" },
+  { value: "vestment_loan", label: "Request to borrow liturgical vestments" },
+  { value: "other", label: "Other inquiries or concerns" },
+];
+
+const DETAIL_HINTS: Record<ReportKind, string> = {
+  record_detail: "Describe the incorrect information and what should be corrected.",
+  authenticity: "Provide the certificate or Registry ID, if available, and explain what you want verified.",
+  renewal: "Mention your ministry and parish, and the renewal procedure you need help with.",
+  incident: "Describe what happened, including the date and location if known. Avoid unnecessary sensitive personal information.",
+  liturgy_assistance: "Describe the celebration, date, location and assistance requested.",
+  vestment_loan: "Specify vestments, quantities, borrowing and return dates, and parish or organization.",
+  other: "Describe your inquiry or concern.",
+};
 
 type FieldErrors = Partial<
   Record<
@@ -31,7 +51,8 @@ export function PublicReportForm() {
     return name ?? "";
   }, [params]);
 
-  const [reportKind, setReportKind] = useState<ReportKind>("record_detail");
+  const memberContext = Boolean(params.get("memberId") || params.get("registryId") || params.get("name"));
+  const [reportKind, setReportKind] = useState<ReportKind>(memberContext ? "record_detail" : "other");
   const [subject, setSubject] = useState(presetSubject);
   const [details, setDetails] = useState("");
   const [reporterName, setReporterName] = useState("");
@@ -48,8 +69,8 @@ export function PublicReportForm() {
     const next: FieldErrors = {};
 
     if (!reportKind) next.reportKind = "Choose what you want to report.";
-    if (!subject.trim()) next.subject = "Tell us who or what this is about.";
-    if (!details.trim()) next.details = "Tell us what is wrong.";
+    if (memberContext && !subject.trim()) next.subject = "Enter the minister or record concerned.";
+    if (!details.trim()) next.details = "Describe your inquiry or concern.";
     if (!reporterName.trim()) next.reporterName = "Enter your name.";
     if (!reporterEmail.trim()) {
       next.reporterEmail = "Enter your email address.";
@@ -75,7 +96,7 @@ export function PublicReportForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reportKind,
-          subject: subject.trim(),
+          subject: subject.trim() || REPORT_OPTIONS.find((option) => option.value === reportKind)?.label || "General inquiry",
           details: details.trim(),
           reporterName: reporterName.trim(),
           reporterEmail: reporterEmail.trim(),
@@ -111,7 +132,7 @@ export function PublicReportForm() {
           Thank you.
         </p>
         <h1 className={`${ebGaramond.className} mt-1 text-[48px] font-medium leading-tight sm:text-[60px]`}>
-          Your report has been sent.
+          Your submission has been received.
         </h1>
         <p className="mt-5 text-[17px] leading-8 text-[#5F4A4F]">
           The Commission can review it using the reference number below.
@@ -174,14 +195,10 @@ export function PublicReportForm() {
 
       <fieldset id="reportKind">
         <legend className={`${ebGaramond.className} text-[24px] font-medium`}>
-          What would you like to report? <span className="text-[16px] font-normal">(required)</span>
+          How can we help you? <span className="text-[16px] font-normal">(required)</span>
         </legend>
         <div className="mt-4 border-t border-[#E6DADC]">
-          {[
-            ["record_detail", "A detail on a record is wrong"],
-            ["authenticity", "I am not sure a certificate or registration is genuine"],
-            ["other", "Something else"],
-          ].map(([value, label]) => (
+          {REPORT_OPTIONS.map(({ value, label }) => (
             <label
               key={value}
               className="flex min-h-14 cursor-pointer items-center gap-3 border-b border-[#E6DADC] py-3 text-[16px]"
@@ -191,7 +208,7 @@ export function PublicReportForm() {
                 name="reportKind"
                 value={value}
                 checked={reportKind === value}
-                onChange={() => setReportKind(value as ReportKind)}
+                onChange={() => setReportKind(value)}
               />
               <span>{label}</span>
             </label>
@@ -204,7 +221,8 @@ export function PublicReportForm() {
 
       <div className="mt-8">
         <label htmlFor="subject" className={`${ebGaramond.className} text-[22px] font-medium`}>
-          Who is this about? <span className="text-[16px] font-normal">(required)</span>
+          {memberContext ? "Who is this about?" : "Who or what is this about?"}{" "}
+          <span className="text-[16px] font-normal">({memberContext ? "required" : "optional"})</span>
         </label>
         <input
           id="subject"
@@ -224,15 +242,23 @@ export function PublicReportForm() {
 
       <div className="mt-8">
         <label htmlFor="details" className={`${ebGaramond.className} text-[22px] font-medium`}>
-          What is wrong? <span className="text-[16px] font-normal">(required)</span>
+          Tell us more <span className="text-[16px] font-normal">(required)</span>
         </label>
         <textarea
           id="details"
+          aria-describedby="details-hint"
           rows={6}
           value={details}
           onChange={(e) => setDetails(e.target.value)}
           className="mt-2 w-full border border-[#CDBFC2] bg-white px-4 py-3 text-[16px] leading-7"
         />
+        <p id="details-hint" className="mt-2 text-[14px] leading-6 text-[#5F4A4F]">{DETAIL_HINTS[reportKind]}</p>
+        {reportKind === "incident" && (
+          <p className="mt-3 border-l-2 border-[#970E24] pl-4 text-[14px] leading-6 text-[#5F4A4F]">
+            Please avoid unnecessary sensitive personal information. This form is not an emergency reporting channel.
+            For immediate danger, contact the appropriate emergency services.
+          </p>
+        )}
         {errors.details && (
           <p className="mt-2 text-[14px] text-[#B00020]">{errors.details}</p>
         )}
@@ -293,7 +319,7 @@ export function PublicReportForm() {
         disabled={submitting}
         className="mt-8 min-h-14 rounded-[3px] bg-[#970E24] px-7 text-[16px] font-semibold text-white disabled:opacity-60"
       >
-        {submitting ? "Sending…" : "Send report"}
+        {submitting ? "Submitting…" : "Submit inquiry or concern"}
       </button>
 
       <p className="mt-3 text-[14px] leading-6 text-[#5F4A4F]">
