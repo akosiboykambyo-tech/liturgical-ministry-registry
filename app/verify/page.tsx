@@ -345,74 +345,102 @@ function VerifyPage() {
       });
     });
 
+  const membershipIsEligibleForIssuance = (
+    membership: PublicMembership
+  ) => membershipIsEligible(membership);
+
+  const allocateIssuance = async (
+    registryId: string,
+    membership: PublicMembership
+  ): Promise<number> => {
+    const response = await fetch("/api/certificates/issue", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        registryId,
+        memberMinistryId: membership.id,
+      }),
+    });
+
+    const result = (await response.json()) as {
+      issuanceNumber?: number;
+      reprintSuffix?: string;
+      error?: string;
+    };
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ?? "Certificate issuance failed."
+      );
+    }
+
+    if (
+      !Number.isSafeInteger(result.issuanceNumber) ||
+      !result.issuanceNumber ||
+      result.issuanceNumber < 1
+    ) {
+      throw new Error("Invalid certificate issuance number.");
+    }
+
+    return result.issuanceNumber;
+  };
+
   const prepareCertificateMembership = async (
     membership: PublicMembership
   ) => {
-    const { data } = await supabase
-      .from("certificate_downloads")
-      .select("download_count")
-      .eq("member_ministry_id", membership.id)
-      .maybeSingle();
-
-    const currentCount = data?.download_count ?? 0;
-
     setSelectedMinistry(membership.ministry);
-    setDownloadCount(currentCount);
+    setDownloadCount(0);
     await waitForCertificateRender();
 
-    return {
-      currentCount,
-      suffix: currentCount > 0 ? `-R${currentCount + 1}` : "",
-    };
+    const canvas = await certRef.current?.render();
+
+    if (!canvas) {
+      throw new Error("Certificate could not be prepared.");
+    }
   };
 
-  const trackDownload = async (membership: PublicMembership) => {
-    const { data: existing } = await supabase
-      .from("certificate_downloads")
-      .select("*")
-      .eq("member_ministry_id", membership.id)
-      .maybeSingle();
-
-    if (existing) {
-      const nextCount = (existing.download_count ?? 0) + 1;
-
-      await supabase
-        .from("certificate_downloads")
-        .update({
-          download_count: nextCount,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id);
-
-      setDownloadCount(nextCount);
-      return;
-    }
-
-    const member = results[0];
-    if (!member) return;
-
-    await supabase.from("certificate_downloads").insert({
-      member_id: member.id,
-      member_ministry_id: membership.id,
-      ministry: membership.ministry,
-      download_count: 1,
-    });
-
-    setDownloadCount(1);
+  const applyIssuanceNumber = async (number: number) => {
+    setDownloadCount(number - 1);
+    await waitForCertificateRender();
   };
 
   const handleDownload = async (membership: PublicMembership) => {
     const member = results[0];
 
-    if (!member || !settings || !searchedByUid) return;
-    if (!membershipIsEligible(membership)) return;
+    if (!member?.uid || !settings || !searchedByUid) return;
+    if (!membershipIsEligibleForIssuance(membership)) return;
+    if (generating) return;
 
     setGenerating(true);
+    setError(null);
 
     try {
-      const { suffix } = await prepareCertificateMembership(membership);
-      await certRef.current?.download(`certificate-${member.uid}${suffix}.png`);
-      await trackDownload(membership);
+      // Prepare the certificate before allocating a number.
+      await prepareCertificateMembership(membership);
+
+      // Atomically allocate the next issuance number.
+      const issuanceNumber = await allocateIssuance(
+        member.uid,
+        membership
+      );
+
+
+      const suffix =
+        issuanceNumber === 1 ? "" : `-R${issuanceNumber}`;
+
+      await certRef.current?.download(
+        `certificate-${member.uid}${suffix}.png`,
+        suffix
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Certificate download failed."
+      );
     } finally {
       setGenerating(false);
     }
@@ -421,29 +449,42 @@ function VerifyPage() {
   const handlePrint = async (membership: PublicMembership) => {
     const member = results[0];
 
-    if (!member || !settings || !searchedByUid) return;
-    if (!membershipIsEligible(membership)) return;
+    if (!member?.uid || !settings || !searchedByUid) return;
+    if (!membershipIsEligibleForIssuance(membership)) return;
+    if (generating) return;
 
-    const printWindow = window.open("", "_blank", "width=900,height=1000");
+    const printWindow = window.open(
+      "",
+      "_blank",
+      "width=900,height=1000"
+    );
 
     if (!printWindow) {
-      setError("Allow pop-ups for this site to print the certificate.");
+      setError("Allow pop-ups to print the certificate.");
       return;
     }
 
     setGenerating(true);
+    setError(null);
 
     try {
+      // Confirm that rendering works before allocating.
       await prepareCertificateMembership(membership);
-      const canvas = await certRef.current?.render();
+
+      const issuanceNumber = await allocateIssuance(
+        member.uid,
+        membership
+      );
+
+      const suffix =
+        issuanceNumber === 1 ? "" : `-R${issuanceNumber}`;
+
+      // Render again with the allocated reprint suffix.
+      const canvas = await certRef.current?.render(suffix);
 
       if (!canvas) {
-        printWindow.close();
-        setError("We could not prepare the certificate for printing.");
-        return;
+        throw new Error("Certificate could not be rendered.");
       }
-
-      await trackDownload(membership);
 
       const png = canvas.toDataURL("image/png");
 
@@ -494,11 +535,18 @@ function VerifyPage() {
       } else if (image) {
         image.onload = print;
       }
+    } catch (error) {
+      printWindow.close();
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Certificate printing failed."
+      );
     } finally {
       setGenerating(false);
     }
   };
-
   const recordStatus = activeMember
     ? getRecordPublicStatus(activeMember.member_ministries)
     : null;
