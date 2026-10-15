@@ -119,9 +119,52 @@ REVOKE REFERENCES, TRIGGER, TRUNCATE ON TABLE
   public.scanned_duplicates
 FROM authenticated;
 
--- Keep administrator browser operations available.
+-- Preserve member registration and administrative reads/deletes.
+GRANT SELECT, INSERT, DELETE ON TABLE
+  public.members
+TO authenticated;
+
+-- Remove unrestricted member UPDATE privileges.
+-- Remove table-level and existing column-level UPDATE grants.
+REVOKE UPDATE ON TABLE public.members
+FROM authenticated;
+
+REVOKE UPDATE (
+  id,
+  uid,
+  first_name,
+  last_name,
+  parish,
+  ministries,
+  status,
+  document_url,
+  created_at,
+  updated_at,
+  notes,
+  expiration_date,
+  archived_documents,
+  service_year
+) ON TABLE public.members
+FROM authenticated;
+
+-- Restrict updates to editable member fields.
+GRANT UPDATE (
+  first_name,
+  last_name,
+  parish,
+  ministries,
+  status,
+  document_url,
+  created_at,
+  updated_at,
+  notes,
+  expiration_date,
+  archived_documents
+) ON TABLE public.members
+TO authenticated;
+
+-- Preserve other administrator browser operations.
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
-  public.members,
   public.member_ministries,
   public.certificate_downloads,
   public.audit_logs,
