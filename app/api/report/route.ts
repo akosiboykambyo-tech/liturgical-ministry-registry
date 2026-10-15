@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   if (
-    !["record_detail", "authenticity", "other"].includes(reportKind) ||
+    !["record_detail", "authenticity", "renewal", "incident", "liturgy_assistance", "vestment_loan", "other"].includes(reportKind) ||
     !subject ||
     !details ||
     !reporterName ||
@@ -133,11 +133,13 @@ export async function POST(request: Request) {
     }
   }
 
+  const reportSubject = subject || "General inquiry";
+
   const { data: report, error: insertError } = await supabase
     .from("public_reports")
     .insert({
       report_type: reportKind,
-      subject,
+      subject: reportSubject,
       details,
       reporter_name: reporterName,
       reporter_email: reporterEmail,
@@ -154,6 +156,43 @@ export async function POST(request: Request) {
       { ok: false, error: "The report could not be recorded." },
       { status: 500 }
     );
+  }
+
+  // Saving the report is independent of email notification delivery.
+  if (process.env.RESEND_API_KEY) {
+    const labels: Record<string, string> = {
+      record_detail: "Registry correction",
+      authenticity: "Certificate verification",
+      renewal: "Renewal procedures",
+      incident: "Incident report",
+      liturgy_assistance: "Liturgical assistance",
+      vestment_loan: "Vestment loan request",
+      other: "General inquiry",
+    };
+    const reference = referenceFromId(report.id);
+    try {
+      const notification = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + process.env.RESEND_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: process.env.RESEND_FROM_EMAIL || "notifications@cowl-dok.online",
+          to: ["corrections@cowl-dok.online"],
+          subject: "[COWL-DOK] " + labels[reportKind] + " — " + reference,
+          text: [
+            "New inquiry received.",
+            "Reference: " + reference,
+            "Category: " + labels[reportKind],
+            "Review the full submission securely in the registry database.",
+          ].join("\n"),
+        }),
+      });
+      if (!notification.ok) console.error("Report notification failed:", notification.status);
+    } catch (error) {
+      console.error("Report notification error:", error);
+    }
   }
 
   return NextResponse.json({
