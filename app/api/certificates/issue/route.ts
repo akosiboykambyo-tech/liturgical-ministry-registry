@@ -1,17 +1,18 @@
 
 import { createHmac } from "node:crypto";
+import { ipAddress } from "@vercel/functions/headers";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const MAX_REQUESTS = 20;
+const WINDOW_SECONDS = 60;
+
+// Only randomized Registry IDs are supported.
 const UID_PATTERN =
   /^LMD-\d{4}-(?:[A-HJKMNP-Z2-9]{4}-){2}[A-HJKMNP-Z2-9]{4}$/i;
-
-// Temporary compatibility during the UID migration.
-// Remove before production cutover.
-const LEGACY_UID_PATTERN = /^LMD-\d{4}-\d+$/i;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -35,25 +36,46 @@ function respond(
   });
 }
 
+function getClientIdentifier(request: NextRequest) {
+  const clientIp = ipAddress(request);
+
+  if (clientIp) {
+    return clientIp;
+  }
+
+  // Local development fallback only.
+  if (process.env.NODE_ENV === "development") {
+    return "local-development";
+  }
+
+  // Never bypass rate limiting in production.
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const secret = process.env.VERIFICATION_RATE_LIMIT_SECRET;
 
+  // Verify server configuration.
   if (!supabaseUrl || !serviceRoleKey || !secret) {
+    console.error(
+      "Certificate issuance configuration is incomplete."
+    );
+
     return respond(
       { error: "Certificate issuance is unavailable." },
       503
     );
   }
 
-  const clientId =
-    request.ip ??
-    (process.env.NODE_ENV === "development"
-      ? "local-development"
-      : null);
+  const clientId = getClientIdentifier(request);
 
   if (!clientId) {
+    console.error(
+      "Unable to identify certificate request client."
+    );
+
     return respond(
       { error: "Certificate issuance is unavailable." },
       503
@@ -67,18 +89,19 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // Share the verification rate limit across lookup and issuance.
+  // Use the same rate-limit namespace as verification.
   const requestKey = createHmac("sha256", secret)
     .update(`cowl-verification-v1:${clientId}`)
     .digest("hex");
 
+  // Enforce database-backed rate limiting.
   try {
     const { data, error } = await supabase.rpc(
       "check_verification_rate_limit",
       {
         p_request_key: requestKey,
-        p_max_requests: 20,
-        p_window_seconds: 60,
+        p_max_requests: MAX_REQUESTS,
+        p_window_seconds: WINDOW_SECONDS,
       }
     );
 
@@ -88,7 +111,10 @@ export async function POST(request: NextRequest) {
       data.length !== 1 ||
       typeof data[0]?.allowed !== "boolean"
     ) {
-      console.error("Certificate rate-limit failure:", error);
+      console.error(
+        "Certificate rate-limit failure:",
+        error
+      );
 
       return respond(
         { error: "Certificate issuance is unavailable." },
@@ -101,7 +127,8 @@ export async function POST(request: NextRequest) {
         1,
         Math.min(
           3600,
-          Number(data[0].retry_after_seconds) || 60
+          Number(data[0].retry_after_seconds) ||
+            WINDOW_SECONDS
         )
       );
 
@@ -117,7 +144,10 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error) {
-    console.error("Certificate rate-limit error:", error);
+    console.error(
+      "Certificate rate-limit error:",
+      error
+    );
 
     return respond(
       { error: "Certificate issuance is unavailable." },
@@ -125,12 +155,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Parse request body.
   let payload: IssuePayload;
 
   try {
     payload = (await request.json()) as IssuePayload;
   } catch {
-    return respond({ error: "Invalid request body." }, 400);
+    return respond(
+      { error: "Invalid request body." },
+      400
+    );
   }
 
   if (
@@ -138,19 +172,24 @@ export async function POST(request: NextRequest) {
     typeof payload?.memberMinistryId !== "string"
   ) {
     return respond(
-      { error: "Registry ID and ministry are required." },
+      {
+        error:
+          "Registry ID and ministry are required.",
+      },
       400
     );
   }
 
-  const registryId = payload.registryId.trim().toUpperCase();
-  const memberMinistryId = payload.memberMinistryId.trim();
+  const registryId = payload.registryId
+    .trim()
+    .toUpperCase();
 
+  const memberMinistryId =
+    payload.memberMinistryId.trim();
+
+  // Reject legacy or malformed Registry IDs.
   if (
-    !(
-      UID_PATTERN.test(registryId) ||
-      LEGACY_UID_PATTERN.test(registryId)
-    ) ||
+    !UID_PATTERN.test(registryId) ||
     !UUID_PATTERN.test(memberMinistryId)
   ) {
     return respond(
@@ -159,9 +198,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Allocate the issuance number atomically.
+  // The database function validates UID ownership
+  // and certificate eligibility.
   try {
-    // The database function checks UID ownership,
-    // ministry eligibility, and allocates numbers atomically.
     const { data, error } = await supabase.rpc(
       "allocate_certificate_issuance",
       {
@@ -171,7 +211,10 @@ export async function POST(request: NextRequest) {
     );
 
     if (error) {
-      console.error("Certificate issuance error:", error);
+      console.error(
+        "Certificate issuance error:",
+        error
+      );
 
       return respond(
         { error: "Certificate could not be issued." },
@@ -182,12 +225,17 @@ export async function POST(request: NextRequest) {
     if (
       !Array.isArray(data) ||
       data.length !== 1 ||
-      !Number.isSafeInteger(data[0]?.issuance_number) ||
+      !Number.isSafeInteger(
+        data[0]?.issuance_number
+      ) ||
       data[0].issuance_number < 1 ||
       typeof data[0]?.reprint_suffix !== "string"
     ) {
       return respond(
-        { error: "Unexpected certificate issuance result." },
+        {
+          error:
+            "Unexpected certificate issuance result.",
+        },
         500
       );
     }
@@ -197,7 +245,10 @@ export async function POST(request: NextRequest) {
       reprintSuffix: data[0].reprint_suffix,
     });
   } catch (error) {
-    console.error("Certificate issuance failure:", error);
+    console.error(
+      "Certificate issuance failure:",
+      error
+    );
 
     return respond(
       { error: "Certificate issuance is unavailable." },
@@ -205,3 +256,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
