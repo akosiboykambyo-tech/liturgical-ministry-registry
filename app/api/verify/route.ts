@@ -1,5 +1,6 @@
 
 import { createHmac } from "node:crypto";
+import { ipAddress } from "@vercel/functions/headers";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -12,10 +13,6 @@ const WINDOW_SECONDS = 60;
 // Random portion excludes 0, O, 1, I, and L.
 const NEW_UID_PATTERN =
   /^LMD-\d{4}-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/i;
-
-// Development compatibility only.
-// Remove when the randomized UID migration is activated.
-const LEGACY_UID_PATTERN = /^LMD-\d{4}-\d+$/i;
 
 const MEMBER_FIELDS =
   "id,uid,first_name,last_name,parish,ministries,status,service_year,expiration_date";
@@ -45,11 +42,13 @@ function escapeIlike(value: string) {
   return value.replace(/[%_\\]/g, (char) => `\\${char}`);
 }
 
+
 function getClientIdentifier(request: NextRequest) {
-  // Vercel populates NextRequest.ip from request metadata.
-  // Do not use arbitrary client-supplied identification headers.
-  if (request.ip) {
-    return request.ip;
+  // Use Vercel's request IP utility for production.
+  const clientIp = ipAddress(request);
+
+  if (clientIp) {
+    return clientIp;
   }
 
   // Local development fallback only.
@@ -57,9 +56,10 @@ function getClientIdentifier(request: NextRequest) {
     return "local-development";
   }
 
-  // Fail closed when production client identification is missing.
+  // Fail closed when client identification is unavailable.
   return null;
 }
+
 
 function makeRateLimitKey(
   identifier: string,
@@ -204,9 +204,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const isExactUid =
-    NEW_UID_PATTERN.test(term) ||
-    LEGACY_UID_PATTERN.test(term);
+  const isExactUid = NEW_UID_PATTERN.test(term);
 
   const looksLikeUid = /^LMD-/i.test(term);
 
@@ -357,3 +355,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
