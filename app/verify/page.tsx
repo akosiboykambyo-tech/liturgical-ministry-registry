@@ -79,7 +79,6 @@ interface PublicMember
   extends Pick<
     Member,
     | "id"
-    | "uid"
     | "first_name"
     | "last_name"
     | "parish"
@@ -88,6 +87,7 @@ interface PublicMember
     | "service_year"
     | "expiration_date"
   > {
+  uid?: string;
   member_ministries: PublicMembership[];
 }
 
@@ -170,130 +170,38 @@ function VerifyPage() {
         return;
       }
 
-      const publicFields =
-        "id,uid,first_name,last_name,parish,ministries,status,service_year,expiration_date";
+      try {
+        const response = await fetch("/api/verify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+          body: JSON.stringify({ query: term }),
+        });
 
-      const attachMemberships = async (
-        members: Omit<PublicMember, "member_ministries">[]
-      ): Promise<PublicMember[]> => {
-        if (members.length === 0) return [];
+        const data = (await response.json()) as {
+          error?: string;
+          results?: PublicMember[];
+          searchedByUid?: boolean;
+        };
 
-        const { data, error: membershipError } = await supabase
-          .from("member_ministries")
-          .select("id,member_id,ministry,status,expiration_date")
-          .in(
-            "member_id",
-            members.map((member) => member.id)
-          );
-
-        if (membershipError) {
-          return members.map((member) => ({
-            ...member,
-            member_ministries: [],
-          }));
-        }
-
-        const memberships = ((data as PublicMembership[]) ?? []).sort((a, b) =>
-          a.ministry.localeCompare(b.ministry)
-        );
-
-        return members.map((member) => ({
-          ...member,
-          member_ministries: memberships.filter(
-            (membership) => membership.member_id === member.id
-          ),
-        }));
-      };
-
-      const isCompleteUid = /^LMD-\d{4}-\d+$/i.test(term);
-      const looksLikeUid = /^LMD-/i.test(term);
-
-      setSearchedByUid(isCompleteUid);
-
-      if (isCompleteUid) {
-        const { data, error: uidError } = await supabase
-          .from("members")
-          .select(publicFields)
-          .ilike("uid", term)
-          .limit(1);
-
-        if (uidError) {
-          setError("We could not complete the lookup. Please try again.");
-        } else {
-          setResults(
-            await attachMemberships(
-              ((data ?? []) as Omit<PublicMember, "member_ministries">[])
-            )
-          );
-        }
-
-        setSearching(false);
-        return;
-      }
-
-      if (looksLikeUid) {
-        setError(
-          "Enter the complete Registry ID, for example LMD-2026-0001."
-        );
-        setSearching(false);
-        return;
-      }
-
-      const tokens = term
-        .toLowerCase()
-        .split(/\s+/)
-        .map((token) => token.trim())
-        .filter(Boolean);
-
-      const escapeIlike = (value: string) =>
-        value.replace(/[%_\\]/g, (char) => `\\${char}`);
-
-      const candidateMap = new Map<
-        string,
-        Omit<PublicMember, "member_ministries">
-      >();
-
-      for (const token of tokens) {
-        const safeToken = escapeIlike(token);
-
-        const { data, error: nameError } = await supabase
-          .from("members")
-          .select(publicFields)
-          .or(
-            `first_name.ilike.%${safeToken}%,last_name.ilike.%${safeToken}%`
-          )
-          .limit(100);
-
-        if (nameError) {
-          setError("We could not complete the lookup. Please try again.");
-          setSearching(false);
+        if (!response.ok) {
+          setError(data.error ?? "Verification is unavailable.");
+          setSearchedByUid(false);
           return;
         }
 
-        for (const member of
-          ((data ?? []) as Omit<PublicMember, "member_ministries">[])) {
-          candidateMap.set(member.id, member);
-        }
+        setResults(data.results ?? []);
+        setSearchedByUid(Boolean(data.searchedByUid));
+      } catch {
+        setError("We could not complete the lookup. Please try again.");
+        setSearchedByUid(false);
+      } finally {
+        setSearching(false);
       }
-
-      let found = Array.from(candidateMap.values()).filter((member) => {
-        const fullName = `${member.first_name} ${member.last_name}`
-          .toLowerCase()
-          .trim();
-
-        return tokens.every((token) => fullName.includes(token));
-      });
-
-      found.sort((a, b) => {
-        const aName = `${a.last_name} ${a.first_name}`.toLowerCase();
-        const bName = `${b.last_name} ${b.first_name}`.toLowerCase();
-        return aName.localeCompare(bName);
-      });
-
-      setResults(await attachMemberships(found));
-      setSearching(false);
     },
-    [supabase]
+    []
   );
 
   useEffect(() => {
@@ -437,74 +345,102 @@ function VerifyPage() {
       });
     });
 
+  const membershipIsEligibleForIssuance = (
+    membership: PublicMembership
+  ) => membershipIsEligible(membership);
+
+  const allocateIssuance = async (
+    registryId: string,
+    membership: PublicMembership
+  ): Promise<number> => {
+    const response = await fetch("/api/certificates/issue", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        registryId,
+        memberMinistryId: membership.id,
+      }),
+    });
+
+    const result = (await response.json()) as {
+      issuanceNumber?: number;
+      reprintSuffix?: string;
+      error?: string;
+    };
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ?? "Certificate issuance failed."
+      );
+    }
+
+    if (
+      !Number.isSafeInteger(result.issuanceNumber) ||
+      !result.issuanceNumber ||
+      result.issuanceNumber < 1
+    ) {
+      throw new Error("Invalid certificate issuance number.");
+    }
+
+    return result.issuanceNumber;
+  };
+
   const prepareCertificateMembership = async (
     membership: PublicMembership
   ) => {
-    const { data } = await supabase
-      .from("certificate_downloads")
-      .select("download_count")
-      .eq("member_ministry_id", membership.id)
-      .maybeSingle();
-
-    const currentCount = data?.download_count ?? 0;
-
     setSelectedMinistry(membership.ministry);
-    setDownloadCount(currentCount);
+    setDownloadCount(0);
     await waitForCertificateRender();
 
-    return {
-      currentCount,
-      suffix: currentCount > 0 ? `-R${currentCount + 1}` : "",
-    };
+    const canvas = await certRef.current?.render();
+
+    if (!canvas) {
+      throw new Error("Certificate could not be prepared.");
+    }
   };
 
-  const trackDownload = async (membership: PublicMembership) => {
-    const { data: existing } = await supabase
-      .from("certificate_downloads")
-      .select("*")
-      .eq("member_ministry_id", membership.id)
-      .maybeSingle();
-
-    if (existing) {
-      const nextCount = (existing.download_count ?? 0) + 1;
-
-      await supabase
-        .from("certificate_downloads")
-        .update({
-          download_count: nextCount,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id);
-
-      setDownloadCount(nextCount);
-      return;
-    }
-
-    const member = results[0];
-    if (!member) return;
-
-    await supabase.from("certificate_downloads").insert({
-      member_id: member.id,
-      member_ministry_id: membership.id,
-      ministry: membership.ministry,
-      download_count: 1,
-    });
-
-    setDownloadCount(1);
+  const applyIssuanceNumber = async (number: number) => {
+    setDownloadCount(number - 1);
+    await waitForCertificateRender();
   };
 
   const handleDownload = async (membership: PublicMembership) => {
     const member = results[0];
 
-    if (!member || !settings || !searchedByUid) return;
-    if (!membershipIsEligible(membership)) return;
+    if (!member?.uid || !settings || !searchedByUid) return;
+    if (!membershipIsEligibleForIssuance(membership)) return;
+    if (generating) return;
 
     setGenerating(true);
+    setError(null);
 
     try {
-      const { suffix } = await prepareCertificateMembership(membership);
-      await certRef.current?.download(`certificate-${member.uid}${suffix}.png`);
-      await trackDownload(membership);
+      // Prepare the certificate before allocating a number.
+      await prepareCertificateMembership(membership);
+
+      // Atomically allocate the next issuance number.
+      const issuanceNumber = await allocateIssuance(
+        member.uid,
+        membership
+      );
+
+
+      const suffix =
+        issuanceNumber === 1 ? "" : `-R${issuanceNumber}`;
+
+      await certRef.current?.download(
+        `certificate-${member.uid}${suffix}.png`,
+        suffix
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Certificate download failed."
+      );
     } finally {
       setGenerating(false);
     }
@@ -513,29 +449,42 @@ function VerifyPage() {
   const handlePrint = async (membership: PublicMembership) => {
     const member = results[0];
 
-    if (!member || !settings || !searchedByUid) return;
-    if (!membershipIsEligible(membership)) return;
+    if (!member?.uid || !settings || !searchedByUid) return;
+    if (!membershipIsEligibleForIssuance(membership)) return;
+    if (generating) return;
 
-    const printWindow = window.open("", "_blank", "width=900,height=1000");
+    const printWindow = window.open(
+      "",
+      "_blank",
+      "width=900,height=1000"
+    );
 
     if (!printWindow) {
-      setError("Allow pop-ups for this site to print the certificate.");
+      setError("Allow pop-ups to print the certificate.");
       return;
     }
 
     setGenerating(true);
+    setError(null);
 
     try {
+      // Confirm that rendering works before allocating.
       await prepareCertificateMembership(membership);
-      const canvas = await certRef.current?.render();
+
+      const issuanceNumber = await allocateIssuance(
+        member.uid,
+        membership
+      );
+
+      const suffix =
+        issuanceNumber === 1 ? "" : `-R${issuanceNumber}`;
+
+      // Render again with the allocated reprint suffix.
+      const canvas = await certRef.current?.render(suffix);
 
       if (!canvas) {
-        printWindow.close();
-        setError("We could not prepare the certificate for printing.");
-        return;
+        throw new Error("Certificate could not be rendered.");
       }
-
-      await trackDownload(membership);
 
       const png = canvas.toDataURL("image/png");
 
@@ -586,11 +535,18 @@ function VerifyPage() {
       } else if (image) {
         image.onload = print;
       }
+    } catch (error) {
+      printWindow.close();
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Certificate printing failed."
+      );
     } finally {
       setGenerating(false);
     }
   };
-
   const recordStatus = activeMember
     ? getRecordPublicStatus(activeMember.member_ministries)
     : null;
@@ -659,7 +615,7 @@ function VerifyPage() {
                 </div>
 
                 <p className="mt-3 text-[14px] leading-6 text-[#F3C6D0]">
-                  Registry IDs look like LMD-2026-0001. Have a certificate? Scan
+                  Registry IDs look like LMD-2026-K7M9-Q2RX-T5WA. Have a certificate? Scan
                   its QR code with your phone&apos;s camera.
                 </p>
               </form>
@@ -667,7 +623,7 @@ function VerifyPage() {
           </section>
         )}
 
-        {results.length === 1 && settings && (
+        {results.length === 1 && results[0].uid && settings && (
           <CertificateDesign
             ref={certRef}
             settings={settings}
@@ -933,7 +889,7 @@ function VerifyPage() {
                     <NameCorrectionForm
                       member={{
                         memberId: activeMember.id,
-                        registryId: activeMember.uid,
+                        registryId: activeMember.uid ?? "",
                         currentName: `${activeMember.first_name} ${activeMember.last_name}`,
                         parish: activeMember.parish,
                       }}
@@ -1059,9 +1015,7 @@ function VerifyPage() {
                         <Link
                           href={`/report?memberId=${encodeURIComponent(
                             activeMember.id
-                          )}&registryId=${encodeURIComponent(
-                            activeMember.uid
-                          )}&name=${encodeURIComponent(
+                          )}&registryId=${encodeURIComponent(activeMember.uid ?? "")}&name=${encodeURIComponent(
                             `${activeMember.first_name} ${activeMember.last_name}`
                           )}&parish=${encodeURIComponent(activeMember.parish)}`}
                           className="font-semibold text-[#0B5C5A] underline underline-offset-3"

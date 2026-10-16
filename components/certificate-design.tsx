@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -17,9 +18,14 @@ import type {
 } from "@/lib/types";
 
 export interface CertificateDesignHandle {
-  download: (filename: string) => Promise<void>;
+  download: (
+    filename: string,
+    reprintSuffix?: string
+  ) => Promise<void>;
   getCanvas: () => HTMLCanvasElement | null;
-  render: () => Promise<HTMLCanvasElement | null>;
+  render: (
+    reprintSuffix?: string
+  ) => Promise<HTMLCanvasElement | null>;
 }
 
 interface CertificateDesignProps {
@@ -37,12 +43,20 @@ export const CertificateDesign = forwardRef<
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const renderQueueRef = useRef<Promise<void>>(Promise.resolve());
 
-  const queueRender = () => {
+  const queueRender = (reprintSuffix?: string) => {
     const canvas = canvasRef.current;
 
     if (!canvas) {
       return Promise.resolve();
     }
+
+    const renderData: CertificateData =
+      reprintSuffix === undefined
+        ? data
+        : {
+            ...data,
+            reprintSuffix,
+          };
 
     const renderJob = renderQueueRef.current.then(async () => {
       const currentCanvas = canvasRef.current;
@@ -51,7 +65,7 @@ export const CertificateDesign = forwardRef<
 
       await renderCertificate(
         currentCanvas,
-        data,
+        renderData,
         settings,
         signatories
       );
@@ -67,18 +81,23 @@ export const CertificateDesign = forwardRef<
   }, [data, settings, signatories]);
 
   useImperativeHandle(ref, () => ({
-    download: async (filename: string) => {
-      await queueRender();
+    download: async (
+      filename: string,
+      reprintSuffix?: string
+    ) => {
+      await queueRender(reprintSuffix);
 
       const canvas = canvasRef.current;
 
-      if (!canvas) return;
+      if (!canvas) {
+        throw new Error("Certificate canvas is unavailable.");
+      }
 
       downloadCanvasAsPng(canvas, filename);
     },
 
-    render: async () => {
-      await queueRender();
+    render: async (reprintSuffix?: string) => {
+      await queueRender(reprintSuffix);
       return canvasRef.current;
     },
 
