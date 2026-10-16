@@ -54,25 +54,33 @@ BEGIN
   FOR v_attempt IN 1..100 LOOP
     v_random_part := '';
 
+
+    -- Generate random bytes in batches instead of one at a time.
+    -- Rejection sampling preserves uniform character selection.
     WHILE length(v_random_part) < 12 LOOP
-      v_byte := pg_catalog.get_byte(
-        extensions.gen_random_bytes(1),
-        0
-      );
+      FOR v_byte IN
+        SELECT pg_catalog.get_byte(bytes, pos)
+        FROM (
+          SELECT extensions.gen_random_bytes(32) AS bytes
+        ) AS random_batch
+        CROSS JOIN LATERAL
+          pg_catalog.generate_series(0, 31) AS positions(pos)
+      LOOP
+        IF v_byte < 248 THEN
+          v_position := (v_byte % 31) + 1;
 
-      -- Rejection sampling avoids modulo bias:
-      -- 248 is divisible by the 31-character alphabet.
-      IF v_byte < 248 THEN
-        v_position := (v_byte % 31) + 1;
+          v_random_part := v_random_part ||
+            pg_catalog.substr(
+              v_alphabet,
+              v_position,
+              1
+            );
 
-        v_random_part := v_random_part ||
-          pg_catalog.substr(
-            v_alphabet,
-            v_position,
-            1
-          );
-      END IF;
+          EXIT WHEN length(v_random_part) = 12;
+        END IF;
+      END LOOP;
     END LOOP;
+
 
     v_uid :=
       'LMD-' ||

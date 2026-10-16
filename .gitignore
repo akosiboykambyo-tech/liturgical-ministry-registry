@@ -93,3 +93,5 @@ next-env.d.ts
 
 .posit/
 .tinycloud/
+
+supabase/.temp/
