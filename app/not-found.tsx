@@ -15,16 +15,12 @@ export default function NotFound() {
           <h1
             className={`${ebGaramond.className} mt-3 max-w-2xl text-4xl font-medium leading-tight tracking-[-0.02em] sm:text-5xl`}
           >
-            Sorry, we can&apos;t find that page.
+            Seek, and ye shall find. Just not here.
           </h1>
 
           <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-            The link may be old, or the address may have been entered incorrectly.
-          </p>
-
-          <p className="mt-3 max-w-xl text-base leading-7 text-muted-foreground">
-            If you were looking for a minister&apos;s record, you can search the
-            registry instead.
+            We left the ninety-nine and went looking for this page, but it has
+            wandered off. Check the address for typos, or return home.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold">
@@ -32,14 +28,7 @@ export default function NotFound() {
               href="/"
               className="text-[#970e24] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970e24]/30 focus-visible:ring-offset-4"
             >
-              Back to home
-            </Link>
-
-            <Link
-              href="/verify"
-              className="text-[#970e24] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970e24]/30 focus-visible:ring-offset-4"
-            >
-              Check a minister
+              Return Home
             </Link>
           </div>
         </div>

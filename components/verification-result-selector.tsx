@@ -43,7 +43,7 @@ export function VerificationResultSelector({
 
   if (results.length === 1) {
     return (
-      <div className="mx-auto w-full max-w-[650px] border border-[#E6DADC] bg-[#FBF9F9]">
+      <div className="mx-auto w-full max-w-[650px] overflow-hidden border border-[#E6DADC] bg-[#FBF9F9] shadow-[0_12px_24px_-20px_rgba(58,0,16,0.4)]">
         <VerificationMemberCard
           member={results[0]}
           active

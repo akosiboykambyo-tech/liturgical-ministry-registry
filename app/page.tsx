@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScanQrCode } from "lucide-react";
 import { RegistryHeader } from "@/components/registry-header";
 import { PublicMaintenanceGate } from "@/components/public-maintenance-gate";
 import { RegistryFooter } from "@/components/registry-footer";
@@ -48,10 +49,17 @@ export default function Home() {
               </div>
             </form>
 
-            <p className="mt-4 max-w-[780px] text-[14px] leading-6 text-[#F3C6D0]">
-              Registry IDs look like LMD-2026-0001. Have a certificate? Scan its
-              QR code with your phone&apos;s camera.
-            </p>
+            <div className="mt-4 max-w-[780px] space-y-2 text-[14px] leading-6">
+              <p className="text-[#F3C6D0]">
+                Registry IDs look like LMD-2026-0001.
+              </p>
+              <p className="flex items-start gap-2 text-white">
+                <ScanQrCode className="mt-0.5 h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                <span>
+                  Have a certificate? <strong className="font-semibold">Scan its QR code</strong> with your phone&apos;s camera.
+                </span>
+              </p>
+            </div>
           </div>
         </section>
 
@@ -78,7 +86,7 @@ export default function Home() {
                 Example result
               </p>
 
-              <div className="border border-[#E6DADC] bg-[#FBF9F9]">
+              <div className="border border-[#E6DADC] bg-[#FBF9F9] shadow-[0_12px_24px_-20px_rgba(58,0,16,0.4)]">
                 <VerificationMemberCard
                   member={{
                     id: "sample-member",

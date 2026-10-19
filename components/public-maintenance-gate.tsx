@@ -173,10 +173,10 @@ export function PublicMaintenanceGate({ children }: { children: ReactNode }) {
             <p className="text-[16px] leading-7 text-[#EBCDD5]">
               Need an urgent registry check? Email{" "}
               <a
-                href="mailto:cowlkalookan2025@gmail.com"
+                href="mailto:help@cowl-dok.online"
                 className="font-semibold text-white underline underline-offset-4"
               >
-                cowlkalookan2025@gmail.com
+                help@cowl-dok.online
               </a>.
             </p>
           </div>
