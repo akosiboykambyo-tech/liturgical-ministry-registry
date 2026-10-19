@@ -15,8 +15,39 @@ export interface CertificateData {
   reprintSuffix?: string;
 }
 
+export const DYNAMIC_SIGNATORY_SLOT = "__dynamic_ministry_signatory__";
+
 const CANVAS_W = 600;
 const CANVAS_H = 850;
+
+/** A dynamic template slot resolves by certificate ministry, not by saved person ID. */
+export function resolveCertificateSignatory(
+  signatoryId: string | undefined,
+  signatories: Signatory[],
+  selectedMinistry?: string | null
+): Signatory | null {
+  const normalized = selectedMinistry?.trim().toLowerCase();
+  const resolveDynamic = (): Signatory | null => {
+    if (!normalized) return null;
+    const matches = signatories.filter(
+      (item) => item.is_active &&
+        item.display_type === "dynamic" &&
+        item.ministry?.trim().toLowerCase() === normalized
+    );
+    // Multiple assignments are ambiguous: never pick an arbitrary signature.
+    return matches.length === 1 ? matches[0] : null;
+  };
+
+  if (signatoryId === DYNAMIC_SIGNATORY_SLOT) {
+    return resolveDynamic();
+  }
+
+  // Existing saved signatory elements remain compatible.
+  const anchor = signatories.find((item) => item.id === signatoryId);
+  if (!anchor || !anchor.is_active) return null;
+  return anchor.display_type === "dynamic" ? resolveDynamic() : anchor;
+}
+
 
 let fontLoadPromise: Promise<void> | null = null;
 
@@ -176,14 +207,16 @@ export async function renderCertificate(
   canvas: HTMLCanvasElement,
   data: CertificateData,
   settings: CertificateTemplateSettings,
-  signatories: Signatory[] = []
+  signatories: Signatory[] = [],
+  scale = 1
 ): Promise<void> {
   await ensureFontsLoaded();
 
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  canvas.width = CANVAS_W;
-  canvas.height = CANVAS_H;
+  if (!ctx) throw new Error("Certificate canvas is unavailable.");
+  canvas.width = Math.round(CANVAS_W * scale);
+  canvas.height = Math.round(CANVAS_H * scale);
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
   const fontFam = settings.font_family || "Georgia, serif";
   const selectedMinistry = data.selectedMinistry ?? null;
@@ -367,100 +400,54 @@ drawWrappedText(
           break;
         }
 
-                case "signatory": {
-  const signatory = element.signatory_id
-    ? signatories.find(
-        (item) => item.id === element.signatory_id
-      )
-    : null;
+        case "signatory": {
+          const signatory = resolveCertificateSignatory(
+            element.signatory_id, signatories, selectedMinistry
+          );
+          if (!signatory) break;
 
-  if (signatory && signatory.is_active) {
-    const contentWidth = Math.max(1, element.width - 16);
-    const contentHeight = Math.max(1, element.height - 8);
+          const width = Math.max(1, element.width - 16);
+          const height = Math.max(1, element.height - 8);
+          const nameSize = element.font_size || 12;
+          const titleSize = Math.max(8, nameSize - 2);
+          const fontFamily = element.font_family || "Georgia, serif";
+          const alignment = element.text_align || "center";
+          const textX = alignment === "left" ? -width / 2 :
+            alignment === "right" ? width / 2 : 0;
+          ctx.textAlign = alignment === "justify" ? "center" : alignment;
+          ctx.textBaseline = "middle";
 
-    const nameFontSize = element.font_size || 12;
-    const titleFontSize = Math.max(8, nameFontSize - 2);
-    const fontFamily =
-      element.font_family || "Georgia, serif";
-    const fontWeight =
-      element.font_weight || "bold";
-    const fontStyle =
-      element.font_style || "normal";
+          // Fixed baseline positions independent of image aspect ratio.
+          const top = -height / 2;
+          const titleY = height / 2 - titleSize / 2;
+          const nameY = titleY - titleSize / 2 - 3 - nameSize / 2;
+          const signatureBottom = nameY - nameSize / 2 - 5;
+          const signatureMaxHeight = Math.max(1, signatureBottom - top);
 
-    const textAlign =
-      element.text_align || "center";
+          if (signatory.signature_url) {
+            const signature = await loadImage(signatory.signature_url);
+            if (signature?.naturalWidth && signature.naturalHeight) {
+              const factor = Math.min(
+                width / signature.naturalWidth,
+                signatureMaxHeight / signature.naturalHeight
+              );
+              const imageWidth = signature.naturalWidth * factor;
+              const imageHeight = signature.naturalHeight * factor;
+              ctx.drawImage(
+                signature, -imageWidth / 2,
+                signatureBottom - imageHeight, imageWidth, imageHeight
+              );
+            }
+          }
 
-    ctx.textAlign = textAlign as CanvasTextAlign;
-    ctx.textBaseline = "middle";
-
-    let textX = 0;
-
-    if (textAlign === "left") {
-      textX = -contentWidth / 2;
-    } else if (textAlign === "right") {
-      textX = contentWidth / 2;
-    }
-
-    let currentY = -contentHeight / 2;
-
-    // Signature
-    if (signatory.signature_url) {
-      const signature = await loadImage(
-        signatory.signature_url
-      );
-
-      if (signature && signature.naturalWidth > 0) {
-        const maxSignatureWidth = contentWidth;
-        const maxSignatureHeight =
-          contentHeight * 0.42;
-
-        const scale = Math.min(
-          maxSignatureWidth / signature.naturalWidth,
-          maxSignatureHeight / signature.naturalHeight
-        );
-
-        const signatureWidth =
-          signature.naturalWidth * scale;
-        const signatureHeight =
-          signature.naturalHeight * scale;
-
-        ctx.drawImage(
-          signature,
-          -signatureWidth / 2,
-          currentY,
-          signatureWidth,
-          signatureHeight
-        );
-
-        currentY += signatureHeight + 4;
-      }
-    }
-
-    // Name
-    ctx.font = `${fontStyle} ${fontWeight} ${nameFontSize}px ${fontFamily}`;
-    ctx.fillStyle = element.color || "#0f172a";
-
-    ctx.fillText(
-      signatory.name,
-      textX,
-      currentY + nameFontSize / 2
-    );
-
-    currentY += nameFontSize + 2;
-
-    // Title
-    ctx.font = `normal ${titleFontSize}px ${fontFamily}`;
-    ctx.fillStyle = "#71717a";
-
-    ctx.fillText(
-      signatory.title,
-      textX,
-      currentY + titleFontSize / 2
-    );
-  }
-
-  break;
-}
+          ctx.font = `${element.font_style || "normal"} ${element.font_weight || "bold"} ${nameSize}px ${fontFamily}`;
+          ctx.fillStyle = element.color || "#0f172a";
+          ctx.fillText(signatory.name, textX, nameY, width);
+          ctx.font = `normal ${titleSize}px ${fontFamily}`;
+          ctx.fillStyle = "#71717a";
+          ctx.fillText(signatory.title, textX, titleY, width);
+          break;
+        }
       }
 
       ctx.restore();
@@ -506,4 +493,22 @@ export function downloadCanvasAsPng(canvas: HTMLCanvasElement, filename: string)
   link.download = filename;
   link.href = canvas.toDataURL("image/png");
   link.click();
+}
+
+
+/** Print-ready, A4 portrait PDF; raster elements rendered at approximately 300 DPI. */
+export async function downloadCertificateAsPdf(
+  data: CertificateData,
+  settings: CertificateTemplateSettings,
+  signatories: Signatory[],
+  filename: string
+): Promise<void> {
+  const { jsPDF } = await import("jspdf");
+  const canvas = document.createElement("canvas");
+  const scale = 2480 / CANVAS_W;
+  await renderCertificate(canvas, data, settings, signatories, scale);
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+  const imageData = canvas.toDataURL("image/jpeg", 0.96);
+  pdf.addImage(imageData, "JPEG", 0, 0, 210, 297);
+  pdf.save(filename.replace(/\.(png|jpg|jpeg)$/i, ".pdf"));
 }

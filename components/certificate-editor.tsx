@@ -7,6 +7,7 @@ import {
   AlignLeft,
   AlignRight,
 } from "lucide-react";
+import { DYNAMIC_SIGNATORY_SLOT, resolveCertificateSignatory } from "@/lib/certificate";
 import type {
   CertificateElement,
   CertificateTemplateSettings,
@@ -29,6 +30,18 @@ type CertificateEditorProps = {
   signatories?: Signatory[];
 };
 
+// Ministry names must match the official registry values exactly.
+// Do not populate this list from signatories: legacy labels (e.g. "Lector")
+// would otherwise become selectable and break exact signatory matching.
+const OFFICIAL_MINISTRIES = [
+  "Ministry of Lectors and Commentators",
+  "Extraordinary Ministers of Holy Communion",
+  "Ministry of Greeters and Collectors",
+  "Mother Butler Guild",
+  "Ministry of Altar Servers",
+  "Ministry of Liturgical Music",
+] as const;
+
 const CANVAS_W = 600;
 const CANVAS_H = 850;
 
@@ -49,7 +62,7 @@ function elementLabel(element: CertificateElement) {
     case "image":
       return "Image";
     case "signatory":
-      return "Signatory";
+      return element.signatory_id === DYNAMIC_SIGNATORY_SLOT ? "Dynamic Ministry Signatory" : "Signatory";
     default:
       return element.text || "Text";
   }
@@ -84,8 +97,8 @@ export function CertificateEditor({
     firstName: "Juan",
     lastName: "Dela Cruz",
     parish: "St. Joseph Parish",
-    ministry: "Lector",
-    uid: "LMD-2026-0001",
+    ministry: "Ministry of Lectors and Commentators",
+    uid: "LMD-2026-TQ2B-P3Z9-9BQC",
     liturgicalYear: settings.liturgical_year,
   },
   signatories = [],
@@ -94,6 +107,15 @@ export function CertificateEditor({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [canvasScale, setCanvasScale] = useState(1);
+  const [previewMinistry, setPreviewMinistry] = useState("");
+  // Use only official names; invalid sample values must not leak into the menu.
+  const initialPreviewMinistry = OFFICIAL_MINISTRIES.find(
+    (ministry) => ministry === previewMember.ministry.trim()
+  ) ?? OFFICIAL_MINISTRIES[0];
+  const activePreviewMinistry = OFFICIAL_MINISTRIES.find(
+    (ministry) => ministry === previewMinistry
+  ) ?? initialPreviewMinistry;
+  const currentPreview = { ...previewMember, ministry: activePreviewMinistry };
 
   const selectedElement = useMemo(
     () =>
@@ -450,8 +472,8 @@ export function CertificateEditor({
     }
 
     if (element.type === "signatory") {
-      const signatory = signatories.find(
-        (item) => item.id === element.signatory_id
+      const signatory = resolveCertificateSignatory(
+        element.signatory_id, signatories, activePreviewMinistry
       );
 
       if (!signatory) {
@@ -469,7 +491,7 @@ export function CertificateEditor({
             }}
             className="flex items-center justify-center border border-dashed border-zinc-400 bg-white/20 text-xs text-muted-foreground"
           >
-            Select a signatory
+            {element.signatory_id === DYNAMIC_SIGNATORY_SLOT ? `Dynamic ministry signatory: ${activePreviewMinistry || "choose a ministry"} (no unique active match)` : "No matching active signatory"}
           </div>
         );
       }
@@ -483,7 +505,7 @@ export function CertificateEditor({
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "flex-start",
             textAlign: element.text_align || "center",
             overflow: "hidden",
             padding: "4px 8px",
@@ -494,58 +516,22 @@ export function CertificateEditor({
             setSelectedId(element.id);
           }}
         >
-          {signatory.signature_url ? (
-            <img
-              src={signatory.signature_url}
-              alt=""
-              draggable={false}
-              style={{
-                display: "block",
-                width: "100%",
-                maxHeight: "55%",
-                objectFit: "contain",
-                objectPosition: "center",
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: "100%",
-                height: "45%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 10,
-                color: "#71717a",
-                borderBottom: "1px solid #d4d4d8",
-              }}
-            >
-              Signature
-            </div>
-          )}
-
-          <div
-            style={{
-              marginTop: 4,
-              fontFamily: element.font_family || "Georgia, serif",
-              fontSize: element.font_size || 12,
-              fontWeight: element.font_weight || "bold",
-              color: element.color || "#0f172a",
-              lineHeight: 1.2,
-            }}
-          >
+          <div style={{ width: "100%", height: "50%", flexShrink: 0, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            {signatory.signature_url ? (
+              <img
+                src={signatory.signature_url}
+                alt=""
+                draggable={false}
+                style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center bottom" }}
+              />
+            ) : (
+              <span style={{ fontSize: 10, color: "#71717a" }}>Signature</span>
+            )}
+          </div>
+          <div style={{ width: "100%", marginTop: 5, fontFamily: element.font_family || "Georgia, serif", fontSize: element.font_size || 12, fontWeight: element.font_weight || "bold", color: element.color || "#0f172a", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {signatory.name}
           </div>
-
-          <div
-            style={{
-              marginTop: 2,
-              fontFamily: element.font_family || "Georgia, serif",
-              fontSize: Math.max(8, (element.font_size || 12) - 2),
-              color: "#71717a",
-              lineHeight: 1.2,
-            }}
-          >
+          <div style={{ width: "100%", marginTop: 3, fontFamily: element.font_family || "Georgia, serif", fontSize: Math.max(8, (element.font_size || 12) - 2), color: "#71717a", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {signatory.title}
           </div>
         </div>
@@ -584,7 +570,7 @@ export function CertificateEditor({
           setSelectedId(element.id);
         }}
       >
-        {elementValue(element, previewMember)}
+        {elementValue(element, currentPreview)}
       </div>
     );
   };
@@ -604,6 +590,21 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
           <span className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground">
             600 × 850
           </span>
+        </div>
+
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-background p-2">
+          <label htmlFor="preview-ministry" className="text-xs font-medium">Preview ministry</label>
+          <select
+            id="preview-ministry"
+            value={activePreviewMinistry}
+            onChange={(event) => setPreviewMinistry(event.target.value)}
+            className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs"
+          >
+            {OFFICIAL_MINISTRIES.map((ministry) => (
+              <option key={ministry} value={ministry}>{ministry}</option>
+            ))}
+          </select>
+          <p className="w-full text-[11px] text-muted-foreground">Preview only — does not change saved certificate positions.</p>
         </div>
 
         <div className="mb-3 rounded-md border border-border bg-background p-2">
@@ -635,31 +636,30 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
             ))}
           </div>
 
-          {signatories.length > 0 && (
-            <div className="mt-2">
-              <select
-                defaultValue=""
-                onChange={(event) => {
-                  const signatoryId = event.target.value;
-                  if (!signatoryId) return;
-
-                  addElement("signatory", signatoryId);
-                  event.currentTarget.value = "";
-                }}
-                className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-[11px] font-medium hover:bg-muted transition-colors"
-                aria-label="Add signatory"
-              >
-                <option value="">+ Add Signatory</option>
-                {signatories
-                  .filter((signatory) => signatory.is_active)
-                  .map((signatory) => (
-                    <option key={signatory.id} value={signatory.id}>
-                      {signatory.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-          )}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <select
+              defaultValue=""
+              onChange={(event) => {
+                const id = event.target.value;
+                if (!id) return;
+                addElement("signatory", id);
+                event.currentTarget.value = "";
+              }}
+              className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-[11px]"
+              aria-label="Add static signatory"
+            >
+              <option value="">+ Add Static Signatory</option>
+              {signatories.filter((item) => item.is_active && item.display_type === "static")
+                .map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={() => addElement("signatory", DYNAMIC_SIGNATORY_SLOT)}
+              className="rounded-md border border-input bg-background px-2.5 py-1.5 text-[11px] font-medium hover:bg-muted"
+            >
+              + Add Dynamic Signatory
+            </button>
+          </div>
         </div>
 
         <div className="flex justify-center overflow-auto">

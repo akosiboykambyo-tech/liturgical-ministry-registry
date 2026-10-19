@@ -9,7 +9,7 @@ import {
 } from "react";
 import {
   renderCertificate,
-  downloadCanvasAsPng,
+  downloadCertificateAsPdf,
   type CertificateData,
 } from "@/lib/certificate";
 import type {
@@ -85,15 +85,12 @@ export const CertificateDesign = forwardRef<
       filename: string,
       reprintSuffix?: string
     ) => {
-      await queueRender(reprintSuffix);
-
-      const canvas = canvasRef.current;
-
-      if (!canvas) {
-        throw new Error("Certificate canvas is unavailable.");
-      }
-
-      downloadCanvasAsPng(canvas, filename);
+      await downloadCertificateAsPdf(
+        { ...data, reprintSuffix: reprintSuffix ?? data.reprintSuffix },
+        settings,
+        signatories,
+        filename
+      );
     },
 
     render: async (reprintSuffix?: string) => {
