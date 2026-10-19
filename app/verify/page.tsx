@@ -615,8 +615,11 @@ function VerifyPage() {
                 </div>
 
                 <p className="mt-3 text-[14px] leading-6 text-[#F3C6D0]">
-                  Registry IDs look like LMD-2026-K7M9-Q2RX-T5WA. Have a certificate? Scan
-                  its QR code with your phone&apos;s camera.
+                  Registry IDs look like LMD-2026-K7M9-Q2RX-T5WA.{" "}
+                  <span className="font-semibold text-white">
+                    Have a certificate? Scan its QR code
+                  </span>{" "}
+                  with your phone&apos;s camera.
                 </p>
               </form>
             </div>
