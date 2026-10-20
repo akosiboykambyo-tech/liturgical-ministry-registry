@@ -148,13 +148,13 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
           <nav aria-label="Primary navigation" className="hidden items-center gap-8 md:flex">
             <Link
               href="/how-it-works"
-              className="border-b-2 border-transparent py-2 text-[15px] font-medium uppercase tracking-[0.045em] transition-colors duration-200 hover:border-[#970E24] hover:text-[#970E24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970E24]/30"
+              className="border-b-2 border-transparent py-2 text-[15px] font-medium uppercase tracking-[0.045em] transition-colors duration-200 text-[#0B5C5A] hover:border-[#0B5C5A] hover:text-[#084644] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5C5A]/30"
             >
               How it works
             </Link>
             <Link
               href="/report"
-              className="border-b-2 border-transparent py-2 text-[15px] font-medium uppercase tracking-[0.045em] transition-colors duration-200 hover:border-[#970E24] hover:text-[#970E24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970E24]/30"
+              className="border-b-2 border-transparent py-2 text-[15px] font-medium uppercase tracking-[0.045em] transition-colors duration-200 text-[#0B5C5A] hover:border-[#0B5C5A] hover:text-[#084644] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5C5A]/30"
             >
               Inquiries & Concerns
             </Link>
@@ -174,10 +174,10 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
         {menuOpen && (
           <nav aria-label="Mobile navigation" className="border-t border-[#E6DADC] px-6 py-3 md:hidden">
             <div className="mx-auto flex max-w-[1120px] flex-col text-[15px] font-medium uppercase tracking-[0.045em]">
-              <Link href="/how-it-works" className="border-b border-[#E6DADC] py-4 transition-colors hover:text-[#970E24]" onClick={() => setMenuOpen(false)}>
+              <Link href="/how-it-works" className="border-b border-[#E6DADC] py-4 text-[#0B5C5A] transition-colors hover:text-[#084644]" onClick={() => setMenuOpen(false)}>
                 How it works
               </Link>
-              <Link href="/report" className="py-4 transition-colors hover:text-[#970E24]" onClick={() => setMenuOpen(false)}>
+              <Link href="/report" className="py-4 text-[#0B5C5A] transition-colors hover:text-[#084644]" onClick={() => setMenuOpen(false)}>
                 Inquiries & Concerns
               </Link>
             </div>

@@ -20,7 +20,7 @@ export function RegistryFooter({
             Questions:{" "}
             <a
               href="mailto:help@cowl-dok.online"
-              className="underline underline-offset-3 hover:text-[#970E24]"
+              className="text-[#0B5C5A] underline underline-offset-3 transition-colors hover:text-[#084644] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5C5A]/30"
             >
               help@cowl-dok.online
             </a>
@@ -31,13 +31,13 @@ export function RegistryFooter({
           aria-label="Footer navigation"
           className="flex flex-wrap gap-x-7 gap-y-3 text-[13px] text-[#5F4A4F]"
         >
-          <Link href="/privacy" className="underline underline-offset-3 hover:text-[#970E24]">
+          <Link href="/privacy" className="text-[#0B5C5A] underline underline-offset-3 transition-colors hover:text-[#084644] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5C5A]/30">
             Privacy Policy
           </Link>
-          <Link href="/terms" className="underline underline-offset-3 hover:text-[#970E24]">
+          <Link href="/terms" className="text-[#0B5C5A] underline underline-offset-3 transition-colors hover:text-[#084644] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5C5A]/30">
             Terms &amp; Conditions
           </Link>
-          <Link href="/admin" className="underline underline-offset-3 hover:text-[#970E24]">
+          <Link href="/admin" className="text-[#0B5C5A] underline underline-offset-3 transition-colors hover:text-[#084644] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5C5A]/30">
             Admin sign-in
           </Link>
         </nav>
