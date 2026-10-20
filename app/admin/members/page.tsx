@@ -60,6 +60,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelectCombobox } from "@/components/multi-select-combobox";
+import { ebGaramond } from "@/app/fonts";
 
 const PAGE_SIZE = 20;
 
@@ -664,9 +665,9 @@ export default function MembersListPage() {
   };
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className="space-y-5 pb-28 text-[#1E1114]">
       {attention && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 border border-primary/20 bg-primary/5 px-4 py-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold">
               {attention === "pending" && "Pending Verification"}
@@ -696,16 +697,18 @@ export default function MembersListPage() {
           </button>
         </div>
       )}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Members</h1>
+          <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>Members Registry</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {totalCount.toLocaleString()} total member(s)
-            {isActiveSearch && ` - ${totalCount.toLocaleString()} matching "${search.trim()}"`}
-            {selected.size > 0 && ` - ${selected.size} selected`}
+            Manage liturgical ministers, parish assignments, and verification records.
+            <span className="block pt-1 text-xs font-medium text-[#66565A]">
+              {loading ? "Loading members…" : `${totalCount.toLocaleString()} matching member${totalCount === 1 ? "" : "s"}`}
+              {selected.size > 0 && ` · ${selected.size.toLocaleString()} selected`}
+            </span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={async () => {
               setLoadingReport(true);
@@ -727,7 +730,7 @@ export default function MembersListPage() {
               }
             }}
             disabled={loadingReport}
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:bg-muted transition-colors shadow-sm print:hidden disabled:opacity-60"
+            className="inline-flex min-h-10 items-center gap-2 border border-[#D7CACC] bg-white px-4 py-2 text-sm font-semibold text-[#682336] transition-colors hover:bg-[#fcf5f6] print:hidden disabled:opacity-60"
           >
             {loadingReport ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -738,7 +741,7 @@ export default function MembersListPage() {
           </button>
           <Link
             href="/admin/members/add"
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm print:hidden"
+            className="inline-flex min-h-10 items-center gap-2 bg-[#890022] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#6d1027] print:hidden"
           >
             <UserPlus className="h-4 w-4" />
             Add Member
@@ -746,15 +749,25 @@ export default function MembersListPage() {
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="rounded-lg border border-border/70 bg-card/70 p-4 space-y-3">
+      {/* Filter bar: keep the existing server-side search and filter behavior. */}
+      <section aria-label="Search and filter members" className="overflow-hidden border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white">
+        <div className="border-b border-[#E6DADC] px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-[#1E1114]">
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              <h2 className="text-sm font-semibold">Search &amp; Filters</h2>
+            </div>
+            <span className="text-xs text-muted-foreground">Filter by parish, ministry, service year, or status</span>
+          </div>
+        </div>
+        <div className="space-y-3 p-4 sm:p-5">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by name, parish, or UID..."
-            className="w-full rounded-md border border-input bg-background pl-10 pr-3 py-2.5 text-sm shadow-sm transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full border border-[#D7CACC] bg-white py-2.5 pl-10 pr-3 text-sm transition-[border-color,box-shadow] placeholder:text-[#8c8185] focus-visible:border-[#9b4560] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b4560]/20"
           />
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -853,7 +866,8 @@ export default function MembersListPage() {
             </button>
           </div>
         )}
-      </div>
+        </div>
+      </section>
 
       {/* Table */}
       {loading ? (
@@ -861,16 +875,23 @@ export default function MembersListPage() {
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       ) : members.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
+        <div className="border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
           {isActiveSearch || activeFilterCount > 0
             ? "No members match the current search or filters."
             : "No members found."}
         </div>
       ) : (
-        <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+        <section aria-label="Member records" className="overflow-hidden border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E6DADC] px-4 py-3 sm:px-5">
+            <div>
+              <h2 className="text-[14px] font-semibold text-[#27191D]">Registered Ministers</h2>
+              <p className="text-xs text-muted-foreground">Select records for export, printable lists, or attendance sheets.</p>
+            </div>
+            <span className="bg-[#F7F2F3] px-3 py-1 text-xs font-semibold text-[#890022]">{totalCount.toLocaleString()} records</span>
+          </div>
           <div className="overflow-x-auto overflow-y-hidden touch-pan-x scrollbar-thin">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead className="bg-muted/60 border-b border-border">
+            <table className="w-full min-w-[950px] text-sm">
+              <thead className="border-b border-[#E6DADC] bg-[#FBF9F9]">
                 <tr className="text-left">
                   <th className="px-4 py-3 w-10">
                     <label className="inline-flex items-center justify-center">
@@ -886,12 +907,12 @@ export default function MembersListPage() {
                       />
                     </label>
                   </th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Name</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Parish</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Ministries</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">UID</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Ministry Status</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground text-right">Actions</th>
+                  <th className="px-4 py-3.5 text-xs font-semibold text-[#66565A]">Name</th>
+                  <th className="px-4 py-3.5 text-xs font-semibold text-[#66565A]">Parish</th>
+                  <th className="px-4 py-3.5 text-xs font-semibold text-[#66565A]">Ministries</th>
+                  <th className="px-4 py-3.5 text-xs font-semibold text-[#66565A]">UID</th>
+                  <th className="px-4 py-3.5 text-xs font-semibold text-[#66565A]">Ministry Status</th>
+                  <th className="px-4 py-3.5 text-right text-xs font-semibold text-[#66565A]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -917,7 +938,7 @@ export default function MembersListPage() {
                   return (
                     <tr
                       key={m.id}
-                      className={`transition-colors duration-150 hover:bg-muted/30 ${checked ? "bg-primary/5" : ""}`}
+                      className={`transition-colors duration-150 hover:bg-[#fcf7f8] ${checked ? "bg-[#fbf0f3]" : ""}`}
                     >
                       <td className="px-4 py-3">
                         <input
@@ -934,7 +955,7 @@ export default function MembersListPage() {
                             setDrawerMemberId(m.id);
                             setDrawerOpen(true);
                           }}
-                          className="font-medium hover:text-primary text-left"
+                          className="text-left font-semibold text-[#47242d] hover:text-[#9a2548] hover:underline"
                         >
                           {m.first_name} {m.last_name}
                         {(needsVerification || needsLetter || letterExpiringSoon) && (
@@ -958,11 +979,11 @@ export default function MembersListPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{m.parish}</td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {memberships.map((membership) => (
                             <span
                               key={membership.id}
-                              className="inline-flex rounded bg-accent px-1.5 py-0.5 text-[11px] font-medium text-accent-foreground"
+                              className="inline-flex rounded-md border border-[#e7dce0] bg-[#f9f5f6] px-2 py-1 text-[11px] font-medium text-[#673e4b]"
                             >
                               {shortMinistry(membership.ministry)}
                             </span>
@@ -1080,13 +1101,13 @@ export default function MembersListPage() {
               </button>
             </div>
           </div>
-        </div>
+        </section>
       )}
 
       {allOnPageSelected &&
         totalCount > pageMemberIds.length &&
         selected.size < totalCount && (
-          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+          <div className="border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-muted-foreground">
                 All {pageMemberIds.length.toLocaleString()} members on this page are selected.
@@ -1107,23 +1128,23 @@ export default function MembersListPage() {
         )}
 
       {selected.size === totalCount && totalCount > PAGE_SIZE && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           All {totalCount.toLocaleString()} matching members across every page are selected.
         </div>
       )}
 
       {/* Floating Action Bar */}
       {selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-200">
-          <div className="flex items-center gap-3 rounded-full border border-border bg-background/95 backdrop-blur px-4 py-2.5 shadow-lg ring-1 ring-black/5">
-            <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
+        <div className="fixed bottom-3 left-2 right-2 z-40 animate-in slide-in-from-bottom-4 duration-200 sm:bottom-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2">
+          <div className="flex max-w-full items-center gap-2 overflow-x-auto border border-[#69001A] bg-[#890022] px-3 py-3 text-white shadow-lg sm:gap-3 sm:px-5">
+            <span className="inline-flex items-center gap-2 shrink-0 bg-white/15 px-3 py-1 text-sm font-semibold text-white">
               <SlidersHorizontal className="h-3.5 w-3.5" />
               {selected.size} Member{selected.size > 1 ? "s" : ""} Selected
             </span>
-            <div className="h-5 w-px bg-border" />
+            <div className="h-5 w-px shrink-0 bg-white/30" />
             <button
               onClick={exportCsv}
-              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors"
             >
               <Download className="h-4 w-4" />
               Export Data (CSV)
@@ -1152,7 +1173,7 @@ export default function MembersListPage() {
                 }
               }}
               disabled={loadingReport}
-              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors disabled:opacity-60"
             >
               {loadingReport ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1164,15 +1185,15 @@ export default function MembersListPage() {
             <button
               onClick={() => void openAttendanceSheetForSelected()}
               disabled={loadingReport}
-              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors disabled:opacity-60"
             >
               <Printer className="h-4 w-4" />
               Attendance Sheet
             </button>
-            <div className="h-5 w-px bg-border" />
+            <div className="h-5 w-px shrink-0 bg-white/30" />
             <button
               onClick={clearSelection}
-              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              className="inline-flex items-center gap-1.5 shrink-0 border border-white/60 px-3 py-2 text-sm font-medium text-white hover:bg-white/15 transition-colors"
             >
               <X className="h-4 w-4" />
               Clear Selection
@@ -2336,7 +2357,7 @@ function AttendanceSheet({
         </div>
 
         <div className="overflow-auto scrollbar-thin p-5">
-          <div className="mb-4 rounded-lg border border-border bg-muted/20 p-4">
+          <div className="mb-4 border border-border bg-muted/20 p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">

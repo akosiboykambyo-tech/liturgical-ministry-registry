@@ -31,23 +31,23 @@ const CONFIG: Record<
   { label: string; className: string; icon: typeof CheckCircle2 }
 > = {
   New: {
-    label: "New (Validated)",
-    className: "bg-emerald-100 text-emerald-800 ring-emerald-600/20",
+    label: "Verified Active",
+    className: "bg-[#E5F1EF] text-[#0B5C5A] ring-[#0B5C5A]/25",
     icon: CheckCircle2,
   },
   Renewed: {
     label: "Renewed (Validated)",
-    className: "bg-sky-100 text-sky-800 ring-sky-600/20",
+    className: "bg-[#E8F0FA] text-[#2563A6] ring-[#2563A6]/25",
     icon: RefreshCw,
   },
   "Pending Verification": {
     label: "Pending Verification",
-    className: "bg-amber-100 text-amber-900 ring-amber-600/20",
+    className: "bg-[#FFF4DC] text-[#B7791F] ring-[#B7791F]/30",
     icon: Clock,
   },
   Inactive: {
     label: "Inactive",
-    className: "bg-rose-100 text-rose-800 ring-rose-600/20",
+    className: "bg-[#F0EFEF] text-[#8A8588] ring-[#8A8588]/30",
     icon: XCircle,
   },
 };

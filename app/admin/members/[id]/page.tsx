@@ -1,5 +1,7 @@
 "use client";
 
+import { ebGaramond } from "@/app/fonts";
+
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -192,9 +194,9 @@ export default function MemberDetailPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="space-y-6 text-[#1E1114]">
       {showSavedToast && (
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-3 text-sm text-white shadow-lg">
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-none bg-emerald-600 px-4 py-3 text-sm text-white shadow-lg">
           <ShieldCheck className="h-4 w-4" /> Saved
         </div>
       )}
@@ -208,7 +210,7 @@ export default function MemberDetailPage() {
         </Link>
         <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
               {member.first_name} {member.last_name}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -220,13 +222,13 @@ export default function MemberDetailPage() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+        <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
       {success && (
-        <div className="flex items-start gap-2 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
+        <div className="flex items-start gap-2 rounded-none bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
           <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0" />
           <span>{success}</span>
         </div>
@@ -234,7 +236,7 @@ export default function MemberDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Edit */}
-        <div className="lg:col-span-2 rounded-lg border border-border bg-card p-6 shadow-sm space-y-5">
+        <div className="lg:col-span-2 rounded-none border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-6 space-y-5">
           <h2 className="text-sm font-semibold">Member Details</h2>
 
           <div className="space-y-1.5">
@@ -242,7 +244,7 @@ export default function MemberDetailPage() {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as MemberStatus)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-full rounded-none border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {STATUS_VALUES.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -259,7 +261,7 @@ export default function MemberDetailPage() {
                 <button
                   type="button"
                   onClick={() => setEditingName(true)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex items-center gap-1.5 rounded-none border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                   Edit Name
@@ -269,7 +271,7 @@ export default function MemberDetailPage() {
                   type="button"
                   onClick={cancelNameEdit}
                   disabled={saving}
-                  className="rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="rounded-none border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Cancel
                 </button>
@@ -290,7 +292,7 @@ export default function MemberDetailPage() {
                     value={editFirstName}
                     onChange={(e) => setEditFirstName(e.target.value)}
                     autoComplete="given-name"
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="mt-1 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 ) : (
                   <p className="text-sm font-medium mt-1">
@@ -312,7 +314,7 @@ export default function MemberDetailPage() {
                     value={editLastName}
                     onChange={(e) => setEditLastName(e.target.value)}
                     autoComplete="family-name"
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="mt-1 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 ) : (
                   <p className="text-sm font-medium mt-1">
@@ -339,7 +341,7 @@ export default function MemberDetailPage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+              className="w-full rounded-none border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
             />
           </div>
 
@@ -347,7 +349,7 @@ export default function MemberDetailPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
+              className="inline-flex items-center gap-2 rounded-none bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 "
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Save Changes
@@ -357,7 +359,7 @@ export default function MemberDetailPage() {
 
         {/* Document upload + public link */}
         <div className="space-y-6">
-          <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-3">
+          <div className="rounded-none border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-5 space-y-3">
             <h2 className="text-sm font-semibold flex items-center gap-1.5">
               <FileText className="h-4 w-4" />
               Recommendation Letter
@@ -369,14 +371,14 @@ export default function MemberDetailPage() {
                     href={signedDocUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-md border border-border p-3 text-sm hover:bg-muted transition-colors"
+                    className="flex items-center gap-2 rounded-none border border-border p-3 text-sm hover:bg-muted transition-colors"
                   >
                     <FileText className="h-4 w-4 text-primary shrink-0" />
                     <span className="flex-1 truncate">View uploaded scan (valid 1h)</span>
                     <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                   </a>
                 ) : (
-                  <div className="flex items-center gap-2 rounded-md border border-border p-3 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2 rounded-none border border-border p-3 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>Generating secure link…</span>
                   </div>
@@ -390,7 +392,7 @@ export default function MemberDetailPage() {
               </div>
             ) : (
               <label className="block">
-                <div className={`rounded-md border-2 border-dashed p-6 text-center transition-colors cursor-pointer ${uploading ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}>
+                <div className={`rounded-none border-2 border-dashed p-6 text-center transition-colors cursor-pointer ${uploading ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}>
                   {uploading ? (
                     <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
                   ) : (
@@ -416,7 +418,7 @@ export default function MemberDetailPage() {
             </p>
           </div>
 
-          <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-2">
+          <div className="rounded-none border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-5 space-y-2">
             <h2 className="text-sm font-semibold flex items-center gap-1.5">
               <QrCode className="h-4 w-4" />
               Public Verification URL
@@ -428,11 +430,11 @@ export default function MemberDetailPage() {
               <input
                 readOnly
                 value={publicVerifyUrl}
-                className="flex-1 rounded-md border border-input bg-muted/30 px-2.5 py-1.5 text-xs font-mono"
+                className="flex-1 rounded-none border border-input bg-muted/30 px-2.5 py-1.5 text-xs font-mono"
               />
               <button
                 onClick={() => navigator.clipboard?.writeText(publicVerifyUrl)}
-                className="rounded-md border border-border px-2 py-1.5 text-xs hover:bg-muted"
+                className="rounded-none border border-border px-2 py-1.5 text-xs hover:bg-muted"
               >
                 Copy
               </button>
@@ -442,7 +444,7 @@ export default function MemberDetailPage() {
       </div>
 
       {/* Audit trail */}
-      <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+      <div className="rounded-none border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-5 ">
         <h2 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
           <ScrollText className="h-4 w-4" />
           Audit Trail (recent)

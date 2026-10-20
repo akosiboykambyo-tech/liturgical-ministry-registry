@@ -1,5 +1,7 @@
 "use client";
 
+import { ebGaramond } from "@/app/fonts";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
@@ -208,7 +210,7 @@ export default function PublicWebsiteSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-7">
+    <div className="space-y-6 text-[#1E1114]">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <Megaphone className="h-6 w-6 text-primary" />
@@ -222,7 +224,7 @@ export default function PublicWebsiteSettingsPage() {
       {error && (
         <div
           role="alert"
-          className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          className="rounded-none border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
           {error}
         </div>
@@ -231,14 +233,14 @@ export default function PublicWebsiteSettingsPage() {
       {saved && (
         <div
           role="status"
-          className="flex items-center gap-2 rounded-lg border border-emerald-600/20 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+          className="flex items-center gap-2 rounded-none border border-emerald-600/20 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
         >
           <CheckCircle2 className="h-4 w-4" />
           {saved}
         </div>
       )}
 
-      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <section className="overflow-hidden rounded-none border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white ">
         <div className="border-b border-border px-5 py-4 sm:px-6">
           <h2 className="text-base font-semibold">Header announcement</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -248,7 +250,7 @@ export default function PublicWebsiteSettingsPage() {
         </div>
 
         <div className="space-y-6 p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-5 rounded-lg border border-border bg-muted/20 p-4">
+          <div className="flex items-start justify-between gap-5 rounded-none border border-border bg-muted/20 p-4">
             <div>
               <p className="text-sm font-semibold">Show announcement</p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -273,7 +275,7 @@ export default function PublicWebsiteSettingsPage() {
             >
               <span
                 className={[
-                  "absolute left-0 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+                  "absolute left-0 top-1 h-5 w-5 rounded-full bg-white  transition-transform",
                   announcement.enabled ? "translate-x-6" : "translate-x-1",
                 ].join(" ")}
               />
@@ -303,7 +305,7 @@ export default function PublicWebsiteSettingsPage() {
                   text: event.target.value,
                 }))
               }
-              className="mt-2 w-full resize-y rounded-lg border border-input bg-background px-3.5 py-3 text-sm leading-6"
+              className="mt-2 w-full resize-y rounded-none border border-input bg-background px-3.5 py-3 text-sm leading-6"
             />
           </div>
 
@@ -321,7 +323,7 @@ export default function PublicWebsiteSettingsPage() {
                   expires_at: event.target.value,
                 }))
               }
-              className="mt-2 min-h-11 w-full max-w-sm rounded-lg border border-input bg-background px-3.5 py-2 text-sm"
+              className="mt-2 min-h-11 w-full max-w-sm rounded-none border border-input bg-background px-3.5 py-2 text-sm"
             />
             <p className="mt-2 text-xs text-muted-foreground">
               Leave blank for no automatic expiration.
@@ -333,7 +335,7 @@ export default function PublicWebsiteSettingsPage() {
               <Eye className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm font-semibold">Preview</p>
             </div>
-            <div className="mt-3 flex items-center justify-between gap-4 rounded-lg bg-[#3A0010] px-4 py-3 text-white">
+            <div className="mt-3 flex items-center justify-between gap-4 rounded-none bg-[#3A0010] px-4 py-3 text-white">
               <p className="truncate text-sm">
                 {announcement.text.trim() || DEFAULT_TEXT}
               </p>
@@ -351,7 +353,7 @@ export default function PublicWebsiteSettingsPage() {
                   expires_at: "",
                 })
               }
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-none border border-border px-4 py-2 text-sm font-medium"
             >
               <RotateCcw className="h-4 w-4" />
               Restore default
@@ -361,7 +363,7 @@ export default function PublicWebsiteSettingsPage() {
               type="button"
               onClick={() => void saveAnnouncement()}
               disabled={savingAnnouncement}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-none bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               {savingAnnouncement ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -374,7 +376,7 @@ export default function PublicWebsiteSettingsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <section className="overflow-hidden rounded-none border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white ">
         <div className="border-b border-border px-5 py-4 sm:px-6">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Wrench className="h-4 w-4 text-primary" />
@@ -387,7 +389,7 @@ export default function PublicWebsiteSettingsPage() {
         </div>
 
         <div className="space-y-6 p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-5 rounded-lg border border-border bg-muted/20 p-4">
+          <div className="flex items-start justify-between gap-5 rounded-none border border-border bg-muted/20 p-4">
             <div>
               <p className="text-sm font-semibold">Maintenance mode</p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -412,7 +414,7 @@ export default function PublicWebsiteSettingsPage() {
             >
               <span
                 className={[
-                  "absolute left-0 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+                  "absolute left-0 top-1 h-5 w-5 rounded-full bg-white  transition-transform",
                   maintenance.enabled ? "translate-x-6" : "translate-x-1",
                 ].join(" ")}
               />
@@ -436,7 +438,7 @@ export default function PublicWebsiteSettingsPage() {
                   message: event.target.value,
                 }))
               }
-              className="mt-2 w-full resize-y rounded-lg border border-input bg-background px-3.5 py-3 text-sm leading-6"
+              className="mt-2 w-full resize-y rounded-none border border-input bg-background px-3.5 py-3 text-sm leading-6"
             />
           </div>
 
@@ -454,7 +456,7 @@ export default function PublicWebsiteSettingsPage() {
                   expected_back: event.target.value,
                 }))
               }
-              className="mt-2 min-h-11 w-full max-w-sm rounded-lg border border-input bg-background px-3.5 py-2 text-sm"
+              className="mt-2 min-h-11 w-full max-w-sm rounded-none border border-input bg-background px-3.5 py-2 text-sm"
             />
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
               Leave blank if the return time is not yet known.
@@ -466,7 +468,7 @@ export default function PublicWebsiteSettingsPage() {
               type="button"
               onClick={() => void saveMaintenance()}
               disabled={savingMaintenance}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-none bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               {savingMaintenance ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
