@@ -16,7 +16,8 @@
 .verification-depth-carousel__stage {
   position: relative;
   width: 100%;
-  transform-style: preserve-3d;
+  /* Keep the stage flat so the selected card renders like a normal text panel. */
+  transform-style: flat;
 }
 
 .verification-depth-carousel__card {
@@ -30,16 +31,17 @@
   box-shadow: 0 12px 24px -20px rgba(58, 0, 16, 0.4);
   transform: translate(-50%, -50%);
   transform-origin: center center;
-  will-change: transform, opacity;
-  backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  /* Avoid forcing each text card onto a separate GPU layer. */
   cursor: pointer;
 }
 
 .verification-depth-carousel__card.is-active {
   cursor: default;
   will-change: auto;
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  filter: none;
+  -webkit-filter: none;
 }
 
 .verification-depth-carousel__controls {
