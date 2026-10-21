@@ -127,7 +127,7 @@ export default function AddMemberPage() {
         <section className="border border-[#E3D7DA] border-t-2 border-t-[#890022] bg-white">
           <div className="border-b border-[#E9DEE0] px-4 py-3 sm:px-5">
             <h2 className="text-[14px] font-semibold text-[#27191D]">Member Information</h2>
-            <p className="mt-0.5 text-xs text-[#795F67]">Enter the minister's identifying details and service year.</p>
+            <p className="mt-0.5 text-xs text-[#795F67]">Enter the minister&apos;s identifying details and service year.</p>
           </div>
           <div className="space-y-4 p-4 sm:p-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
