@@ -8,6 +8,7 @@ import {
   DEFAULT_TEMPLATE_SETTINGS,
 } from "@/lib/constants";
 import { MinistryMultiSelect } from "@/components/ministry-multi-select";
+import { ebGaramond } from "@/app/fonts";
 import type { Member, MemberMinistry, AuditLog, ArchivedDocument, MemberStatus, CertificateTemplateSettings, Signatory } from "@/lib/types";
 import {
   Sheet,
@@ -582,7 +583,7 @@ export function MemberDetailDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-2xl overflow-hidden p-0"
+        className="cowl-member-drawer w-full sm:max-w-2xl overflow-hidden border-l border-[#E3D8DA] bg-[#FBF9F9] p-0 [&>button]:rounded-none [&>button]:border [&>button]:border-[#DDD0D3] [&>button]:text-[#890022] [&>button]:hover:bg-[#F6ECEE]"
       >
         {loading ? (
           <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -595,11 +596,11 @@ export function MemberDetailDrawer({
         ) : (
           <div className="flex flex-col h-full">
             {/* Header */}
-            <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
-              <SheetTitle className="text-xl font-bold tracking-tight">
+            <SheetHeader className="border-b border-[#E3D8DA] bg-white px-5 pb-4 pt-7 sm:px-6">
+              <SheetTitle className={`${ebGaramond.className} pr-10 text-[32px] leading-tight font-medium tracking-normal text-[#211018]`}>
                 {member.first_name} {member.last_name}
               </SheetTitle>
-              <SheetDescription className="flex items-center gap-2 flex-wrap">
+              <SheetDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#796870]">
                 <span>{member.parish}</span>
                 <span className="text-muted-foreground/50">·</span>
                 <span>UID: <code className="text-xs">{member.uid}</code></span>
@@ -607,17 +608,17 @@ export function MemberDetailDrawer({
             </SheetHeader>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-5">
+            <div className="flex-1 overflow-y-auto scrollbar-thin space-y-4 bg-[#FBF9F9] px-4 py-5 sm:px-6">
               {error && (
-                <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+                <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
 
               {/* Edit section */}
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
-                <h3 className="text-sm font-semibold">Member Details</h3>
+              <div className="rounded-none border border-[#E3D8DA] border-t-2 border-t-[#890022] bg-white p-5  space-y-4">
+                <h3 className="text-sm font-semibold text-[#211018]">Member Details</h3>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
@@ -629,7 +630,7 @@ export function MemberDetailDrawer({
                       <button
                         type="button"
                         onClick={() => setEditingName(true)}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="inline-flex items-center gap-1.5 rounded-none border border-[#D9C9CD] bg-white px-2.5 py-1.5 text-xs font-medium text-[#890022] hover:bg-[#F6ECEE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit Name
@@ -639,7 +640,7 @@ export function MemberDetailDrawer({
                         type="button"
                         onClick={cancelNameEdit}
                         disabled={saving}
-                        className="rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="rounded-none border border-[#D9C9CD] bg-white px-2.5 py-1.5 text-xs font-medium text-[#890022] hover:bg-[#F6ECEE] transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         Cancel
                       </button>
@@ -661,7 +662,7 @@ export function MemberDetailDrawer({
                           value={editFirstName}
                           onChange={(e) => setEditFirstName(e.target.value)}
                           autoComplete="given-name"
-                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="mt-1 w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
                       ) : (
                         <p className="mt-1 text-sm font-medium">
@@ -684,7 +685,7 @@ export function MemberDetailDrawer({
                           value={editLastName}
                           onChange={(e) => setEditLastName(e.target.value)}
                           autoComplete="family-name"
-                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="mt-1 w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
                       ) : (
                         <p className="mt-1 text-sm font-medium">
@@ -708,14 +709,16 @@ export function MemberDetailDrawer({
                     </p>
                   </div>
 
+                  <div className="[&_label]:!rounded-none [&_label]:!border-[#E3D8DA] [&_label]:!bg-white [&_label:has(input:checked)]:!border-[#890022] [&_label:has(input:checked)]:!bg-[#FBF2F4]">
                   <MinistryMultiSelect
                     value={editMinistries}
                     onChange={handleMinistriesChange}
                     columns={1}
                   />
+                  </div>
 
                   {!membershipTableAvailable && (
-                    <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                    <div className="rounded-none bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
                       Per-ministry records are shown in compatibility mode. Apply the
                       member_ministries migration before saving independent ministry
                       status or expiration changes.
@@ -731,7 +734,7 @@ export function MemberDetailDrawer({
                       return (
                         <div
                           key={membership.ministry}
-                          className="rounded-md border border-border bg-muted/20 p-4 space-y-3"
+                          className="rounded-none border border-[#E3D8DA] bg-[#FDFBFB] p-3 space-y-3"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="text-sm font-semibold">
@@ -764,7 +767,7 @@ export function MemberDetailDrawer({
                                   )
                                 }
                                 disabled={!membershipTableAvailable}
-                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               >
                                 {STATUS_VALUES.map((value) => (
                                   <option key={value} value={value}>
@@ -789,7 +792,7 @@ export function MemberDetailDrawer({
                                   )
                                 }
                                 disabled={!membershipTableAvailable}
-                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               />
                             </div>
 
@@ -808,7 +811,7 @@ export function MemberDetailDrawer({
                                   )
                                 }
                                 disabled={!membershipTableAvailable}
-                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               />
                             </div>
 
@@ -827,7 +830,7 @@ export function MemberDetailDrawer({
                                   )
                                 }
                                 disabled={!membershipTableAvailable}
-                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               />
                             </div>
                           </div>
@@ -843,7 +846,7 @@ export function MemberDetailDrawer({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                    className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
                   />
                 </div>
 
@@ -851,7 +854,7 @@ export function MemberDetailDrawer({
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
+                    className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#70001B] transition-colors disabled:opacity-60 shadow-sm"
                   >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Save Changes
@@ -883,8 +886,8 @@ export function MemberDetailDrawer({
               </div>
 
               {/* Print Certificate */}
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-3">
-                <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <div className="rounded-none border border-[#E3D8DA] border-t-2 border-t-[#890022] bg-white p-5  space-y-3">
+                <h3 className="text-sm font-semibold text-[#211018] flex items-center gap-1.5">
                   <Printer className="h-4 w-4" />
                   UID Certificate
                 </h3>
@@ -896,7 +899,7 @@ export function MemberDetailDrawer({
                     <select
                       value={selectedMinistry ?? ""}
                       onChange={(event) => setSelectedMinistry(event.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {membershipDrafts.map((membership) => (
                         <option key={membership.ministry} value={membership.ministry}>
@@ -909,7 +912,7 @@ export function MemberDetailDrawer({
 
                 <button
                   disabled={!selectedCertificateEligible || printingCertificate}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                  className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#70001B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   onClick={() => {
                     if (member.uid && member.uid !== "PENDING") {
                       handlePrintCertificate();
@@ -935,8 +938,8 @@ export function MemberDetailDrawer({
               </div>
 
               {/* Recommendation Letter */}
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-3">
-                <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <div className="rounded-none border border-[#E3D8DA] border-t-2 border-t-[#890022] bg-white p-5  space-y-3">
+                <h3 className="text-sm font-semibold text-[#211018] flex items-center gap-1.5">
                   <FileText className="h-4 w-4" />
                   Recommendation Letter
                 </h3>
@@ -948,7 +951,7 @@ export function MemberDetailDrawer({
                     <select
                       value={selectedMinistry ?? ""}
                       onChange={(event) => setSelectedMinistry(event.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {membershipDrafts.map((membership) => (
                         <option key={membership.ministry} value={membership.ministry}>
@@ -959,7 +962,7 @@ export function MemberDetailDrawer({
                   </div>
                 )}
                 {!selectedMembership?.id && membershipTableAvailable && (
-                  <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                  <div className="rounded-none bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
                     Save this ministry assignment before uploading its recommendation letter.
                   </div>
                 )}
@@ -971,20 +974,20 @@ export function MemberDetailDrawer({
                         href={signedMembershipDocUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 rounded-md border border-border p-3 text-sm hover:bg-muted transition-colors"
+                        className="flex items-center gap-2 rounded-none border border-border p-3 text-sm hover:bg-muted transition-colors"
                       >
                         <FileText className="h-4 w-4 text-primary shrink-0" />
                         <span className="flex-1 truncate">View uploaded scan (valid 1h)</span>
                         <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                       </a>
                     ) : (
-                      <div className="flex items-center gap-2 rounded-md border border-border p-3 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2 rounded-none border border-border p-3 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span>Generating secure link...</span>
                       </div>
                     )}
                     {selectedDocumentIsSharedBatch && (
-                      <div className="rounded-md bg-sky-50 px-3 py-2.5 text-xs text-sky-800 ring-1 ring-inset ring-sky-600/20">
+                      <div className="rounded-none bg-sky-50 px-3 py-2.5 text-xs text-sky-800 ring-1 ring-inset ring-sky-600/20">
                         This recommendation letter belongs to a batch renewal and may
                         be shared by other memberships. Detaching it here will not
                         delete the stored batch file or its renewal history.
@@ -1000,7 +1003,7 @@ export function MemberDetailDrawer({
                   </div>
                 ) : (
                   <label className="block">
-                    <div className={`rounded-md border-2 border-dashed p-6 text-center transition-colors cursor-pointer ${uploading ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}>
+                    <div className={`rounded-none border-2 border-dashed p-6 text-center transition-colors cursor-pointer ${uploading ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}>
                       {uploading ? (
                         <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
                       ) : (
@@ -1030,8 +1033,8 @@ export function MemberDetailDrawer({
 
               {/* Archived Documents */}
               {(selectedMembership?.archived_documents?.length ?? 0) > 0 && (
-                <div className="rounded-lg border border-border bg-muted/20 p-5 shadow-sm space-y-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                <div className="rounded-none border border-[#E3D8DA] border-t-2 border-t-[#890022] bg-white p-5  space-y-3">
+                  <h3 className="text-sm font-semibold text-[#211018] flex items-center gap-1.5">
                     <Archive className="h-4 w-4" />
                     Archived Documents ({selectedMembership?.archived_documents.length ?? 0})
                   </h3>
@@ -1064,8 +1067,8 @@ export function MemberDetailDrawer({
               )}
 
               {/* Public Verification URL */}
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-2">
-                <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <div className="rounded-none border border-[#E3D8DA] border-t-2 border-t-[#890022] bg-white p-5  space-y-2">
+                <h3 className="text-sm font-semibold text-[#211018] flex items-center gap-1.5">
                   <QrCode className="h-4 w-4" />
                   Public Verification URL
                 </h3>
@@ -1076,11 +1079,11 @@ export function MemberDetailDrawer({
                   <input
                     readOnly
                     value={publicVerifyUrl}
-                    className="flex-1 rounded-md border border-input bg-muted/30 px-2.5 py-1.5 text-xs font-mono"
+                    className="min-w-0 flex-1 rounded-none border border-[#DDD0D3] bg-white px-2.5 py-1.5 text-xs font-mono"
                   />
                   <button
                     onClick={() => navigator.clipboard?.writeText(publicVerifyUrl)}
-                    className="rounded-md border border-border px-2 py-1.5 text-xs hover:bg-muted"
+                    className="rounded-none border border-[#D9C9CD] bg-white px-2 py-1.5 text-xs text-[#890022] hover:bg-[#F6ECEE]"
                   >
                     Copy
                   </button>
@@ -1088,8 +1091,8 @@ export function MemberDetailDrawer({
               </div>
 
               {/* Audit Trail */}
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-                <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+              <div className="rounded-none border border-[#E3D8DA] border-t-2 border-t-[#890022] bg-white p-5 ">
+                <h3 className="text-sm font-semibold text-[#211018] flex items-center gap-1.5 mb-3">
                   <ScrollText className="h-4 w-4" />
                   Audit Trail (recent)
                 </h3>

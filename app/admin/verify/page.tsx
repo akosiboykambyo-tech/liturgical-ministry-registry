@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { shortMinistry, MINISTRIES, PARISHES } from "@/lib/constants";
 import { Member } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ebGaramond } from "@/app/fonts";
 import { SearchableSelect } from "@/components/searchable-select";
 import {
   ShieldCheck,
@@ -286,7 +287,7 @@ export default function QuickScanMatrixPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="-mt-4 space-y-6 pb-24">
       {/* Toasts */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
         {toasts.map((t) => (
@@ -311,8 +312,7 @@ export default function QuickScanMatrixPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <ShieldCheck className="h-6 w-6 text-primary" />
+          <h1 className={cn(ebGaramond.className, "text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]")}>
             Quick-Scan Verification Matrix
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -321,7 +321,7 @@ export default function QuickScanMatrixPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
+          <span className="inline-flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
             <span className="flex h-2 w-2 rounded-full bg-amber-500" />
             {members.length} pending
           </span>
@@ -329,17 +329,17 @@ export default function QuickScanMatrixPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="rounded-lg border border-border bg-card shadow-sm p-4 space-y-3">
+      <div className="space-y-4 overflow-hidden border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-4 sm:p-5">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, parish, or ministry..."
-            className="w-full rounded-md border border-input bg-background pl-10 pr-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full border border-[#D7CACC] bg-white py-2.5 pl-10 pr-3 text-sm text-[#35272B] outline-none transition focus:border-[#890022] focus:ring-2 focus:ring-[#8C1830]/15"
           />
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <SearchableSelect
             options={PARISHES}
             value={filters.parish}
@@ -353,7 +353,7 @@ export default function QuickScanMatrixPage() {
           <select
             value={filters.ministry}
             onChange={(e) => setFilters((f) => ({ ...f, ministry: e.target.value }))}
-            className="rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring truncate"
+            className="min-w-0 border border-[#D7CACC] bg-white px-3 py-2.5 text-sm text-[#35272B] outline-none focus:border-[#890022] focus:ring-2 focus:ring-[#8C1830]/15"
           >
             <option value="All">All Ministries</option>
             {MINISTRIES.map((m) => (
@@ -383,7 +383,7 @@ export default function QuickScanMatrixPage() {
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border py-16 text-center">
+        <div className="border border-dashed border-border py-16 text-center">
           <Inbox className="mx-auto h-10 w-10 text-muted-foreground/50" />
           <p className="mt-3 text-sm font-medium text-muted-foreground">
             No pending members to verify.
@@ -396,15 +396,15 @@ export default function QuickScanMatrixPage() {
         <>
           {/* Mass verify toolbar */}
           {selectedIds.size > 0 && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-200">
-              <div className="flex items-center gap-3 rounded-full border border-border bg-background/95 backdrop-blur px-4 py-2.5 shadow-lg ring-1 ring-black/5">
-                <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
+            <div className="fixed bottom-3 left-3 right-3 z-40 animate-in slide-in-from-bottom-4 duration-200 sm:bottom-6 sm:left-1/2 sm:right-auto sm:w-max sm:max-w-[calc(100vw-2rem)] sm:-translate-x-1/2">
+              <div className="flex max-h-[45vh] flex-wrap items-center justify-center gap-2 overflow-y-auto border border-[#69001A] bg-[#890022] p-3 text-white shadow-[0_18px_55px_rgba(67,12,28,0.26)] sm:gap-3  sm:px-5 sm:py-3">
+                <span className="inline-flex items-center gap-2 bg-white/15 px-3 py-1.5 text-sm font-semibold text-white">
                   <CheckSquare className="h-3.5 w-3.5" />
                   {selectedIds.size} Selected
                 </span>
-                <div className="h-5 w-px bg-border" />
+                <div className="hidden h-6 w-px bg-white/25 sm:block" />
                 <label
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-60"
+                  className="inline-flex cursor-pointer items-center gap-1.5 border border-white/70 bg-white px-3 py-2 text-sm font-semibold text-[#890022] transition-colors hover:bg-[#FFF3F5] focus-within:ring-2 focus-within:ring-white/60"
                   title="Attach the same recommendation letter to all selected members"
                 >
                   {massUploading ? (
@@ -425,11 +425,11 @@ export default function QuickScanMatrixPage() {
                     }}
                   />
                 </label>
-                <div className="h-5 w-px bg-border" />
+                <div className="hidden h-6 w-px bg-white/25 sm:block" />
                 <button
                   onClick={() => handleMassVerify("New")}
                   disabled={massVerifying || massUploading}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 border border-white/70 bg-transparent px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/15 disabled:opacity-60"
                 >
                   {massVerifying ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -441,7 +441,7 @@ export default function QuickScanMatrixPage() {
                 <button
                   onClick={() => handleMassVerify("Renewed")}
                   disabled={massVerifying || massUploading}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-sky-600 px-2.5 py-1.5 text-sm font-semibold text-white hover:bg-sky-700 transition-colors disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 border border-white bg-white px-3 py-2 text-sm font-semibold text-[#890022] transition-colors hover:bg-[#FFF3F5] disabled:opacity-60"
                 >
                   {massVerifying ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -450,10 +450,10 @@ export default function QuickScanMatrixPage() {
                   )}
                   Verify as Renewed
                 </button>
-                <div className="h-5 w-px bg-border" />
+                <div className="hidden h-6 w-px bg-white/25 sm:block" />
                 <button
                   onClick={clearSelection}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  className="inline-flex items-center gap-1  px-2 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/15 hover:text-white"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -462,10 +462,10 @@ export default function QuickScanMatrixPage() {
           )}
 
           {/* Desktop table */}
-          <div className="hidden lg:block rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+          <div className="hidden overflow-hidden border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white lg:block">
             <div className="overflow-x-auto scrollbar-thin">
               <table className="w-full text-sm">
-                <thead className="bg-muted/60 border-b border-border">
+                <thead className="border-b border-[#E6DADC] bg-[#FBF9F9]">
                   <tr className="text-left">
                     <th className="px-4 py-3 w-10">
                       <label className="inline-flex items-center justify-center">
@@ -526,7 +526,7 @@ export default function QuickScanMatrixPage() {
                             {m.ministries.map((min) => (
                               <span
                                 key={min}
-                                className="inline-flex rounded bg-accent px-1.5 py-0.5 text-[11px] font-medium text-accent-foreground"
+                                className="inline-flex border border-[#EAD6DA] bg-[#FAF2F3] px-2 py-0.5 text-[11px] font-medium text-[#890022]"
                               >
                                 {shortMinistry(min)}
                               </span>
@@ -540,7 +540,7 @@ export default function QuickScanMatrixPage() {
                           <div className="flex items-center justify-center gap-1.5">
                             {m.document_url && (
                               <span
-                                className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1.5 text-xs font-medium text-emerald-700"
+                                className="inline-flex items-center gap-1 border border-emerald-300 bg-emerald-50 px-2 py-1.5 text-xs font-medium text-emerald-700"
                                 title="Recommendation letter attached"
                               >
                                 <FileCheck2 className="h-3 w-3" />
@@ -549,7 +549,7 @@ export default function QuickScanMatrixPage() {
                             <button
                               onClick={() => handleVerify(m, "New")}
                               disabled={isBusy}
-                              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                              className="inline-flex items-center gap-1 border border-[#890022] bg-white px-3 py-2 text-xs font-semibold text-[#890022] transition-colors hover:bg-[#FAF2F3] disabled:opacity-50"
                               title="Approve as New (first-time server)"
                             >
                               {isBusy ? (
@@ -562,7 +562,7 @@ export default function QuickScanMatrixPage() {
                             <button
                               onClick={() => handleVerify(m, "Renewed")}
                               disabled={isBusy}
-                              className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition-colors disabled:opacity-50"
+                              className="inline-flex items-center gap-1 bg-[#890022] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#691124] disabled:opacity-50"
                               title="Approve as Renewed (returning server)"
                             >
                               <RefreshCw className="h-3 w-3" />
@@ -579,7 +579,7 @@ export default function QuickScanMatrixPage() {
           </div>
 
           {/* Mobile accordion cards */}
-          <div className="lg:hidden space-y-2">
+          <div className="space-y-3 lg:hidden">
             {filtered.map((m) => {
               const optimistic = optimisticIds[m.id];
               const isBusy = busyId === m.id;
@@ -589,7 +589,7 @@ export default function QuickScanMatrixPage() {
                 <div
                   key={m.id}
                   className={cn(
-                    "rounded-lg border border-border bg-card overflow-hidden transition-opacity",
+                    "overflow-hidden border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white transition-opacity",
                     optimistic && "opacity-50"
                   )}
                 >
@@ -628,7 +628,7 @@ export default function QuickScanMatrixPage() {
                         {m.ministries.map((min) => (
                           <span
                             key={min}
-                            className="inline-flex rounded bg-accent px-1.5 py-0.5 text-[11px] font-medium text-accent-foreground"
+                            className="inline-flex border border-[#EAD6DA] bg-[#FAF2F3] px-2 py-0.5 text-[11px] font-medium text-[#890022]"
                           >
                             {shortMinistry(min)}
                           </span>
@@ -639,7 +639,7 @@ export default function QuickScanMatrixPage() {
                       </p>
                       <div className="space-y-2">
                         {m.document_url && (
-                          <div className="flex items-center justify-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                          <div className="flex items-center justify-center gap-1.5 border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
                             <FileCheck2 className="h-3.5 w-3.5" />
                             Recommendation letter attached
                           </div>
@@ -648,7 +648,7 @@ export default function QuickScanMatrixPage() {
                           <button
                             onClick={() => handleVerify(m, "New")}
                             disabled={isBusy}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                            className="inline-flex items-center justify-center gap-1.5 border border-[#890022] bg-white px-3 py-2.5 text-sm font-semibold text-[#890022] transition-colors hover:bg-[#FAF2F3] disabled:opacity-50"
                           >
                             {isBusy ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -660,7 +660,7 @@ export default function QuickScanMatrixPage() {
                           <button
                             onClick={() => handleVerify(m, "Renewed")}
                             disabled={isBusy}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-sky-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 transition-colors disabled:opacity-50"
+                            className="inline-flex items-center justify-center gap-1.5 bg-[#890022] px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#691124] disabled:opacity-50"
                           >
                             <RotateCcw className="h-4 w-4" />
                             Approve as Renewed

@@ -98,17 +98,20 @@ export function VerificationDepthCarousel({
           ? 0
           : Math.max(0.58, 1 - Math.abs(distance) * 0.14);
 
-        element.style.transform =
-          distance === 0
-            ? "translate3d(-50%, -50%, 0)"
-            : [
-                "translate3d(-50%, -50%, 0)",
-                `translateX(${translateX.toFixed(2)}px)`,
-                `translateZ(${translateZ.toFixed(2)}px)`,
-                `rotateY(${rotateY.toFixed(2)}deg)`,
-                `scale(${scale.toFixed(3)})`,
-              ].join(" ");
-        element.style.opacity = opacity.toFixed(3);
+        // Keep the focused card on the 2D text-rendering path when settled.
+        // A zero-depth translate3d still promotes the card to a composited layer
+        // and can soften glyphs compared with the standalone result card.
+        const settled = Math.abs(distance) < 0.0001;
+        element.style.transform = settled
+          ? "translate(-50%, -50%)"
+          : [
+              "translate3d(-50%, -50%, 0)",
+              `translateX(${translateX.toFixed(2)}px)`,
+              `translateZ(${translateZ.toFixed(2)}px)`,
+              `rotateY(${rotateY.toFixed(2)}deg)`,
+              `scale(${scale.toFixed(3)})`,
+            ].join(" ");
+        element.style.opacity = settled ? "1" : opacity.toFixed(3);
         element.style.zIndex = String(
           2000 - Math.round(Math.abs(distance) * 20)
         );

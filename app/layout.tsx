@@ -4,7 +4,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { inter, ebGaramond } from "@/app/fonts";
 import { SiteMotion } from "@/components/site-motion";
 
-const siteUrl = "https://cowl-dok.online";
+const siteUrl = "https://www.cowl-dok.online";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

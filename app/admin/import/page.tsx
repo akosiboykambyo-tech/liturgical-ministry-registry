@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import Papa from "papaparse";
+import { ebGaramond } from "@/app/fonts";
 import {
   stageBatchRecords,
   importMemberBatch,
@@ -1052,15 +1053,23 @@ export default function CsvImportPage() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="w-full space-y-5 pb-16 text-[#1E1114]">
+      <div>
+        <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
+          CSV Import &amp; Renewals
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Import member rosters, process parish renewals, review history, and reconcile duplicate records.
+        </p>
+      </div>
       {/* Tab bar */}
-      <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">
+      <div className="grid grid-cols-2 gap-0 border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-1 sm:flex sm:flex-wrap">
         <button
           onClick={() => setActiveTab("import")}
-          className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "import"
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              ? "bg-[#890022] text-white"
+              : "text-[#6D5960] hover:bg-[#F7EFF1] hover:text-[#890022]"
           }`}
         >
           <Upload className="h-4 w-4" />
@@ -1073,10 +1082,10 @@ export default function CsvImportPage() {
         </button>
         <button
           onClick={() => setActiveTab("renewal")}
-          className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "renewal"
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              ? "bg-[#890022] text-white"
+              : "text-[#6D5960] hover:bg-[#F7EFF1] hover:text-[#890022]"
           }`}
         >
           <FileCheck2 className="h-4 w-4" />
@@ -1084,10 +1093,10 @@ export default function CsvImportPage() {
         </button>
         <button
           onClick={() => setActiveTab("history")}
-          className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "history"
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              ? "bg-[#890022] text-white"
+              : "text-[#6D5960] hover:bg-[#F7EFF1] hover:text-[#890022]"
           }`}
         >
           <History className="h-4 w-4" />
@@ -1095,10 +1104,10 @@ export default function CsvImportPage() {
         </button>
         <button
           onClick={() => setActiveTab("pending")}
-          className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "pending"
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              ? "bg-[#890022] text-white"
+              : "text-[#6D5960] hover:bg-[#F7EFF1] hover:text-[#890022]"
           }`}
         >
           <GitMerge className="h-4 w-4" />
@@ -1118,7 +1127,7 @@ export default function CsvImportPage() {
         <>
           {/* Idempotency warning */}
           {idempotencyWarning && (
-            <div className="rounded-lg border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
+            <div className="rounded-none border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
                   <ShieldAlert className="h-5 w-5 text-amber-700" />
@@ -1143,7 +1152,7 @@ export default function CsvImportPage() {
                         setIdempotencyWarning(null);
                         runImport();
                       }}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-none bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
                     >
                       <ShieldAlert className="h-3.5 w-3.5" />
                       Override — Import Anyway
@@ -1155,7 +1164,7 @@ export default function CsvImportPage() {
                         setFileName("");
                         setFileHash("");
                       }}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-50 transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-none border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-50 transition-colors"
                     >
                       <X className="h-3.5 w-3.5" />
                       Cancel Import
@@ -1167,7 +1176,7 @@ export default function CsvImportPage() {
           )}
 
           {summary && !processing && (
-            <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <div className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-5 shadow-none">
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100">
                   <CheckCircle2 className="h-5 w-5 text-emerald-700" />
@@ -1208,7 +1217,7 @@ export default function CsvImportPage() {
                   {summary.duplicates > 0 && (
                     <button
                       onClick={() => setActiveTab("pending")}
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-none bg-[#890022] px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
                     >
                       <GitMerge className="h-3.5 w-3.5" />
                       Review {summary.duplicates} Pending Merge
@@ -1220,7 +1229,7 @@ export default function CsvImportPage() {
                       setSummary(null);
                       setResults([]);
                     }}
-                    className={`mt-3 ${summary.duplicates > 0 ? "ml-2" : ""} inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors`}
+                    className={`mt-3 ${summary.duplicates > 0 ? "ml-2" : ""} inline-flex items-center gap-1.5 rounded-none border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors`}
                   >
                     <X className="h-3.5 w-3.5" />
                     Dismiss
@@ -1231,7 +1240,7 @@ export default function CsvImportPage() {
           )}
 
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <Upload className="h-6 w-6 text-primary" />
               Bulk CSV Import
             </h1>
@@ -1248,8 +1257,8 @@ export default function CsvImportPage() {
             </p>
           </div>
 
-          <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
-            <div className="rounded-md border border-primary/20 bg-primary/5 p-4">
+          <div className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-5 shadow-none space-y-4">
+            <div className="rounded-none border border-primary/20 bg-primary/5 p-4">
               <label htmlFor="import-service-year" className="text-sm font-semibold">
                 Service Year <span className="text-destructive">*</span>
               </label>
@@ -1262,7 +1271,7 @@ export default function CsvImportPage() {
                 value={serviceYear}
                 onChange={(e) => setServiceYear(Number(e.target.value))}
                 disabled={processing}
-                className="mt-3 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                className="mt-3 w-full max-w-xs rounded-none border border-input bg-background px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
               >
                 {Array.from(
                   { length: 3 },
@@ -1282,7 +1291,7 @@ export default function CsvImportPage() {
               }}
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
-              className={`rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+              className={`rounded-none border-2 border-dashed p-8 text-center transition-colors ${
                 dragOver
                   ? "border-primary bg-primary/5"
                   : "border-border bg-muted/30"
@@ -1308,7 +1317,7 @@ export default function CsvImportPage() {
               </p>
               <button
                 onClick={() => inputRef.current?.click()}
-                className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted transition-colors"
+                className="mt-4 inline-flex items-center gap-2 rounded-none border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted transition-colors"
               >
                 <Upload className="h-4 w-4" />
                 Choose File
@@ -1316,7 +1325,7 @@ export default function CsvImportPage() {
             </div>
 
             {parseError && (
-              <div className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2.5 text-sm text-amber-800 ring-1 ring-inset ring-amber-600/20">
+              <div className="flex items-start gap-2 rounded-none bg-amber-50 px-3 py-2.5 text-sm text-amber-800 ring-1 ring-inset ring-amber-600/20">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{parseError}</span>
               </div>
@@ -1339,9 +1348,9 @@ export default function CsvImportPage() {
 
             {rows.length > 0 && (
               <div className="space-y-3">
-                <div className="max-h-48 overflow-y-auto rounded-md border border-border scrollbar-thin">
+                <div className="max-h-48 overflow-y-auto rounded-none border border-border scrollbar-thin">
                   <table className="w-full text-xs">
-                    <thead className="bg-muted/60 sticky top-0">
+                    <thead className="bg-[#FBF7F8] sticky top-0">
                       <tr className="text-left">
                         <th className="px-3 py-2 font-medium">Name</th>
                         <th className="px-3 py-2 font-medium">Parish</th>
@@ -1379,14 +1388,14 @@ export default function CsvImportPage() {
                       setFileName("");
                       setFileHash("");
                     }}
-                    className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted"
+                    className="rounded-none border border-border px-3 py-2 text-sm font-medium hover:bg-muted"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={runImport}
                     disabled={processing}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
+                    className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
                   >
                     {processing ? (
                       <>
@@ -1405,7 +1414,7 @@ export default function CsvImportPage() {
           </div>
 
           {processing && progress && (
-            <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-3">
+            <div className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-5 shadow-none space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -1429,31 +1438,31 @@ export default function CsvImportPage() {
           )}
 
           {results.length > 0 && (
-            <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
+            <div className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-5 shadow-none space-y-4">
               <h2 className="text-sm font-semibold">Import Results</h2>
               <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-md bg-emerald-50 p-3 text-center">
+                <div className="rounded-none bg-emerald-50 p-3 text-center">
                   <p className="text-2xl font-bold text-emerald-700">
                     {stats.created}
                   </p>
                   <p className="text-xs text-emerald-700">Created</p>
                 </div>
-                <div className="rounded-md bg-amber-50 p-3 text-center">
+                <div className="rounded-none bg-amber-50 p-3 text-center">
                   <p className="text-2xl font-bold text-amber-700">
                     {stats.duplicates}
                   </p>
                   <p className="text-xs text-amber-700">Routed to Merges</p>
                 </div>
-                <div className="rounded-md bg-rose-50 p-3 text-center">
+                <div className="rounded-none bg-rose-50 p-3 text-center">
                   <p className="text-2xl font-bold text-rose-700">
                     {stats.errors}
                   </p>
                   <p className="text-xs text-rose-700">Errors</p>
                 </div>
               </div>
-              <div className="max-h-64 overflow-y-auto rounded-md border border-border scrollbar-thin">
+              <div className="max-h-64 overflow-y-auto rounded-none border border-border scrollbar-thin">
                 <table className="w-full text-xs">
-                  <thead className="bg-muted/60 sticky top-0">
+                  <thead className="bg-[#FBF7F8] sticky top-0">
                     <tr className="text-left">
                       <th className="px-3 py-2 font-medium">Row</th>
                       <th className="px-3 py-2 font-medium">Name</th>
@@ -1510,7 +1519,7 @@ export default function CsvImportPage() {
       {activeTab === "renewal" && (
         <div className="space-y-5">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <FileCheck2 className="h-6 w-6 text-primary" />
               Parish Recommendation Renewal
             </h1>
@@ -1523,7 +1532,7 @@ export default function CsvImportPage() {
           </div>
 
           {renewalSuccess && (
-            <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-5 shadow-sm">
+            <div className="rounded-none border border-emerald-300 bg-emerald-50 p-5 shadow-sm">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="h-5 w-5 mt-0.5 text-emerald-700 shrink-0" />
                 <div className="min-w-0">
@@ -1538,7 +1547,7 @@ export default function CsvImportPage() {
                   <button
                     type="button"
                     onClick={resetRenewalWorkflow}
-                    className="mt-3 rounded-md border border-emerald-400 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                    className="mt-3 rounded-none border border-emerald-400 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
                   >
                     Start another renewal batch
                   </button>
@@ -1548,7 +1557,7 @@ export default function CsvImportPage() {
           )}
 
           {renewalActionError && (
-            <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+            <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{renewalActionError}</span>
             </div>
@@ -1556,7 +1565,7 @@ export default function CsvImportPage() {
 
           {!renewalSuccess && (
             <>
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-5">
+              <div className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-5 shadow-none space-y-5">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                   <div className="space-y-3">
                     <div>
@@ -1580,7 +1589,7 @@ export default function CsvImportPage() {
                       type="button"
                       onClick={() => renewalCsvInputRef.current?.click()}
                       disabled={renewalProcessing}
-                      className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-none border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
                     >
                       <FileSpreadsheet className="h-4 w-4" />
                       {renewalCsvName || "Choose renewal CSV"}
@@ -1616,7 +1625,7 @@ export default function CsvImportPage() {
                       type="button"
                       onClick={() => renewalLetterInputRef.current?.click()}
                       disabled={renewalProcessing}
-                      className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-none border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
                     >
                       <Upload className="h-4 w-4" />
                       {renewalLetter?.name || "Choose recommendation letter"}
@@ -1625,7 +1634,7 @@ export default function CsvImportPage() {
                 </div>
 
                 {renewalParseError && (
-                  <div className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2.5 text-sm text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                  <div className="flex items-start gap-2 rounded-none bg-amber-50 px-3 py-2.5 text-sm text-amber-800 ring-1 ring-inset ring-amber-600/20">
                     <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                     <span>{renewalParseError}</span>
                   </div>
@@ -1650,7 +1659,7 @@ export default function CsvImportPage() {
                           getDefaultNextRenewalDate(e.target.value)
                         );
                       }}
-                      className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="mt-2 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </div>
                   <div>
@@ -1667,7 +1676,7 @@ export default function CsvImportPage() {
                       min={renewalDate || undefined}
                       disabled={renewalProcessing}
                       onChange={(e) => setNextRenewalDate(e.target.value)}
-                      className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="mt-2 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </div>
                 </div>
@@ -1686,7 +1695,7 @@ export default function CsvImportPage() {
                     disabled={renewalProcessing}
                     onChange={(e) => setRenewalNotes(e.target.value)}
                     placeholder="Optional note about this parish renewal cycle..."
-                    className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="mt-2 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </div>
 
@@ -1696,7 +1705,7 @@ export default function CsvImportPage() {
                       type="button"
                       onClick={resetRenewalWorkflow}
                       disabled={renewalProcessing}
-                      className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+                      className="rounded-none border border-border px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
                     >
                       Clear
                     </button>
@@ -1705,7 +1714,7 @@ export default function CsvImportPage() {
                     type="button"
                     onClick={stageRenewalRoster}
                     disabled={renewalProcessing || renewalRows.length === 0}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
                   >
                     {renewalProcessing ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1720,7 +1729,7 @@ export default function CsvImportPage() {
               {renewalStaging && (
                 <div className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="rounded-none border border-emerald-200 bg-emerald-50 p-4">
                       <p className="text-2xl font-bold text-emerald-700">
                         {renewalStaging.renewable.length}
                       </p>
@@ -1728,7 +1737,7 @@ export default function CsvImportPage() {
                         Ready to Renew
                       </p>
                     </div>
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <div className="rounded-none border border-amber-200 bg-amber-50 p-4">
                       <p className="text-2xl font-bold text-amber-700">
                         {renewalStaging.review.length}
                       </p>
@@ -1736,7 +1745,7 @@ export default function CsvImportPage() {
                         Needs Review
                       </p>
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <div className="rounded-none border border-slate-200 bg-slate-50 p-4">
                       <p className="text-2xl font-bold text-slate-700">
                         {renewalStaging.unmatched.length}
                       </p>
@@ -1746,7 +1755,7 @@ export default function CsvImportPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+                  <div className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white shadow-none overflow-hidden">
                     <div className="flex items-center justify-between gap-3 border-b border-border bg-emerald-50/60 px-4 py-3">
                       <div>
                         <h2 className="text-sm font-semibold text-emerald-900">
@@ -1836,7 +1845,7 @@ export default function CsvImportPage() {
                     )}
                   </div>
 
-                  <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+                  <div className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white shadow-none overflow-hidden">
                     <div className="border-b border-border bg-amber-50/70 px-4 py-3">
                       <h2 className="text-sm font-semibold text-amber-900">
                         Needs Review
@@ -1891,7 +1900,7 @@ export default function CsvImportPage() {
                     )}
                   </div>
 
-                  <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+                  <div className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white shadow-none overflow-hidden">
                     <div className="border-b border-border bg-muted/50 px-4 py-3">
                       <h2 className="text-sm font-semibold">Unmatched</h2>
                       <p className="text-xs text-muted-foreground">
@@ -1923,7 +1932,7 @@ export default function CsvImportPage() {
                     )}
                   </div>
 
-                  <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-5 shadow-sm">
+                  <div className="rounded-none border-2 border-primary/20 bg-primary/5 p-5 shadow-sm">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="text-sm font-semibold">
@@ -1945,7 +1954,7 @@ export default function CsvImportPage() {
                           renewalSelected.size === 0 ||
                           !renewalLetter
                         }
-                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-none bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
                       >
                         {renewalProcessing ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1970,7 +1979,7 @@ export default function CsvImportPage() {
         <div className="space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
                 <History className="h-6 w-6 text-primary" />
                 Renewal History
               </h1>
@@ -1984,7 +1993,7 @@ export default function CsvImportPage() {
               type="button"
               onClick={() => void loadRenewalHistory()}
               disabled={renewalHistoryLoading}
-              className="inline-flex shrink-0 items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+              className="inline-flex shrink-0 items-center gap-2 rounded-none border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
             >
               <RefreshCw
                 className={`h-4 w-4 ${renewalHistoryLoading ? "animate-spin" : ""}`}
@@ -1994,18 +2003,18 @@ export default function CsvImportPage() {
           </div>
 
           {renewalHistoryError && (
-            <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+            <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{renewalHistoryError}</span>
             </div>
           )}
 
           {renewalHistoryLoading ? (
-            <div className="flex items-center justify-center rounded-lg border border-border bg-card py-16">
+            <div className="flex items-center justify-center rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white py-16">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           ) : renewalHistory.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border py-16 text-center">
+            <div className="rounded-none border border-dashed border-border py-16 text-center">
               <History className="mx-auto h-10 w-10 text-muted-foreground/50" />
               <p className="mt-3 text-sm font-medium text-muted-foreground">
                 No renewal batches recorded yet.
@@ -2025,7 +2034,7 @@ export default function CsvImportPage() {
                 return (
                   <div
                     key={batch.id}
-                    className="rounded-lg border border-border bg-card shadow-sm overflow-hidden"
+                    className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white shadow-none overflow-hidden"
                   >
                     <div className="p-4 sm:p-5">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -2096,7 +2105,7 @@ export default function CsvImportPage() {
                             type="button"
                             onClick={() => void openRenewalHistoryDocument(batch)}
                             disabled={openingHistoryDocumentId === batch.id}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 rounded-none border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-60"
                           >
                             {openingHistoryDocumentId === batch.id ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2110,7 +2119,7 @@ export default function CsvImportPage() {
                             onClick={() =>
                               setExpandedHistoryBatchId(expanded ? null : batch.id)
                             }
-                            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+                            className="inline-flex items-center gap-1.5 rounded-none border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
                           >
                             {expanded ? (
                               <ChevronUp className="h-3.5 w-3.5" />
@@ -2132,7 +2141,7 @@ export default function CsvImportPage() {
                         ) : (
                           <div className="overflow-x-auto">
                             <table className="w-full min-w-[760px] text-xs">
-                              <thead className="bg-muted/60">
+                              <thead className="bg-[#FBF7F8]">
                                 <tr className="text-left">
                                   <th className="px-4 py-2.5 font-semibold">
                                     Member
@@ -2180,7 +2189,7 @@ export default function CsvImportPage() {
                                     </td>
                                     <td className="px-4 py-2.5">
                                       <div className="space-y-0.5">
-                                        <p className="font-medium text-emerald-700">
+                                        <p className="font-medium text-[#2563A6]">
                                           {membership.result_status}
                                         </p>
                                         <p className="text-muted-foreground">
@@ -2213,7 +2222,7 @@ export default function CsvImportPage() {
       {activeTab === "pending" && (
         <div className="space-y-5">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <GitMerge className="h-6 w-6 text-primary" />
               Pending Merges — Reconciliation Queue
             </h1>
@@ -2225,14 +2234,14 @@ export default function CsvImportPage() {
           </div>
 
           {actionError && (
-            <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+            <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{actionError}</span>
             </div>
           )}
 
           {pendingMerges.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border py-16 text-center">
+            <div className="rounded-none border border-dashed border-border py-16 text-center">
               <Inbox className="mx-auto h-10 w-10 text-muted-foreground/50" />
               <p className="mt-3 text-sm font-medium text-muted-foreground">
                 No pending merges.
@@ -2242,7 +2251,7 @@ export default function CsvImportPage() {
                 for side-by-side reconciliation.
               </p>
               {mergeSummary && (
-                <div className="mt-6 inline-flex items-center gap-4 rounded-md border border-border bg-card px-5 py-3 shadow-sm">
+                <div className="mt-6 inline-flex items-center gap-4 rounded-none border border-border bg-card px-5 py-3 shadow-sm">
                   <span className="text-xs font-medium text-emerald-700">
                     Merged: {mergeSummary.merged}
                   </span>
@@ -2258,7 +2267,7 @@ export default function CsvImportPage() {
           ) : (
             <>
               {/* Queue progress */}
-              <div className="flex items-center justify-between rounded-lg border border-border bg-card px-5 py-3 shadow-sm">
+              <div className="flex items-center justify-between rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white px-5 py-3 shadow-none">
                 <span className="text-sm font-medium">
                   Duplicate {currentIndex + 1} of {pendingMerges.length}
                 </span>
@@ -2308,7 +2317,7 @@ export default function CsvImportPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* LEFT: Existing DB record */}
-                    <div className="rounded-lg border border-border bg-muted/20 p-5 shadow-sm">
+                    <div className="rounded-none border border-border bg-muted/20 p-5 shadow-sm">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-4 flex items-center gap-1.5">
                         <UserCheck className="h-4 w-4" />
                         {currentDuplicate.existing
@@ -2329,7 +2338,7 @@ export default function CsvImportPage() {
                     </div>
 
                     {/* RIGHT: Incoming upload record */}
-                    <div className="rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 p-5 shadow-sm">
+                    <div className="rounded-none border-2 border-dashed border-primary/40 bg-primary/5 p-5 shadow-sm">
                       <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-4 flex items-center gap-1.5">
                         <UserX className="h-4 w-4" />
                         Incoming Upload Record
@@ -2361,7 +2370,7 @@ export default function CsvImportPage() {
                     <button
                       onClick={resolveMerge}
                       disabled={actionLoading || !currentDuplicate.existing}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
+                      className="inline-flex items-center justify-center gap-2 rounded-none bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
                       title={
                         !currentDuplicate.existing
                           ? "Merge is unavailable for internal batch duplicates (no existing DB record to merge into)"
@@ -2378,7 +2387,7 @@ export default function CsvImportPage() {
                     <button
                       onClick={resolveKeepSeparate}
                       disabled={actionLoading}
-                      className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-60"
+                      className="inline-flex items-center justify-center gap-2 rounded-none border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors disabled:opacity-60"
                     >
                       <UserX className="h-4 w-4" />
                       Keep Separate — insert as new record
@@ -2386,7 +2395,7 @@ export default function CsvImportPage() {
                     <button
                       onClick={resolveDiscard}
                       disabled={actionLoading}
-                      className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-60"
+                      className="inline-flex items-center justify-center gap-2 rounded-none border border-border px-4 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-60"
                     >
                       <Trash2 className="h-4 w-4" />
                       Discard — drop incoming record
@@ -2434,7 +2443,7 @@ function DiffField({
 }) {
   return (
     <div
-      className={`rounded-md px-3 py-2 ${
+      className={`rounded-none px-3 py-2 ${
         isDiff
           ? "bg-amber-50 ring-1 ring-inset ring-amber-400/40"
           : "bg-background/50"

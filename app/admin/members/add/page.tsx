@@ -2,19 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { importSingleMember, findDuplicateMembers } from "@/lib/duplicate-check";
-import { PARISHES, MINISTRIES } from "@/lib/constants";
+import { importSingleMember } from "@/lib/duplicate-check";
+import { PARISHES } from "@/lib/constants";
 import { MinistryMultiSelect } from "@/components/ministry-multi-select";
 import { Member } from "@/lib/types";
 import {
-  UserPlus,
   Save,
   Loader2,
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
+import { ebGaramond } from "@/app/fonts";
 
 export default function AddMemberPage() {
   const router = useRouter();
@@ -92,207 +91,107 @@ export default function AddMemberPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <UserPlus className="h-6 w-6 text-primary" />
-          Add Member
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manually enter a new member. New records default to{" "}
-          <span className="font-medium text-amber-700">Pending Verification</span>.
-        </p>
+    <div className="w-full space-y-5 pb-12 text-[#1E1114]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>Add Member</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Register a liturgical minister and assign the appropriate ministries.</p>
+        </div>
+        <Link href="/admin/members" className="inline-flex h-9 items-center justify-center border border-[#D9C9CC] bg-white px-4 text-[12px] font-medium text-[#69001D] hover:bg-[#FBF4F5]">Back to Members</Link>
       </div>
 
       {success && (
-        <div className="flex items-start gap-2.5 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
-          <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{success}</span>
+        <div role="status" className="flex items-start gap-3 border-l-[3px] border-[#0B7069] bg-[#EAF5F1] px-4 py-3 text-sm text-[#07594F]">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /><span>{success}</span>
         </div>
       )}
-
       {dupeMatch && (
-        <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-inset ring-amber-600/20">
-          <div className="flex items-start gap-2.5">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <p className="font-medium">Possible duplicate detected</p>
-              <p className="mt-1">
-                Existing record:{" "}
-                <button
-                  type="button"
-                  onClick={() => router.push(`/admin/members?search=${encodeURIComponent(dupeMatch.first_name + ' ' + dupeMatch.last_name)}`)}
-                  className="font-semibold underline"
-                >
-                  {dupeMatch.first_name} {dupeMatch.last_name}
-                </button>{" "}
-                — {dupeMatch.parish} ({dupeMatch.ministries.join(", ")})
-              </p>
-              <p className="mt-1 text-xs text-amber-700">The new entry was flagged for review. You can find it in the CSV Import &rarr; Pending Merges tab.</p>
+        <div role="alert" className="border-l-[3px] border-[#A86C00] bg-[#FFF7E7] p-4 text-[13px] text-[#77500C]">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-semibold">Possible duplicate detected</p>
+              <p className="mt-1">Existing record: <button type="button" onClick={() => router.push(`/admin/members?search=${encodeURIComponent(dupeMatch.first_name + ' ' + dupeMatch.last_name)}`)} className="font-semibold underline">{dupeMatch.first_name} {dupeMatch.last_name}</button> — {dupeMatch.parish} ({dupeMatch.ministries.join(', ')})</p>
+              <p className="mt-2 text-xs">The new entry was flagged for review. Find it in CSV Import → Pending Merges.</p>
             </div>
           </div>
         </div>
       )}
-
       {error && !dupeMatch && (
-        <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
-          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
+        <div role="alert" className="flex items-start gap-3 border-l-[3px] border-[#A32439] bg-[#FFF1F2] px-4 py-3 text-sm text-[#8A1830]">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="firstName">
-              First Name <span className="text-destructive">*</span>
-            </label>
-            <input
-              id="firstName"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="Juan"
-            />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <section className="border border-[#E3D7DA] border-t-2 border-t-[#890022] bg-white">
+          <div className="border-b border-[#E9DEE0] px-4 py-3 sm:px-5">
+            <h2 className="text-[14px] font-semibold text-[#27191D]">Member Information</h2>
+            <p className="mt-0.5 text-xs text-[#795F67]">Enter the minister&apos;s identifying details and service year.</p>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="lastName">
-              Last Name <span className="text-destructive">*</span>
-            </label>
-            <input
-              id="lastName"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="Dela Cruz"
-            />
+          <div className="space-y-4 p-4 sm:p-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label htmlFor="firstName" className="block text-[12px] font-medium">First Name <span className="text-[#A21D37]">*</span></label>
+                <input id="firstName" value={firstName} onChange={e => setFirstName(e.target.value)} required autoComplete="given-name" placeholder="Juan" className="w-full rounded-none border border-[#DCCFD2] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#890022] focus:ring-1 focus:ring-[#890022]" />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="lastName" className="block text-[12px] font-medium">Last Name <span className="text-[#A21D37]">*</span></label>
+                <input id="lastName" value={lastName} onChange={e => setLastName(e.target.value)} required autoComplete="family-name" placeholder="Dela Cruz" className="w-full rounded-none border border-[#DCCFD2] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#890022] focus:ring-1 focus:ring-[#890022]" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+              <div className="space-y-1.5">
+                <label htmlFor={useCustomParish ? 'customParish' : 'parish'} className="block text-[12px] font-medium">Parish / Mission Station <span className="text-[#A21D37]">*</span></label>
+                <div className="flex min-w-0 gap-2">
+                  {useCustomParish ? (
+                    <input id="customParish" value={customParish} onChange={e => setCustomParish(e.target.value)} required placeholder="Type parish name..." className="min-w-0 flex-1 rounded-none border border-[#DCCFD2] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#890022]" />
+                  ) : (
+                    <select id="parish" value={parish} onChange={e => setParish(e.target.value)} required className="min-w-0 flex-1 rounded-none border border-[#DCCFD2] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#890022]">
+                      <option value="">Select a parish...</option>
+                      {PARISHES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  )}
+                  <button type="button" onClick={() => {setUseCustomParish(!useCustomParish); if(useCustomParish) setCustomParish('');}} className="shrink-0 border border-[#DCCFD2] bg-white px-3 py-2 text-[12px] font-medium text-[#760020] hover:bg-[#FBF4F5]">{useCustomParish ? 'Use list' : 'Custom'}</button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="serviceYear" className="block text-[12px] font-medium">Service Year <span className="text-[#A21D37]">*</span></label>
+                <select id="serviceYear" value={serviceYear} onChange={e => setServiceYear(Number(e.target.value))} required className="w-full rounded-none border border-[#DCCFD2] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#890022]">
+                  {Array.from({ length: 3 }, (_, index) => new Date().getFullYear() - 1 + index).map(year => <option key={year} value={year}>{year}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">
-            Parish <span className="text-destructive">*</span>
-          </label>
-          {!useCustomParish ? (
-            <div className="flex gap-2">
-              <select
-                value={parish}
-                onChange={(e) => setParish(e.target.value)}
-                required={!useCustomParish}
-                className="flex-1 rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">Select a parish...</option>
-                {PARISHES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setUseCustomParish(true)}
-                className="shrink-0 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
-              >
-                Custom
-              </button>
+        <section className="border border-[#E3D7DA] border-t-2 border-t-[#890022] bg-white">
+          <div className="border-b border-[#E9DEE0] px-4 py-3 sm:px-5">
+            <h2 className="text-[14px] font-semibold text-[#27191D]">Ministry Assignments</h2>
+            <p className="mt-0.5 text-xs text-[#795F67]">Select one or more of the six standard ministries. New entries begin as Pending Verification.</p>
+          </div>
+          <div className="p-4 sm:p-5">
+            <div className="[&_label]:!rounded-none [&_label]:!border-[#E4D9DB] [&_label]:!bg-white [&_label:has(input:checked)]:!border-[#890022] [&_label:has(input:checked)]:!bg-[#FCF4F5] [&_label_span]:!rounded-none">
+              <MinistryMultiSelect value={ministries} onChange={setMinistries} columns={2} />
             </div>
-          ) : (
-            <div className="flex gap-2">
-              <input
-                value={customParish}
-                onChange={(e) => setCustomParish(e.target.value)}
-                required={useCustomParish}
-                placeholder="Type parish name..."
-                className="flex-1 rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setUseCustomParish(false);
-                  setCustomParish("");
-                }}
-                className="shrink-0 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
-              >
-                Use list
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        </section>
 
-        <div className="space-y-1.5">
-          <label htmlFor="serviceYear" className="text-sm font-medium">
-            Service Year <span className="text-destructive">*</span>
-          </label>
-          <p className="text-xs text-muted-foreground">
-            The year this member begins or is renewed for service.
-          </p>
-          <select
-            id="serviceYear"
-            value={serviceYear}
-            onChange={(e) => setServiceYear(Number(e.target.value))}
-            required
-            className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {Array.from(
-              { length: 3 },
-              (_, index) => new Date().getFullYear() - 1 + index
-            ).map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">
-            Assigned Ministry/Ministries <span className="text-destructive">*</span>
-          </label>
-          <p className="text-xs text-muted-foreground">
-            Select one or more of the 6 Standard Ministries.
-          </p>
-          <MinistryMultiSelect
-            value={ministries}
-            onChange={setMinistries}
-            columns={1}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium" htmlFor="notes">
-            Notes <span className="text-muted-foreground font-normal">(optional)</span>
-          </label>
-          <textarea
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
-            placeholder="Internal notes for the head office..."
-          />
-        </div>
-
-        <div className="flex justify-end gap-2 pt-2 border-t border-border">
-          <button
-            type="button"
-            onClick={() => router.push("/admin/dashboard")}
-            className="rounded-md border border-border px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
-          >
-            {submitting ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
-            ) : (
-              <><Save className="h-4 w-4" /> Save Member</>
-            )}
-          </button>
+        <section className="border border-[#E3D7DA] border-t-2 border-t-[#890022] bg-white">
+          <div className="border-b border-[#E9DEE0] px-4 py-3 sm:px-5"><h2 className="text-[14px] font-semibold text-[#27191D]">Administrative Notes</h2></div>
+          <div className="p-4 sm:p-5">
+            <label htmlFor="notes" className="mb-1.5 block text-[12px] font-medium">Notes <span className="font-normal text-[#795F67]">(optional)</span></label>
+            <textarea id="notes" value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Internal notes for the head office..." className="w-full resize-y rounded-none border border-[#DCCFD2] bg-white px-3 py-2.5 text-[13px] outline-none focus:border-[#890022] focus:ring-1 focus:ring-[#890022]" />
+          </div>
+        </section>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E3D7DA] pt-4">
+          <p className="text-[12px] text-[#795F67]">Fields marked * are required.</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => router.push('/admin/dashboard')} className="border border-[#D9C9CC] bg-white px-4 py-2.5 text-[13px] font-medium text-[#51363E] hover:bg-[#FBF4F5]">Cancel</button>
+            <button type="submit" disabled={submitting} className="inline-flex items-center justify-center gap-2 border border-[#890022] bg-[#890022] px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-[#6F001B] disabled:cursor-not-allowed disabled:opacity-60">
+              {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : <><Save className="h-4 w-4" /> Save Member</>}
+            </button>
+          </div>
         </div>
       </form>
     </div>

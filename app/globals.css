@@ -43,6 +43,10 @@
 
     --radius: 0.625rem;
 
+    /* Institutional text links: Registry Teal #0B5C5A */
+    --registry-link: #0B5C5A;
+    --registry-link-hover: #084644;
+
     /* Registry design tokens */
     --content-reading: 42rem;
     --content-service: 48rem;
@@ -103,6 +107,39 @@
 
   ::selection {
     background: rgba(151, 14, 36, 0.16);
+  }
+}
+
+/*
+ * Registry text-link system.
+ * These low-specificity defaults color ordinary links without overriding
+ * explicit Tailwind link colors or button-like, menu, and sidebar links.
+ * For links with an explicit text color, apply .registry-text-link directly.
+ */
+@layer base {
+  :where(a[href]:not([role="button"]):not([class*="bg-"]):not([class*="text-white"]):not([class*="text-primary"]):not([class*="text-destructive"]):not([class*="text-red-"]):not([class*="text-rose-"])):not(:where(nav a, aside a, [role="navigation"] a)) {
+    color: var(--registry-link);
+  }
+
+  :where(a[href]:not([role="button"]):not([class*="bg-"]):not([class*="text-white"]):not([class*="text-primary"]):not([class*="text-destructive"]):not([class*="text-red-"]):not([class*="text-rose-"])):not(:where(nav a, aside a, [role="navigation"] a)):hover {
+    color: var(--registry-link-hover);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+}
+
+@layer utilities {
+  .registry-text-link {
+    color: var(--registry-link);
+    text-underline-offset: 0.2em;
+  }
+  .registry-text-link:hover {
+    color: var(--registry-link-hover);
+    text-decoration: underline;
+  }
+  .registry-text-link:focus-visible {
+    outline: 2px solid var(--registry-link);
+    outline-offset: 3px;
   }
 }
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { CertificateDesign } from "@/components/certificate-design";
 import { CertificateEditor } from "@/components/certificate-editor";
+import { ebGaramond } from "@/app/fonts";
 
 type TemplateRow = {
   key: string;
@@ -400,7 +401,7 @@ export default function CertificateManagerPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <Loader2 className="h-6 w-6 animate-spin text-[#890022]" />
       </div>
     );
   }
@@ -408,12 +409,12 @@ export default function CertificateManagerPage() {
   if (isDesktop === false) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 text-center shadow-sm">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <div className="w-full max-w-md rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-8 text-center ">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none bg-[#890022]/10 text-[#890022]">
             <ImageIcon className="h-6 w-6" />
           </div>
 
-          <h1 className="mt-5 text-xl font-semibold tracking-tight">
+          <h1 className={`${ebGaramond.className} mt-5 text-[34px] font-medium leading-none text-[#1E1114]`}>
             Certificate Template Manager
           </h1>
 
@@ -433,14 +434,13 @@ export default function CertificateManagerPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-5 text-[#1E1114]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <ImageIcon className="h-6 w-6 text-primary" />
+          <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
             Certificate Template Manager
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="mt-2 text-sm text-[#66565A]">
             Customize certificate text, fonts, layout, and signatories. The
             default template is used for public certificate rendering.
           </p>
@@ -450,7 +450,7 @@ export default function CertificateManagerPage() {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-none bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white  transition-colors hover:bg-[#75001D] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? (
             <>
@@ -467,20 +467,20 @@ export default function CertificateManagerPage() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+        <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
       {saved && (
-        <div className="flex items-start gap-2 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
+        <div className="flex items-start gap-2 rounded-none bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
           <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
           <span>Template settings saved.</span>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">
+      <div className="flex items-center gap-1 rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-1 ">
         {([
           { id: "layout" as const, label: "Certificate Design", icon: ImageIcon },
           { id: "signatories" as const, label: "Signatories", icon: UserCog },
@@ -488,9 +488,9 @@ export default function CertificateManagerPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-none px-3 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.id
-                ? "bg-primary text-primary-foreground"
+                ? "bg-[#890022] text-white"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
@@ -511,8 +511,8 @@ export default function CertificateManagerPage() {
         <div className="space-y-6">
           {activeTab === "layout" && (
             <>
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
-                <h2 className="text-sm font-semibold">Background Image</h2>
+              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
+                <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Background Image</h2>
                 {settings.template_url ? (
                   <div className="flex items-center gap-3">
                     <img
@@ -521,7 +521,7 @@ export default function CertificateManagerPage() {
                       className="h-16 w-24 rounded border border-border object-cover"
                     />
                     <label className="cursor-pointer">
-                      <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                      <span className="inline-flex items-center gap-1.5 rounded-none border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
                         <Upload className="h-3.5 w-3.5" /> Replace
                       </span>
                       <input
@@ -543,9 +543,9 @@ export default function CertificateManagerPage() {
                   </div>
                 ) : (
                   <label className="block">
-                    <div className={`rounded-md border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${uploading ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}>
+                    <div className={`rounded-none border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${uploading ? "border-[#890022] bg-[#890022]/5" : "border-border hover:bg-muted/30"}`}>
                       {uploading ? (
-                        <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+                        <Loader2 className="mx-auto h-6 w-6 animate-spin text-[#890022]" />
                       ) : (
                         <Upload className="mx-auto h-6 w-6 text-muted-foreground/60" />
                       )}
@@ -567,9 +567,9 @@ export default function CertificateManagerPage() {
               </div>
 
               {/* Typography */}
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
+              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
                 <div>
-                  <h2 className="text-sm font-semibold">Typography</h2>
+                  <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Typography</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Choose a coordinated font pairing for the certificate.
                   </p>
@@ -587,7 +587,7 @@ export default function CertificateManagerPage() {
     )?.id ?? ""
   }
   onChange={(e) => applyFontPairing(e.target.value)}
-  className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+  className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
 >
   <option value="">Choose a font pairing</option>
 
@@ -605,13 +605,13 @@ export default function CertificateManagerPage() {
           {activeTab === "signatories" && (
               <div className="space-y-4">
               {/* Add signatory form */}
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-4">
-                <h2 className="text-sm font-semibold flex items-center gap-1.5">
+              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
+                <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#27232A]">
                   <PenLine className="h-4 w-4" />
                   Add Signatory
                 </h2>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">Name</label>
                     <input
@@ -619,7 +619,7 @@ export default function CertificateManagerPage() {
                       value={sigForm.name}
                       onChange={(e) => setSigForm((f) => ({ ...f, name: e.target.value }))}
                       placeholder="e.g. Rev. Fr. Juan Dela Cruz"
-                      className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
                     />
                   </div>
                   <div className="space-y-1">
@@ -629,18 +629,18 @@ export default function CertificateManagerPage() {
                       value={sigForm.title}
                       onChange={(e) => setSigForm((f) => ({ ...f, title: e.target.value }))}
                       placeholder="e.g. Parish Priest"
-                      className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">Display Type</label>
                     <select
                       value={sigForm.display_type}
                       onChange={(e) => setSigForm((f) => ({ ...f, display_type: e.target.value as "static" | "dynamic" }))}
-                      className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
                     >
                       <option value="static">Static (all certificates)</option>
                       <option value="dynamic">Dynamic (ministry-specific)</option>
@@ -652,7 +652,7 @@ export default function CertificateManagerPage() {
                       <select
                         value={sigForm.ministry}
                         onChange={(e) => setSigForm((f) => ({ ...f, ministry: e.target.value }))}
-                        className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
                       >
                         <option value="">Select ministry...</option>
                         {MINISTRIES.map((m) => (
@@ -663,7 +663,7 @@ export default function CertificateManagerPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <NumberField label="Position X" value={sigForm.position_x} onChange={(v) => setSigForm((f) => ({ ...f, position_x: v }))} />
                   <NumberField label="Position Y" value={sigForm.position_y} onChange={(v) => setSigForm((f) => ({ ...f, position_y: v }))} />
                   <NumberField label="Width" value={sigForm.width} onChange={(v) => setSigForm((f) => ({ ...f, width: v }))} />
@@ -671,7 +671,7 @@ export default function CertificateManagerPage() {
 
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Alignment</label>
-                  <div className="inline-flex rounded-md border border-border overflow-hidden">
+                  <div className="inline-flex rounded-none border border-border overflow-hidden">
                     {([
                       { val: "left", icon: AlignLeft, label: "Left" },
                       { val: "center", icon: AlignCenter, label: "Center" },
@@ -683,7 +683,7 @@ export default function CertificateManagerPage() {
                         onClick={() => setSigForm((f) => ({ ...f, alignment: val }))}
                         className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition-colors ${
                           sigForm.alignment === val
-                            ? "bg-primary text-primary-foreground"
+                            ? "bg-[#890022] text-white"
                             : "bg-background text-muted-foreground hover:bg-muted"
                         }`}
                         title={`${label} align`}
@@ -697,7 +697,7 @@ export default function CertificateManagerPage() {
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Signature Image (optional)</label>
                   <label className="cursor-pointer">
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                    <span className="inline-flex items-center gap-1.5 rounded-none border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
                       {sigUploading === "new" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                       {sigUploadUrl ? "Replace signature" : "Upload signature"}
                     </span>
@@ -720,7 +720,7 @@ export default function CertificateManagerPage() {
                   <button
                     onClick={handleSigSave}
                     disabled={sigSaving}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
+                    className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#75001D] transition-colors disabled:opacity-60 "
                   >
                     {sigSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                     Add Signatory
@@ -729,13 +729,13 @@ export default function CertificateManagerPage() {
               </div>
 
               {/* Existing signatories list */}
-              <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white  overflow-hidden">
                 <div className="px-5 py-3 border-b border-border">
-                  <h2 className="text-sm font-semibold">Configured Signatories</h2>
+                  <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Configured Signatories</h2>
                 </div>
                 {sigLoading ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <Loader2 className="h-5 w-5 animate-spin text-[#890022]" />
                   </div>
                 ) : signatories.length === 0 ? (
                   <div className="px-5 py-8 text-center">
@@ -748,7 +748,7 @@ export default function CertificateManagerPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-medium truncate">{sig.name}</p>
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
+                            <span className={`inline-flex items-center rounded-none px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
                               sig.display_type === "static"
                                 ? "bg-blue-50 text-blue-700 ring-blue-600/20"
                                 : "bg-amber-50 text-amber-700 ring-amber-600/20"
@@ -766,13 +766,13 @@ export default function CertificateManagerPage() {
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             onClick={() => handleSigToggle(sig)}
-                            className="text-xs font-medium text-primary hover:underline"
+                            className="text-xs font-medium text-[#890022] hover:underline"
                           >
                             {sig.is_active ? "Deactivate" : "Activate"}
                           </button>
                           <button
                             onClick={() => handleSigDelete(sig.id)}
-                            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs text-destructive hover:bg-destructive/5 transition-colors"
+                            className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1 text-xs text-destructive hover:bg-destructive/5 transition-colors"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -789,10 +789,10 @@ export default function CertificateManagerPage() {
 {activeTab === "layout" && (
   <>
     {/* Right: visual certificate editor */}
-    <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+    <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5 ">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold flex items-center gap-1.5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#27232A]">
             <Eye className="h-4 w-4" />
             Certificate Designer
           </h2>
@@ -810,7 +810,7 @@ export default function CertificateManagerPage() {
           firstName: "Juan",
           lastName: "Dela Cruz",
           parish: "St. Joseph Parish",
-          ministry: "Lector",
+          ministry: "Ministry of Lectors and Commentators",
           uid: "LMD-2026-0001",
           liturgicalYear: settings.liturgical_year,
         }}
@@ -822,10 +822,10 @@ export default function CertificateManagerPage() {
 </div>
 
 {/* Saved templates list */}
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white  overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold">Saved Templates</h2>
+            <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Saved Templates</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               The default template is used for public certificate rendering.
             </p>
@@ -850,7 +850,7 @@ export default function CertificateManagerPage() {
                 <div
                   key={row.key}
                   className={`flex items-center justify-between gap-3 px-5 py-3.5 ${
-                    isEditing ? "bg-primary/5" : ""
+                    isEditing ? "bg-[#890022]/5" : ""
                   }`}
                 >
                   <div className="min-w-0 flex-1">
@@ -860,7 +860,7 @@ export default function CertificateManagerPage() {
                         {templateLabel(row.key)}
                       </p>
                       {isDefault && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                        <span className="inline-flex items-center gap-1 rounded-none bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
                           <Star className="h-3 w-3" /> Default
                         </span>
                       )}
@@ -874,14 +874,14 @@ export default function CertificateManagerPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => handleEdit(row)}
-                      className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-muted/50 transition-colors"
+                      className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted/50 transition-colors"
                     >
                       <Eye className="h-3.5 w-3.5" /> Edit
                     </button>
                     <button
                       onClick={() => handleSetDefault(row.key)}
                       disabled={isDefault || setDefaultKey !== null}
-                      className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 rounded-none bg-[#890022] px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#75001D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {setDefaultKey === row.key ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -894,7 +894,7 @@ export default function CertificateManagerPage() {
                       onClick={() => handleDelete(row.key)}
                       disabled={deletingKey !== null || isDefault}
                       title={isDefault ? "Cannot delete the default template" : "Delete template"}
-                      className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1.5 text-xs text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {deletingKey === row.key ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -929,7 +929,7 @@ function NumberField({
         type="number"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
       />
     </div>
   );
