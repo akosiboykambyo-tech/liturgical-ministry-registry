@@ -21,14 +21,23 @@ export type SavedRenewalReview = {
 
 const TABLE = "renewal_review_items";
 
+async function authorizedReviewer() {
+  const supabase = getSupabaseBrowserClient();
+  const { data: auth, error } = await supabase.auth.getUser();
+  if (error || !auth.user) throw new Error("Sign in to access the renewal review queue.");
+  const role = auth.user.app_metadata?.registry_role;
+  if (role !== "admin" && role !== "renewal_reviewer")
+    throw new Error("Renewal review access has not been provisioned for this account. A securely assigned reviewer role is required.");
+  return auth.user;
+}
+
 /** Stores only review/unmatched cases; ready-to-renew memberships are not persisted here. */
 export async function saveRenewalReviewCases(
   staged: RenewalBatchStagingResult,
   filename: string
 ): Promise<number> {
   const supabase = getSupabaseBrowserClient();
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user) throw new Error("Sign in as an authorized renewal reviewer to save exceptions.");
+  const reviewer = await authorizedReviewer();
   const items = [
     ...staged.review.map((item) => ({
       first_name: item.incoming.first_name, last_name: item.incoming.last_name,
@@ -52,7 +61,7 @@ export async function saveRenewalReviewCases(
   const submission = crypto.randomUUID();
   const rows = items.map((item, index) => ({
     ...item, submission_id: submission, source_filename: filename.slice(0, 255),
-    source_position: index + 1, created_by: auth.user.id,
+    source_position: index + 1, created_by: reviewer.id,
   }));
   // One PostgREST request: no silent partial success or overwriting older review decisions.
   const { error } = await supabase.from(TABLE).insert(rows);
@@ -66,6 +75,7 @@ export async function saveRenewalReviewCases(
 
 export async function listRenewalReviews(status: RenewalReviewStatus | "all") {
   const supabase = getSupabaseBrowserClient();
+  await authorizedReviewer();
   let query = supabase.from(TABLE).select(
     "id,submission_id,source_filename,source_position,first_name,last_name,parish,ministry,reason,candidates,status,resolution,resolution_notes,created_at,resolved_at"
   ).order("created_at", { ascending: false }).limit(500);
@@ -86,11 +96,10 @@ export async function resolveRenewalReview(
   if (!resolution || notes.trim().length < 10)
     throw new Error("Choose a decision and enter at least 10 characters of review notes.");
   const supabase = getSupabaseBrowserClient();
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user) throw new Error("An authenticated reviewer is required.");
+  const reviewer = await authorizedReviewer();
   const { data, error } = await supabase.from(TABLE)
     .update({ status, resolution, resolution_notes: notes.trim(),
-      resolved_by: auth.user.id, resolved_at: new Date().toISOString() })
+      resolved_by: reviewer.id, resolved_at: new Date().toISOString() })
     .eq("id", item.id).eq("status", "open").select("id").single();
   if (error || !data) throw new Error(error?.message ?? "This case has already been resolved by another reviewer.");
 }
