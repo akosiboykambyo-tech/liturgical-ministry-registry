@@ -82,17 +82,21 @@ export default function CertificateManagerPage() {
   const [backgroundDimensionsUnavailable, setBackgroundDimensionsUnavailable] = useState(false);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const widthQuery = window.matchMedia("(min-width: 1024px)");
+    const pointerQuery = window.matchMedia("(pointer: fine)");
 
     const updateDesktopState = () => {
-      setIsDesktop(mediaQuery.matches);
+      // A spacious viewport and precision pointer are needed for drag positioning.
+      setIsDesktop(widthQuery.matches && pointerQuery.matches);
     };
 
     updateDesktopState();
-    mediaQuery.addEventListener("change", updateDesktopState);
+    widthQuery.addEventListener("change", updateDesktopState);
+    pointerQuery.addEventListener("change", updateDesktopState);
 
     return () => {
-      mediaQuery.removeEventListener("change", updateDesktopState);
+      widthQuery.removeEventListener("change", updateDesktopState);
+      pointerQuery.removeEventListener("change", updateDesktopState);
     };
   }, []);
 
@@ -516,37 +520,41 @@ export default function CertificateManagerPage() {
     await loadSignatories();
   };
 
-  if (loading) {
+  // Do not flash editing controls while screen/pointer capability is being checked.
+  if (isDesktop === null) {
+    return <div className="min-h-[60vh]" aria-label="Checking device compatibility" />;
+  }
+
+  if (!isDesktop) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-[#890022]" />
+      <div className="flex min-h-[60vh] items-center justify-center px-4 py-12">
+        <div className="w-full max-w-lg border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-7 text-center sm:p-9">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center bg-[#F8F1F3] text-[#890022]">
+            <ImageIcon className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <h1 className={`${ebGaramond.className} mt-5 text-[34px] font-medium leading-tight text-[#1E1114]`}>
+            Certificate Template Manager
+          </h1>
+          <p className="mt-3 text-sm font-semibold text-[#890022]">
+            Desktop access required
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[#66565A]">
+            Certificate design is available only on a desktop or laptop with a
+            sufficiently wide screen and a mouse or trackpad. This prevents
+            accidental changes while positioning certificate elements.
+          </p>
+          <p className="mt-4 text-sm font-medium text-[#1E1114]">
+            Please open this page on a desktop or laptop, or widen your desktop browser window.
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (isDesktop === false) {
+  if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-8 text-center ">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none bg-[#890022]/10 text-[#890022]">
-            <ImageIcon className="h-6 w-6" />
-          </div>
-
-          <h1 className={`${ebGaramond.className} mt-5 text-[34px] font-medium leading-none text-[#1E1114]`}>
-            Certificate Template Manager
-          </h1>
-
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            This editor is designed for desktop computers. The certificate
-            canvas requires a larger screen for precise positioning, resizing,
-            and template design.
-          </p>
-
-          <p className="mt-3 text-sm font-medium text-foreground">
-            Please open the Certificate Template Manager on a desktop PC or
-            larger screen.
-          </p>
-        </div>
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-[#890022]" />
       </div>
     );
   }
