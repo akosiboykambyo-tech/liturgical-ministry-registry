@@ -163,6 +163,7 @@ export interface CertificateElement {
   font_size?: number;
   font_weight?: string;
   font_style?: string;
+  text_case?: "normal" | "uppercase" | "small-caps";
   text_align?: "left" | "center" | "right" | "justify";
 
   color?: string;
@@ -196,6 +197,7 @@ export interface CertificateTemplateSettings {
   recipient_font_color?: string;
   recipient_font_size?: number;
   recipient_font_weight?: string;
+  recipient_text_case?: "normal" | "uppercase" | "small-caps";
   recipient_font_url?: string | null;
   recipient_font_name?: string | null;
   header_text: string;
