@@ -13,10 +13,10 @@ export function RegistryFooter({
           <p className={`${ebGaramond.className} text-[18px] font-semibold not-italic leading-6`}>
             Liturgical Ministry Registry
           </p>
-          <p className="mt-1 text-[13px] leading-5 text-[#5F4A4F]">
+          <p className="mt-1 text-[14px] leading-5 text-[#5F4A4F]">
             Diocesan Commission on Worship and Liturgy, Diocese of Kalookan
           </p>
-          <p className="mt-1 text-[13px] leading-5 text-[#5F4A4F]">
+          <p className="mt-1 text-[14px] leading-5 text-[#5F4A4F]">
             Questions:{" "}
             <a
               href="mailto:help@cowl-dok.online"
@@ -29,7 +29,7 @@ export function RegistryFooter({
 
         <nav
           aria-label="Footer navigation"
-          className="flex flex-wrap gap-x-7 gap-y-3 text-[13px] text-[#5F4A4F]"
+          className="flex flex-wrap gap-x-7 gap-y-3 text-[14px] text-[#5F4A4F]"
         >
           <Link href="/privacy" className="text-[#0B5C5A] underline underline-offset-3 transition-colors hover:text-[#084644] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5C5A]/30">
             Privacy Policy
