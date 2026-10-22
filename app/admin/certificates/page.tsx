@@ -72,6 +72,7 @@ export default function CertificateManagerPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fontUploading, setFontUploading] = useState(false);
+  const [signatoryFontUploading, setSignatoryFontUploading] = useState(false);
   const [setDefaultKey, setSetDefaultKey] = useState<string | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -127,28 +128,31 @@ export default function CertificateManagerPage() {
   }, [settings.template_url]);
 
   useEffect(() => {
-    if (!settings.recipient_font_url || !settings.recipient_font_name) return;
     let cancelled = false;
-    const family = settings.recipient_font_name;
-    const url = settings.recipient_font_url;
-    const loadPreviewFont = async () => {
-      try {
-        let alreadyLoaded = false;
-      document.fonts.forEach((face) => {
-        if (face.family.replace(/["']/g, "") === family && face.status === "loaded") alreadyLoaded = true;
-      });
-      if (!alreadyLoaded) {
-          const face = new FontFace(family, `url("${url}")`);
-          await face.load();
-          if (!cancelled) document.fonts.add(face);
+    const loadPreviewFonts = async () => {
+      for (const font of [
+        { url: settings.recipient_font_url, family: settings.recipient_font_name, role: "recipient" },
+        { url: settings.signatory_font_url, family: settings.signatory_font_name, role: "signatory" },
+      ]) {
+        if (!font.url || !font.family) continue;
+        try {
+          let alreadyLoaded = false;
+          document.fonts.forEach((face) => {
+            if (face.family.replace(/["']/g, "") === font.family && face.status === "loaded") alreadyLoaded = true;
+          });
+          if (!alreadyLoaded) {
+            const face = new FontFace(font.family, `url("${font.url}")`);
+            await face.load();
+            if (!cancelled) document.fonts.add(face);
+          }
+        } catch {
+          if (!cancelled) setError(`The uploaded ${font.role} font cannot be loaded in this browser. Check storage permissions or replace the font.`);
         }
-      } catch {
-        if (!cancelled) setError("The uploaded recipient font cannot be loaded in this browser. Please check storage permissions or replace the font.");
       }
     };
-    void loadPreviewFont();
+    void loadPreviewFonts();
     return () => { cancelled = true; };
-  }, [settings.recipient_font_url, settings.recipient_font_name]);
+  }, [settings.recipient_font_url, settings.recipient_font_name, settings.signatory_font_url, settings.signatory_font_name]);
 
   const targetAspectRatio = (settings.canvas_width || 600) / (settings.canvas_height || 850);
   const backgroundAspectRatio = backgroundDimensions
@@ -362,7 +366,7 @@ export default function CertificateManagerPage() {
         ...patch,
         elements: current.elements.map((element) => {
           const matches = role === "primary"
-            ? ["text", "liturgical_year", "signatory"].includes(element.type)
+            ? ["text", "liturgical_year"].includes(element.type)
             : role === "secondary"
               ? ["parish", "ministry", "uid"].includes(element.type)
               : element.type === "member_name";
@@ -396,7 +400,7 @@ export default function CertificateManagerPage() {
     }));
   };
 
-  const handleRecipientFontUpload = async (file: File) => {
+  const handleRecipientFontUpload = async (file: File, role: "recipient" | "signatory" = "recipient") => {
     const extension = file.name.split(".").pop()?.toLowerCase();
     const mime: Record<string, string> = {
       ttf: "font/ttf", otf: "font/otf", woff: "font/woff", woff2: "font/woff2",
@@ -405,7 +409,8 @@ export default function CertificateManagerPage() {
       setError("Use a licensed TTF, OTF, WOFF or WOFF2 font up to 5 MB.");
       return;
     }
-    setFontUploading(true);
+    if (role === "recipient") setFontUploading(true);
+    else setSignatoryFontUploading(true);
     setError(null);
     try {
       const bytes = new Uint8Array(await file.slice(0, 4).arrayBuffer());
@@ -417,7 +422,7 @@ export default function CertificateManagerPage() {
         setError("The selected file does not appear to be a valid font of the specified type.");
         return;
       }
-      const path = `recipient-fonts/${crypto.randomUUID()}.${extension}`;
+      const path = `${role}-fonts/${crypto.randomUUID()}.${extension}`;
       // Windows/browser font files may have application/octet-stream as their File.type.
       // Supabase's multipart upload uses the file's MIME type, so normalize it.
       const fontFile = new File([file], file.name, { type: mime[extension] });
@@ -426,20 +431,60 @@ export default function CertificateManagerPage() {
       );
       if (uploadError) throw uploadError;
       const { data: publicData } = supabase.storage.from("certificate-templates").getPublicUrl(path);
-      const family = `RecipientCustom-${path.split("/").pop()?.replace(".", "-")}`;
-      setSettings((current) => ({
+      const family = `${role === "recipient" ? "RecipientCustom" : "SignatoryCustom"}-${path.split("/").pop()?.replace(".", "-")}`;
+      const stack = `"${family}", Georgia, serif`;
+      setSettings((current) => role === "recipient" ? ({
         ...current,
         recipient_font_url: publicData.publicUrl,
         recipient_font_name: family,
-        recipient_font_family: `"${family}", Georgia, serif`,
+        recipient_font_family: stack,
         elements: current.elements.map((element) => element.type === "member_name"
-          ? { ...element, font_family: `"${family}", Georgia, serif` } : element),
+          ? { ...element, font_family: stack } : element),
+      }) : ({
+        ...current,
+        signatory_font_url: publicData.publicUrl,
+        signatory_font_name: family,
+        signatory_font_family: stack,
+        elements: current.elements.map((element) => element.type === "signatory"
+          ? { ...element, font_family: stack } : element),
       }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Custom font upload failed.");
     } finally {
-      setFontUploading(false);
+      if (role === "recipient") setFontUploading(false);
+      else setSignatoryFontUploading(false);
     }
+  };
+
+  // The controls in this tab are template-wide defaults. Element properties remain
+  // independently editable in the Visual Canvas after applying these defaults.
+  const setSignatoryFont = (family: string) => {
+    setSettings((current) => ({
+      ...current,
+      signatory_font_family: family,
+      signatory_font_url: null,
+      signatory_font_name: null,
+      elements: current.elements.map((element) => element.type === "signatory"
+        ? { ...element, font_family: family } : element),
+    }));
+  };
+
+  const updateSignatoryTypography = (field: "color" | "titleColor" | "size" | "weight" | "case", value: string | number) => {
+    setSettings((current) => ({
+      ...current,
+      ...(field === "color" ? { signatory_font_color: String(value) }
+        : field === "titleColor" ? { signatory_title_color: String(value) }
+        : field === "size" ? { signatory_font_size: Number(value) }
+        : field === "weight" ? { signatory_font_weight: String(value) }
+        : { signatory_text_case: String(value) as "normal" | "uppercase" | "small-caps" }),
+      elements: current.elements.map((element) => element.type === "signatory"
+        ? { ...element, ...(field === "color" ? { color: String(value) }
+          : field === "size" ? { font_size: Number(value) }
+          : field === "weight" ? { font_weight: String(value) }
+          : field === "case" ? { text_case: String(value) as "normal" | "uppercase" | "small-caps" }
+          : {}) }
+        : element),
+    }));
   };
 
   // Signatory handlers
