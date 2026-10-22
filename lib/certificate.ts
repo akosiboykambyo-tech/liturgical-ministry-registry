@@ -53,7 +53,11 @@ async function ensureFontsLoaded(settings: CertificateTemplateSettings): Promise
   if (settings.recipient_font_url && settings.recipient_font_name) {
     const family = settings.recipient_font_name;
     try {
-      if (!document.fonts.check(`16px "${family}"`)) {
+      let alreadyLoaded = false;
+      document.fonts.forEach((face) => {
+        if (face.family.replace(/["']/g, "") === family && face.status === "loaded") alreadyLoaded = true;
+      });
+      if (!alreadyLoaded) {
         const customFont = new FontFace(family, `url("${settings.recipient_font_url}")`);
         await customFont.load();
         document.fonts.add(customFont);
