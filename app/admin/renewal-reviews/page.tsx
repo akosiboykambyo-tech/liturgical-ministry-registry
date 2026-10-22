@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ClipboardCheck, Loader2, RefreshCw, Search } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
-import { listRenewalReviews, resolveRenewalReview,
+import { comparePossibleDuplicateMembers, listRenewalReviews, resolveRenewalReview,
+  type DuplicateComparison,
   type RenewalResolution, type RenewalReviewStatus, type SavedRenewalReview } from "@/lib/renewal-review-queue";
 
 const REASONS: Record<string, string> = {
@@ -40,6 +41,10 @@ export default function RenewalReviewQueuePage() {
   const [saving, setSaving] = useState(false);
   const [duplicateConfirmation, setDuplicateConfirmation] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [comparison, setComparison] = useState<DuplicateComparison[] | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [retainId, setRetainId] = useState("");
+  const [removeId, setRemoveId] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -68,7 +73,15 @@ export default function RenewalReviewQueuePage() {
   const beginReview = (item: SavedRenewalReview) => {
     setSelected(item); setDecision(""); setNotes(""); setOutcome("resolved");
     setDuplicateConfirmation(false);
+    setComparison(null); setRetainId(""); setRemoveId("");
     setError(null); setNotice(null);
+  };
+  const investigateDuplicate = async () => {
+    if (!selected) return;
+    setComparisonLoading(true); setComparison(null); setRetainId(""); setRemoveId(""); setError(null);
+    try { setComparison(await comparePossibleDuplicateMembers(selected)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to compare records."); }
+    finally { setComparisonLoading(false); }
   };
   const dismissDuplicate = async () => {
     if (!selected || selected.status !== "open" || !duplicateConfirmation) return;
@@ -179,6 +192,71 @@ export default function RenewalReviewQueuePage() {
               <Link href={`/admin/members/${candidate.id}?returnTo=renewal-reviews&case=${selected.id}`} className="text-xs font-semibold text-[#890022] underline">Open registry record</Link>
             </div>)}
         </div>
+        {selected.status === "open" && (
+          <section className="space-y-3 border border-[#D7C9CD] bg-white p-4">
+            <h3 className="text-sm font-semibold text-[#592E3B]">Investigate duplicate registry records</h3>
+            <p className="text-xs leading-5 text-[#66545B]">
+              Search exact member names within this parish and compare UIDs, ministry assignments,
+              registration dates, documentation and renewal history. This is a read-only investigation.
+            </p>
+            <button type="button" disabled={comparisonLoading} onClick={() => void investigateDuplicate()}
+              className="min-h-10 border border-[#890022] bg-white px-4 text-sm font-semibold text-[#890022] disabled:opacity-50">
+              {comparisonLoading ? "Checking records..." : "Compare potential duplicate records"}
+            </button>
+            {comparison && (
+              comparison.length < 2 ? <p className="text-sm text-[#66545B]">Only {comparison.length} exact-name record(s) found in this parish. No second record was confirmed; check spelling variants separately before any deletion.</p> :
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-[#890022]">{comparison.length} exact-name records found. Compare before choosing which UID to retain.</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {comparison.map(member => (
+                    <div key={member.id} className="space-y-2 border border-[#E1D7DA] bg-[#FBF9F9] p-3 text-xs">
+                      <h4 className="text-sm font-semibold">{member.first_name} {member.last_name}</h4>
+                      <p className="break-all font-semibold text-[#890022]">UID: {member.uid}</p>
+                      <p>Status: {member.status} · Service year: {member.service_year}</p>
+                      <p>Created: {new Date(member.created_at).toLocaleDateString()} · Expiry: {member.expiration_date ?? "—"}</p>
+                      <p>Current document: {member.document_url ? "Present" : "None"} · Archived: {member.archived_documents.length}</p>
+                      <p>Renewal records: {member.renewal_history_count} · Audit entries: {member.audit_log_count}</p>
+                      {member.assignments.map(a => <p key={a.id} className="border-t border-[#E6DADB] pt-2">
+                        {a.ministry} — {a.status} · Expiry {a.expiration_date ?? "—"} ·
+                        Document {a.document_url ? "present" : "none"} · Archived {a.archived_document_count}
+                      </p>)}
+                      {member.dependency_warning && <p role="alert" className="text-[#890022]">Dependency lookup incomplete: {member.dependency_warning}</p>}
+                      <Link href={`/admin/members/${member.id}?returnTo=renewal-reviews&case=${selected.id}`}
+                        className="inline-block font-semibold text-[#890022] underline">Inspect this member</Link>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-3 border border-[#DFC7CE] bg-[#F8F1F3] p-3">
+                  <p className="text-sm font-semibold text-[#592E3B]">Proposed reconciliation (no deletion enabled)</p>
+                  <label className="block space-y-1 text-xs"><span className="font-semibold">Keep this UID</span>
+                    <select className="h-10 w-full border border-[#D7C9CD] bg-white px-2" value={retainId}
+                      onChange={e => setRetainId(e.target.value)}>
+                      <option value="">Select record to retain</option>
+                      {comparison.map(m => <option key={m.id} value={m.id}>{m.uid} — {m.status}</option>)}
+                    </select>
+                  </label>
+                  <label className="block space-y-1 text-xs"><span className="font-semibold">Potential duplicate UID</span>
+                    <select className="h-10 w-full border border-[#D7C9CD] bg-white px-2" value={removeId}
+                      onChange={e => setRemoveId(e.target.value)}>
+                      <option value="">Select record for deletion assessment</option>
+                      {comparison.filter(m => m.id !== retainId).map(m => <option key={m.id} value={m.id}>{m.uid} — {m.status}</option>)}
+                    </select>
+                  </label>
+                  {retainId && removeId && retainId !== removeId && (
+                    <p className="text-xs leading-5 text-[#592E3B]">
+                      Records identified for further reconciliation. Deletion is disabled until all
+                      linked references (including documents, audit logs and renewal history) can be
+                      safely preserved in a transactional, auditable operation.
+                    </p>
+                  )}
+                  <button type="button" disabled className="min-h-10 bg-[#890022] px-4 text-sm font-semibold text-white opacity-50">
+                    Remove Duplicate — Safety Review Required
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
         {selected.status === "open" && selected.reason === "duplicate_csv_membership" && (
           <div className="space-y-3 border border-[#DFC7CE] bg-[#F8F1F3] p-4">
             <h3 className="text-sm font-semibold text-[#592E3B]">Duplicate renewal entry</h3>
