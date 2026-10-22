@@ -251,6 +251,11 @@ export function CertificateEditor({
     width: 180,
     height: 90,
     signatory_id: signatoryId,
+    font_family: settings.signatory_font_family || "Georgia, serif",
+    font_size: settings.signatory_font_size ?? 12,
+    font_weight: settings.signatory_font_weight || "bold",
+    text_case: settings.signatory_text_case || "normal",
+    color: settings.signatory_font_color || "#0f172a",
   };
     }
   };
@@ -546,10 +551,27 @@ export function CertificateEditor({
               <span style={{ fontSize: 10, color: "#71717a" }}>Signature</span>
             )}
           </div>
-          <div style={{ width: "100%", marginTop: 5, fontFamily: element.font_family || "Georgia, serif", fontSize: element.font_size || 12, fontWeight: element.font_weight || "bold", color: element.color || "#0f172a", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{
+            width: "100%", marginTop: 5,
+            fontFamily: element.font_family || settings.signatory_font_family || "Georgia, serif",
+            fontSize: element.font_size ?? settings.signatory_font_size ?? 12,
+            fontWeight: element.font_weight || settings.signatory_font_weight || "bold",
+            fontVariant: (element.text_case ?? settings.signatory_text_case) === "small-caps" ? "small-caps" : "normal",
+            textTransform: (element.text_case ?? settings.signatory_text_case) === "uppercase" ? "uppercase" : "none",
+            color: element.color || settings.signatory_font_color || "#0f172a",
+            lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+          }}>
             {signatory.name}
           </div>
-          <div style={{ width: "100%", marginTop: 3, fontFamily: element.font_family || "Georgia, serif", fontSize: Math.max(8, (element.font_size || 12) - 2), color: "#71717a", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{
+            width: "100%", marginTop: 3,
+            fontFamily: element.font_family || settings.signatory_font_family || "Georgia, serif",
+            fontSize: Math.max(8, (element.font_size ?? settings.signatory_font_size ?? 12) - 2),
+            fontVariant: (element.text_case ?? settings.signatory_text_case) === "small-caps" ? "small-caps" : "normal",
+            textTransform: (element.text_case ?? settings.signatory_text_case) === "uppercase" ? "uppercase" : "none",
+            color: settings.signatory_title_color || "#71717a",
+            lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+          }}>
             {signatory.title}
           </div>
         </div>
@@ -871,6 +893,7 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                           settings.recipient_font_url && family === settings.recipient_font_family) {
                         return "__uploaded_recipient__";
                       }
+                      if (selectedElement.type === "signatory" && settings.signatory_font_url && family === settings.signatory_font_family) return "__uploaded_signatory__";
                       return FONT_OPTIONS.some((font) => font.value === family) ? family : "__custom__";
                     })()}
                     disabled={selectedElement.locked}
@@ -884,7 +907,9 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                       updateElement(selectedElement.id, {
                         font_family: value === "__uploaded_recipient__"
                           ? settings.recipient_font_family || "Georgia, serif"
-                          : value,
+                          : value === "__uploaded_signatory__"
+                            ? settings.signatory_font_family || "Georgia, serif"
+                            : value,
                       });
                     }}
                     className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30 disabled:opacity-50"
@@ -895,13 +920,18 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                     {selectedElement.type === "member_name" && settings.recipient_font_url && (
                       <option value="__uploaded_recipient__">Uploaded recipient font</option>
                     )}
+                    {selectedElement.type === "signatory" && settings.signatory_font_url && (
+                      <option value="__uploaded_signatory__">Uploaded signatory font</option>
+                    )}
                     <option value="__custom__">Custom font stack / existing font</option>
                   </select>
                 </label>
                 {(editingCustomFontId === selectedElement.id ||
                   (!FONT_OPTIONS.some((font) => font.value === (selectedElement.font_family || settings.font_family || "Georgia, serif")) &&
                     !(selectedElement.type === "member_name" && settings.recipient_font_url &&
-                      selectedElement.font_family === settings.recipient_font_family))) && (
+                      selectedElement.font_family === settings.recipient_font_family) &&
+                    !(selectedElement.type === "signatory" && settings.signatory_font_url &&
+                      selectedElement.font_family === settings.signatory_font_family))) && (
                   <label className="block space-y-1.5">
                     <span className="text-[11px] text-muted-foreground">Custom font stack</span>
                     <input
