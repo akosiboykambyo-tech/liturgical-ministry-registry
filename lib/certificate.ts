@@ -331,16 +331,17 @@ export async function renderCertificate(
             const fontSize = element.font_size ?? 14;
             const fontWeight = element.font_weight ?? "normal";
             const fontStyle = element.font_style ?? "normal";
+            const textCase = element.text_case ?? (element.type === "member_name" ? settings.recipient_text_case : undefined) ?? "normal";
             const alignment = element.text_align ?? "center";
 
-            ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+            ctx.font = `${fontStyle} ${textCase === "small-caps" ? "small-caps" : "normal"} ${fontWeight} ${fontSize}px ${fontFamily}`;
             ctx.fillStyle = element.color || "#0f172a";
             ctx.textBaseline = "middle";
             ctx.textAlign = alignment as CanvasTextAlign;
 
 drawWrappedText(
   ctx,
-  value,
+  textCase === "uppercase" ? value.toLocaleUpperCase() : value,
   element.width,
   element.height,
   alignment
