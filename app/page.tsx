@@ -66,7 +66,7 @@ export default function Home() {
         <section className="bg-[#FBF9F9]">
           <div className="mx-auto grid w-full max-w-[1120px] gap-12 px-6 py-16 sm:px-8 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 lg:px-0 lg:py-20">
             <div>
-              <h2 className={`${ebGaramond.className} text-[38px] font-medium not-italic leading-tight sm:text-[44px]`}>
+              <h2 className={`${ebGaramond.className} text-[34px] font-medium not-italic leading-tight sm:text-[44px]`}>
                 What a result shows
               </h2>
 
@@ -82,7 +82,7 @@ export default function Home() {
             </div>
 
             <div>
-              <p className={`${ebGaramond.className} mb-3 text-[14px] font-medium not-italic uppercase tracking-[0.16em] text-[#5F4A4F]`}>
+              <p className={`${ebGaramond.className} mb-3 text-[18px] font-medium not-italic uppercase tracking-[0.12em] text-[#5F4A4F]`}>
                 Example result
               </p>
 
@@ -106,7 +106,7 @@ export default function Home() {
                 />
               </div>
 
-              <p className="mt-3 text-[13px] leading-5 text-[#7A6C70]">
+              <p className="mt-3 text-[14px] leading-5 text-[#7A6C70]">
                 Example only. Search the registry above for a current record.
               </p>
             </div>

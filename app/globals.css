@@ -8,7 +8,7 @@
   :root {
     /* Background: warm off-white with the faintest red blush */
     --background: 0 20% 98%;
-    --foreground: 222 47% 11%;
+    --foreground: 345 9% 9%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
@@ -24,7 +24,7 @@
 
     /* Muted: near-white red tint */
     --muted: 355 8% 94%;
-    --muted-foreground: 215 16% 44%;
+    --muted-foreground: 345 11% 34%;
 
     /* Accent: pale rose — used for ministry chips, highlights */
     --accent: 355 40% 93%;
@@ -48,6 +48,21 @@
     /* Institutional text links: Registry Teal #0B5C5A */
     --registry-link: #0B5C5A;
     --registry-link-hover: #084644;
+
+    /* Section 4.1 public palette: canonical hex tokens */
+    --registry-crimson: #890022;
+    --registry-button: #970E24;
+    --registry-oxblood: #3A0010;
+    --registry-rose-tint: #F3C6D0;
+    --registry-pale-rose: #EBCDD5;
+    --registry-page: #FBF9F9;
+    --registry-ink: #1E1114;
+    --registry-muted: #5F4A4F;
+    --registry-hairline: #E6DADC;
+    --registry-teal: #0B5C5A;
+    --registry-amber: #7A4E00;
+    --registry-blue: #3B5278;
+    --registry-error: #B00020;
 
     /* Registry design tokens */
     --content-reading: 42rem;
