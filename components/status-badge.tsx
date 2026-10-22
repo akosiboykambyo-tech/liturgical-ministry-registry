@@ -11,12 +11,12 @@ const EXPIRATION_CONFIG: Record<
 > = {
   valid: {
     label: "Valid",
-    className: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+    className: "bg-[#E5F1EF] text-[#0B5C5A] ring-[#0B5C5A]/25",
     icon: CheckCircle2,
   },
   expiring_soon: {
     label: "Expiring Soon",
-    className: "bg-orange-100 text-orange-800 ring-orange-600/20",
+    className: "bg-[#FFF4DC] text-[#7A4E00] ring-[#7A4E00]/25",
     icon: CalendarClock,
   },
   expired: {
@@ -37,17 +37,17 @@ const CONFIG: Record<
   },
   Renewed: {
     label: "Renewed (Validated)",
-    className: "bg-[#E8F0FA] text-[#2563A6] ring-[#2563A6]/25",
+    className: "bg-[#E8F0FA] text-[#3B5278] ring-[#3B5278]/25",
     icon: RefreshCw,
   },
   "Pending Verification": {
     label: "Pending Verification",
-    className: "bg-[#FFF4DC] text-[#B7791F] ring-[#B7791F]/30",
+    className: "bg-[#FFF4DC] text-[#7A4E00] ring-[#7A4E00]/30",
     icon: Clock,
   },
   Inactive: {
     label: "Inactive",
-    className: "bg-[#F0EFEF] text-[#8A8588] ring-[#8A8588]/30",
+    className: "bg-[#F0EFEF] text-[#71666A] ring-[#71666A]/30",
     icon: XCircle,
   },
 };
@@ -76,7 +76,7 @@ export function StatusBadge({
     <span className="inline-flex items-center gap-1.5">
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset whitespace-nowrap",
+          "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium ring-1 ring-inset whitespace-nowrap",
           cfg.className,
           className
         )}
@@ -87,7 +87,7 @@ export function StatusBadge({
       {expCfg && (
         <span
           className={cn(
-            "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset whitespace-nowrap",
+            "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium ring-1 ring-inset whitespace-nowrap",
             expCfg.className
           )}
         >
