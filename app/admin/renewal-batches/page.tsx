@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardList, FileDown, Loader2, Search, Users } from "lucide-react";
+import Link from "next/link";
+import { ClipboardList, FileDown, FileSpreadsheet, History, Loader2, Search, Users } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import { MINISTRIES, PARISHES } from "@/lib/constants";
 import { MultiSelectCombobox } from "@/components/multi-select-combobox";
@@ -81,10 +82,24 @@ export default function RenewalBatchPreparationPage() {
       <div className="border-b border-[#E5D9DC] pb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#890022]">Commission Renewal Desk</p>
         <h1 className={`${ebGaramond.className} mt-2 text-4xl text-[#271C20]`}>Parish–Ministry Batches</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6B5C62]">Prepare a consolidated parish submission and match its members to the registry. This initial workspace is read-only: it does not save batches, record money, issue receipts, approve renewals or modify member records.</p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6B5C62]">Prepare a consolidated parish submission and match its members to the registry. The manual-selection method below prepares a draft only; the existing CSV-based renewal processor remains available through its dedicated link. Payment collection and treasury remittance are not enabled.</p>
       </div>
       <div className="border border-[#E2D7DA] border-l-4 border-l-[#890022] bg-[#F8F1F3] px-4 py-3 text-sm leading-6 text-[#592C3A]">
         <strong>Preparation only.</strong> You can download a draft CSV manifest for review. Final batch saving, supplemental submission tracking, payment collection and treasury remittance remain disabled until the database controls are approved.
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="border border-[#D9CED1] bg-white p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[#42262F]"><Users className="h-4 w-4 text-[#890022]" /> Select members from registry</div>
+          <p className="mt-2 text-xs leading-5 text-[#6B5C62]">Build a draft roster directly from existing member records using the form below. Draft export does not change registrations.</p>
+        </div>
+        <div className="border border-[#D9CED1] bg-white p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[#42262F]"><FileSpreadsheet className="h-4 w-4 text-[#890022]" /> Upload a parish renewal CSV</div>
+          <p className="mt-2 text-xs leading-5 text-[#6B5C62]">Open the existing validated CSV renewal processor, including shared recommendation-letter upload and review of uncertain matches.</p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/admin/import?tab=renewal" className="text-xs font-semibold text-[#890022] underline underline-offset-2">Open CSV Renewal Processor</Link>
+            <Link href="/admin/import?tab=history" className="inline-flex items-center gap-1 text-xs font-semibold text-[#890022] underline underline-offset-2"><History className="h-3.5 w-3.5" /> Renewal History</Link>
+          </div>
+        </div>
       </div>
       <section className="space-y-4 border border-[#E2D7DA] bg-white p-5">
         <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-[#890022]" /><h2 className="text-base font-semibold">Batch details</h2></div>
