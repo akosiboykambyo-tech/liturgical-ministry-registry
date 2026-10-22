@@ -129,7 +129,11 @@ export default function CertificateManagerPage() {
     const url = settings.recipient_font_url;
     const loadPreviewFont = async () => {
       try {
-        if (!document.fonts.check(`16px "${family}"`)) {
+        let alreadyLoaded = false;
+      document.fonts.forEach((face) => {
+        if (face.family.replace(/["']/g, "") === family && face.status === "loaded") alreadyLoaded = true;
+      });
+      if (!alreadyLoaded) {
           const face = new FontFace(family, `url("${url}")`);
           await face.load();
           if (!cancelled) document.fonts.add(face);
