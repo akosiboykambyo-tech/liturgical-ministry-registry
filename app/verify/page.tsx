@@ -582,7 +582,7 @@ function VerifyPage() {
               >
                 <label
                   htmlFor="member-search"
-                  className={`${ebGaramond.className} text-[14px] font-medium uppercase tracking-[0.16em] text-[#F3C6D0]`}
+                  className={`${ebGaramond.className} text-[18px] font-medium uppercase tracking-[0.12em] text-[#F3C6D0]`}
                 >
                   Full name or Registry ID
                 </label>
@@ -704,7 +704,7 @@ function VerifyPage() {
 
                   <div className="mt-10 border-t-[4px] border-[#970E24]">
                     <p
-                      className={`${ebGaramond.className} border-b border-[#E6DADC] py-4 text-[14px] font-medium uppercase tracking-[0.16em] text-[#5F4A4F]`}
+                      className={`${ebGaramond.className} border-b border-[#E6DADC] py-4 text-[18px] font-medium uppercase tracking-[0.12em] text-[#5F4A4F]`}
                     >
                       Narrow by parish
                     </p>
@@ -775,7 +775,7 @@ function VerifyPage() {
                       <div className="w-full sm:w-[210px]">
                         <label
                           htmlFor="parish-filter"
-                          className={`${ebGaramond.className} text-[14px] font-medium uppercase tracking-[0.16em] text-[#5F4A4F]`}
+                          className={`${ebGaramond.className} text-[18px] font-medium uppercase tracking-[0.12em] text-[#5F4A4F]`}
                         >
                           Parish
                         </label>
