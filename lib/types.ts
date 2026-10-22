@@ -191,6 +191,13 @@ export interface CertificateTemplateSettings {
   qr_size: number;
   liturgical_year: string;
   font_family: string;
+  secondary_font_family?: string;
+  recipient_font_family?: string;
+  recipient_font_color?: string;
+  recipient_font_size?: number;
+  recipient_font_weight?: string;
+  recipient_font_url?: string | null;
+  recipient_font_name?: string | null;
   header_text: string;
   body_text: string;
   footer_text: string;
