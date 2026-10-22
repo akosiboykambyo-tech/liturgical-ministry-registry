@@ -42,8 +42,6 @@ const OFFICIAL_MINISTRIES = [
   "Ministry of Liturgical Music",
 ] as const;
 
-const CANVAS_W = 600;
-const CANVAS_H = 850;
 
 function elementLabel(element: CertificateElement) {
   switch (element.type) {
@@ -104,6 +102,8 @@ export function CertificateEditor({
   signatories = [],
 }: CertificateEditorProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const canvasW = settings.canvas_width || 600;
+  const canvasH = settings.canvas_height || 850;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [canvasScale, setCanvasScale] = useState(1);
@@ -129,7 +129,7 @@ export function CertificateEditor({
 
     const updateScale = () => {
       const width = canvas.clientWidth;
-      setCanvasScale(width > 0 ? Math.min(1, width / CANVAS_W) : 1);
+      setCanvasScale(width > 0 ? Math.min(1, width / canvasW) : 1);
     };
 
     updateScale();
@@ -138,7 +138,7 @@ export function CertificateEditor({
     observer.observe(canvas);
 
     return () => observer.disconnect();
-  }, []);
+  }, [canvasW, canvasH]);
 
   const updateElement = (
     id: string,
@@ -287,8 +287,8 @@ export function CertificateEditor({
     const duplicate: CertificateElement = {
       ...element,
       id: `${element.id}-copy-${Date.now()}`,
-      x: Math.min(CANVAS_W, element.x + 20),
-      y: Math.min(CANVAS_H, element.y + 20),
+      x: Math.min(canvasW, element.x + 20),
+      y: Math.min(canvasH, element.y + 20),
       z_index: (element.z_index ?? 0) + 1,
       locked: false,
     };
@@ -352,8 +352,8 @@ export function CertificateEditor({
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const scaleX = CANVAS_W / rect.width;
-    const scaleY = CANVAS_H / rect.height;
+    const scaleX = canvasW / rect.width;
+    const scaleY = canvasH / rect.height;
 
     const startPointerX = event.clientX;
     const startPointerY = event.clientY;
@@ -367,11 +367,11 @@ export function CertificateEditor({
       updateElement(element.id, {
         x: Math.max(
           0,
-          Math.min(CANVAS_W, Math.round(startX + deltaX))
+          Math.min(canvasW, Math.round(startX + deltaX))
         ),
         y: Math.max(
           0,
-          Math.min(CANVAS_H, Math.round(startY + deltaY))
+          Math.min(canvasH, Math.round(startY + deltaY))
         ),
       });
     };
@@ -665,17 +665,18 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
         <div className="flex justify-center overflow-auto">
           <div
             ref={canvasRef}
-            className="relative w-full max-w-[600px] overflow-hidden bg-white shadow-md"
+            className="relative w-full overflow-hidden bg-white shadow-md"
             style={{
-              aspectRatio: `${CANVAS_W} / ${CANVAS_H}`,
+              aspectRatio: `${canvasW} / ${canvasH}`,
+              maxWidth: `${canvasW}px`,
             }}
             onPointerDown={() => setSelectedId(null)}
           >
             <div
               className="absolute left-0 top-0 origin-top-left"
               style={{
-                width: `${CANVAS_W}px`,
-                height: `${CANVAS_H}px`,
+                width: `${canvasW}px`,
+                height: `${canvasH}px`,
                 transform: `scale(${canvasScale})`,
                 backgroundImage: settings.template_url
                   ? `url("${settings.template_url}")`
