@@ -669,6 +669,9 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
               aria-label="Add static signatory"
             >
               <option value="">+ Add Static Signatory</option>
+              {!signatories.some((item) => item.is_active && item.display_type === "static") && (
+                <option value="" disabled>No active static signatories configured</option>
+              )}
               {signatories.filter((item) => item.is_active && item.display_type === "static")
                 .map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
@@ -679,6 +682,11 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
             >
               + Add Dynamic Signatory
             </button>
+            {!signatories.some((item) => item.is_active && item.display_type === "static") && (
+              <p className="w-full text-[11px] text-[#66565A]">
+                Add and activate a static signatory in the Signatories tab before selecting one here.
+              </p>
+            )}
           </div>
         </div>
 
