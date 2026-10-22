@@ -220,9 +220,6 @@ export default function RenewalReviewQueuePage() {
                       <Link href={`/admin/members/${member.id}?returnTo=renewal-reviews&case=${selected.id}`}
                         className="inline-block font-semibold text-[#890022] underline">Inspect registry record</Link>
                     </div>
-                      <Link href={`/admin/members/${member.id}?returnTo=renewal-reviews&case=${selected.id}`}
-                        className="inline-block font-semibold text-[#890022] underline">Inspect this member</Link>
-                    </div>
                   ))}
                 </div>
                 <div className="space-y-2 border border-[#DFC7CE] bg-[#F8F1F3] p-3">
