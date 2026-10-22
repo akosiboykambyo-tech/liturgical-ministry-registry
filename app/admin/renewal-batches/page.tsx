@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ClipboardList, FileDown, Loader2, Search, Users } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import { MINISTRIES, PARISHES } from "@/lib/constants";
+import { MultiSelectCombobox } from "@/components/multi-select-combobox";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Assignment = { id: string; ministry: string; status: string; member_id: string };
@@ -88,7 +89,15 @@ export default function RenewalBatchPreparationPage() {
       <section className="space-y-4 border border-[#E2D7DA] bg-white p-5">
         <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-[#890022]" /><h2 className="text-base font-semibold">Batch details</h2></div>
         <div className="grid gap-4 md:grid-cols-2">
-          <label><span className={labelClass}>Parish</span><select className={field} value={parish} onChange={(e) => setParish(e.target.value)}><option value="">Select parish</option>{PARISHES.map((p) => <option key={p} value={p}>{p}</option>)}</select></label>
+          <div><span className={labelClass}>Parish</span><MultiSelectCombobox
+            options={[...PARISHES].sort((a, b) => a.localeCompare(b))}
+            selected={parish ? [parish] : []}
+            onChange={(values) => setParish(values[values.length - 1] ?? "")}
+            placeholder="Select parish"
+            searchPlaceholder="Search for a parish..."
+            emptyText="No matching parish found."
+            className="min-h-11 rounded-none border-[#D7C9CD] text-left"
+          /></div>
           <label><span className={labelClass}>Ministry</span><select className={field} value={ministry} onChange={(e) => setMinistry(e.target.value)}><option value="">Select ministry</option>{MINISTRIES.map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
           <label><span className={labelClass}>Service year</span><input className={field} type="number" min={2000} max={2100} value={year} onChange={(e) => setYear(Number(e.target.value))} /></label>
           <label><span className={labelClass}>Parish representative</span><input className={field} maxLength={120} value={representative} onChange={(e) => setRepresentative(e.target.value)} placeholder="Full name" /></label>
