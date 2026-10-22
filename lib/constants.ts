@@ -213,6 +213,7 @@ export const DEFAULT_TEMPLATE_SETTINGS: CertificateTemplateSettings = {
   recipient_font_color: "#0f172a",
   recipient_font_size: 20,
   recipient_font_weight: "normal",
+  recipient_text_case: "normal",
   recipient_font_url: null,
   recipient_font_name: null,
   header_text: "Diocese of Kalookan",
