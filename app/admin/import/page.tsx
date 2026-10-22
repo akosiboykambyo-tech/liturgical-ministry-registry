@@ -17,6 +17,7 @@ import {
 } from "@/lib/duplicate-check";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MINISTRIES, PARISHES, shortMinistry } from "@/lib/constants";
+import { canonicalParish } from "@/lib/parish-normalization";
 import type {
   Member,
   MemberMinistry,
@@ -278,10 +279,7 @@ export default function CsvImportPage() {
           const firstName = (r.first_name ?? "").trim();
           const lastName = (r.last_name ?? "").trim();
           const rawParish = (r.parish ?? "").trim();
-          const normalizedParish = rawParish.normalize("NFC");
-          const parish = PARISHES.find(
-            (candidate) => candidate.normalize("NFC") === normalizedParish
-          ) ?? "";
+          const parish = canonicalParish(rawParish) ?? "";
           const ministry = (r.ministry ?? "").trim();
           if (!firstName || !lastName || !rawParish || !ministry) {
             skipped.push(`${firstName || "?"} ${lastName || "?"}`.trim());
@@ -433,11 +431,7 @@ export default function CsvImportPage() {
           const firstName = (r.first_name ?? "").trim();
           const lastName = (r.last_name ?? "").trim();
           const rawParish = (r.parish ?? "").trim();
-          const normalizedParish = rawParish.normalize("NFC");
-          const parish =
-            PARISHES.find(
-              (candidate) => candidate.normalize("NFC") === normalizedParish
-            ) ?? "";
+          const parish = canonicalParish(rawParish) ?? "";
           const ministry = (r.ministry ?? "").trim();
 
           if (!firstName || !lastName || !rawParish || !ministry) {
