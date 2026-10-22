@@ -203,6 +203,87 @@ function drawWrappedText(
   }
 }
 
+/**
+ * Draw member names without stretching glyphs: prefer a readable single line,
+ * then wrap into up to three centered/aligned lines when necessary.
+ */
+function drawAdaptiveMemberName(
+  ctx: CanvasRenderingContext2D, text: string, width: number, height: number,
+  alignment: "left" | "center" | "right" | "justify",
+  fontFamily: string, fontSize: number, fontWeight: string, fontStyle: string, color: string
+) {
+  const value = text.trim().replace(/\s+/g, " ");
+  if (!value) return;
+  const maxWidth = Math.max(1, width);
+  const maxHeight = Math.max(1, height);
+  const initialSize = Math.max(8, fontSize);
+  const minSize = 8;
+  const lineHeightFor = (size: number) => size * 1.2;
+  const fontFor = (size: number) => `${fontStyle} ${fontWeight} ${size}px ${fontFamily}`;
+
+  const wrapLines = (valueToWrap: string): string[] => {
+    const lines: string[] = [];
+    let current = "";
+    for (const word of valueToWrap.split(" ")) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (ctx.measureText(candidate).width <= maxWidth) { current = candidate; continue; }
+      if (current) lines.push(current);
+      current = "";
+      let chunk = "";
+      for (const character of word) {
+        const next = chunk + character;
+        if (chunk && ctx.measureText(next).width > maxWidth) { lines.push(chunk); chunk = character; }
+        else chunk = next;
+      }
+      current = chunk;
+    }
+    if (current) lines.push(current);
+    return lines;
+  };
+
+  ctx.fillStyle = color;
+  ctx.textBaseline = "middle";
+  // Prefer a single line and reduce the font by no more than 28% first.
+  const singleLineFloor = Math.max(minSize, initialSize * 0.72);
+  for (let size = initialSize; size >= singleLineFloor; size -= 0.5) {
+    ctx.font = fontFor(size);
+    if (ctx.measureText(value).width <= maxWidth) {
+      ctx.textAlign = alignment === "justify" ? "center" : alignment;
+      const x = alignment === "left" ? -maxWidth / 2 : alignment === "right" ? maxWidth / 2 : 0;
+      ctx.fillText(value, x, 0);
+      return;
+    }
+  }
+
+  // Otherwise, use the largest size that fits the full name in up to three lines.
+  for (let size = initialSize; size >= minSize; size -= 0.5) {
+    ctx.font = fontFor(size);
+    const lines = wrapLines(value);
+    const maxLines = Math.min(3, Math.floor(maxHeight / lineHeightFor(size)));
+    if (maxLines < 1 || lines.length > maxLines) continue;
+    const lineHeight = lineHeightFor(size);
+    const startY = -((lines.length - 1) * lineHeight) / 2;
+    ctx.textAlign = alignment === "justify" ? "center" : alignment;
+    for (let index = 0; index < lines.length; index++) {
+      const x = alignment === "left" ? -maxWidth / 2 : alignment === "right" ? maxWidth / 2 : 0;
+      ctx.fillText(lines[index], x, startY + index * lineHeight);
+    }
+    return;
+  }
+
+  // Extreme fallback: minimum font size, limited to the available three-line area.
+  ctx.font = fontFor(minSize);
+  const lines = wrapLines(value).slice(0, Math.max(1, Math.min(3, Math.floor(maxHeight / lineHeightFor(minSize)) )));
+  const lineHeight = lineHeightFor(minSize);
+  const startY = -((lines.length - 1) * lineHeight) / 2;
+  ctx.textAlign = alignment === "justify" ? "center" : alignment;
+  for (let index = 0; index < lines.length; index++) {
+    const x = alignment === "left" ? -maxWidth / 2 : alignment === "right" ? maxWidth / 2 : 0;
+    ctx.fillText(lines[index], x, startY + index * lineHeight);
+  }
+}
+
+
 export async function renderCertificate(
   canvas: HTMLCanvasElement,
   data: CertificateData,
@@ -326,18 +407,18 @@ export async function renderCertificate(
             const fontStyle = element.font_style ?? "normal";
             const alignment = element.text_align ?? "center";
 
-            ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
-            ctx.fillStyle = element.color || "#0f172a";
-            ctx.textBaseline = "middle";
-            ctx.textAlign = alignment as CanvasTextAlign;
-
-drawWrappedText(
-  ctx,
-  value,
-  element.width,
-  element.height,
-  alignment
-);
+            if (element.type === "member_name") {
+              drawAdaptiveMemberName(
+                ctx, value, element.width, element.height, alignment,
+                fontFamily, fontSize, fontWeight, fontStyle, element.color || "#0f172a"
+              );
+            } else {
+              ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+              ctx.fillStyle = element.color || "#0f172a";
+              ctx.textBaseline = "middle";
+              ctx.textAlign = alignment as CanvasTextAlign;
+              drawWrappedText(ctx, value, element.width, element.height, alignment);
+            }
           }
 
           break;
