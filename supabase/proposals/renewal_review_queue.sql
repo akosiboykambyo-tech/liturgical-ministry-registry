@@ -12,6 +12,13 @@ create table if not exists public.renewal_review_items (
   reason text not null check (reason in ('multiple_exact_members','missing_membership','same_name_different_parish','similar_name','duplicate_csv_membership','unmatched')),
   candidates jsonb not null default '[]'::jsonb check (jsonb_typeof(candidates) = 'array'),
   status text not null default 'open' check (status in ('open','resolved','dismissed')),
+  -- One open exception per member, parish, ministry and reason across repeat uploads.
+  open_case_key text generated always as (
+    case when status='open' then
+      lower(btrim(first_name)) || '|' || lower(btrim(last_name)) || '|' ||
+      lower(btrim(parish)) || '|' || lower(btrim(ministry)) || '|' || reason
+    else null end
+  ) stored unique,
   resolution text check (resolution in ('member_verified','ministry_assignment_verified','registry_record_corrected','csv_row_corrected','duplicate_row','no_action_required','other')),
   resolution_notes text,
   created_by uuid not null references auth.users(id),
@@ -64,4 +71,5 @@ revoke all on function public.protect_renewal_review_details() from public, anon
 drop trigger if exists protect_renewal_review_details_trigger on public.renewal_review_items;
 create trigger protect_renewal_review_details_trigger before update on public.renewal_review_items
 for each row execute function public.protect_renewal_review_details();
--- No release until this has been reviewed and tested in a safe environment.
+notify pgrst, 'reload schema';
+-- This migration affects the review queue only; no financial collection tables.
