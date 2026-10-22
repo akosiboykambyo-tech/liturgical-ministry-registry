@@ -42,8 +42,6 @@ const OFFICIAL_MINISTRIES = [
   "Ministry of Liturgical Music",
 ] as const;
 
-const CANVAS_W = 600;
-const CANVAS_H = 850;
 
 function elementLabel(element: CertificateElement) {
   switch (element.type) {
@@ -104,6 +102,8 @@ export function CertificateEditor({
   signatories = [],
 }: CertificateEditorProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const canvasW = settings.canvas_width || 600;
+  const canvasH = settings.canvas_height || 850;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [canvasScale, setCanvasScale] = useState(1);
@@ -129,7 +129,7 @@ export function CertificateEditor({
 
     const updateScale = () => {
       const width = canvas.clientWidth;
-      setCanvasScale(width > 0 ? Math.min(1, width / CANVAS_W) : 1);
+      setCanvasScale(width > 0 ? Math.min(1, width / canvasW) : 1);
     };
 
     updateScale();
@@ -138,7 +138,7 @@ export function CertificateEditor({
     observer.observe(canvas);
 
     return () => observer.disconnect();
-  }, []);
+  }, [canvasW, canvasH]);
 
   const updateElement = (
     id: string,
@@ -213,7 +213,7 @@ export function CertificateEditor({
           y: 470,
           font_size: 16,
           font_weight: "bold",
-          color: "#b8071a",
+          color: "#890022",
         };
 
       case "uid":
@@ -287,8 +287,8 @@ export function CertificateEditor({
     const duplicate: CertificateElement = {
       ...element,
       id: `${element.id}-copy-${Date.now()}`,
-      x: Math.min(CANVAS_W, element.x + 20),
-      y: Math.min(CANVAS_H, element.y + 20),
+      x: Math.min(canvasW, element.x + 20),
+      y: Math.min(canvasH, element.y + 20),
       z_index: (element.z_index ?? 0) + 1,
       locked: false,
     };
@@ -352,8 +352,8 @@ export function CertificateEditor({
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const scaleX = CANVAS_W / rect.width;
-    const scaleY = CANVAS_H / rect.height;
+    const scaleX = canvasW / rect.width;
+    const scaleY = canvasH / rect.height;
 
     const startPointerX = event.clientX;
     const startPointerY = event.clientY;
@@ -367,11 +367,11 @@ export function CertificateEditor({
       updateElement(element.id, {
         x: Math.max(
           0,
-          Math.min(CANVAS_W, Math.round(startX + deltaX))
+          Math.min(canvasW, Math.round(startX + deltaX))
         ),
         y: Math.max(
           0,
-          Math.min(CANVAS_H, Math.round(startY + deltaY))
+          Math.min(canvasH, Math.round(startY + deltaY))
         ),
       });
     };
@@ -411,7 +411,7 @@ export function CertificateEditor({
 
     const selectionStyle: React.CSSProperties = isSelected
       ? {
-          outline: "2px solid hsl(var(--primary))",
+          outline: "2px solid #890022",
           outlineOffset: "2px",
         }
       : {};
@@ -548,6 +548,8 @@ export function CertificateEditor({
           fontSize: element.font_size || 14,
           fontWeight: element.font_weight || "normal",
           fontStyle: element.font_style || "normal",
+          fontVariant: (element.text_case ?? (element.type === "member_name" ? settings.recipient_text_case : undefined)) === "small-caps" ? "small-caps" : "normal",
+          textTransform: (element.text_case ?? (element.type === "member_name" ? settings.recipient_text_case : undefined)) === "uppercase" ? "uppercase" : "none",
           color: element.color || "#0f172a",
           textAlign: element.text_align || "center",
           overflow: "hidden",
@@ -588,7 +590,7 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
             </p>
           </div>
           <span className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground">
-            600 × 850
+            {canvasW} × {canvasH}
           </span>
         </div>
 
@@ -665,28 +667,29 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
         <div className="flex justify-center overflow-auto">
           <div
             ref={canvasRef}
-            className="relative w-full max-w-[600px] overflow-hidden bg-white shadow-md"
+            className="relative w-full overflow-hidden bg-white shadow-md"
             style={{
-              aspectRatio: `${CANVAS_W} / ${CANVAS_H}`,
+              aspectRatio: `${canvasW} / ${canvasH}`,
+              maxWidth: `${canvasW}px`,
             }}
             onPointerDown={() => setSelectedId(null)}
           >
             <div
               className="absolute left-0 top-0 origin-top-left"
               style={{
-                width: `${CANVAS_W}px`,
-                height: `${CANVAS_H}px`,
+                width: `${canvasW}px`,
+                height: `${canvasH}px`,
                 transform: `scale(${canvasScale})`,
                 backgroundImage: settings.template_url
                   ? `url("${settings.template_url}")`
-                  : "linear-gradient(to bottom, #fff5f6, #ffe8eb)",
+                  : "linear-gradient(to bottom, #F8F1F3, #F1E8EA)",
                 backgroundSize: "100% 100%",
                 backgroundPosition: "center",
                 backgroundRepeat: "no-repeat",
               }}
             >
               {!settings.template_url && (
-                <div className="pointer-events-none absolute inset-0 border-[3px] border-red-700/50" />
+                <div className="pointer-events-none absolute inset-0 border-[3px] border-[#890022]/50" />
               )}
 
               {settings.elements
@@ -820,7 +823,7 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
             }
             className={`inline-flex items-center justify-center rounded-md border px-2 py-1.5 text-xs transition-colors ${
               selectedElement.text_align === alignment
-                ? "border-primary bg-primary text-primary-foreground"
+                ? "border-[#890022] bg-[#890022] text-white"
                 : "border-input bg-background hover:bg-muted"
             } disabled:cursor-not-allowed disabled:opacity-50`}
             title={label}
@@ -849,6 +852,22 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                     }
                     className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
                   />
+                </label>
+
+                <label className="block space-y-1">
+                  <span className="text-[11px] text-muted-foreground">Capitalization</span>
+                  <select
+                    value={selectedElement.text_case ?? (selectedElement.type === "member_name" ? settings.recipient_text_case : undefined) ?? "normal"}
+                    disabled={selectedElement.locked}
+                    onChange={(event) => updateElement(selectedElement.id, {
+                      text_case: event.target.value as "normal" | "uppercase" | "small-caps",
+                    })}
+                    className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                  >
+                    <option value="normal">Normal case</option>
+                    <option value="uppercase">ALL CAPS</option>
+                    <option value="small-caps">Small Caps</option>
+                  </select>
                 </label>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -941,7 +960,7 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                   type="button"
                   onClick={() => deleteElement(selectedElement.id)}
                   disabled={selectedElement.locked}
-                  className="rounded-md border border-destructive/30 bg-background px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/5 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-md border border-[#C9A5AF] bg-white px-2.5 py-1.5 text-xs font-medium text-[#890022] hover:bg-[#F8F1F3] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Delete
                 </button>

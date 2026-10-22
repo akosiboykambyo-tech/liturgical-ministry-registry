@@ -111,10 +111,17 @@ export function shortMinistry(name: string): string {
 }
 
 export const FONT_OPTIONS = [
-  { label: "EB Garamond", value: "'EB Garamond', Georgia, serif" },
-  { label: "Montserrat", value: "'Montserrat', sans-serif" },
-  { label: "Playfair Display", value: "'Playfair Display', Georgia, serif" },
-  { label: "Georgia (Default)", value: "Georgia, serif" },
+  { label: "EB Garamond", value: '"EB Garamond", Georgia, serif' },
+  { label: "Cormorant Garamond", value: '"Cormorant Garamond", Georgia, serif' },
+  { label: "Palatino Linotype", value: '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif' },
+  { label: "Playfair Display", value: '"Playfair Display", Georgia, serif' },
+  { label: "Libre Baskerville", value: '"Libre Baskerville", Georgia, serif' },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Inter", value: '"Inter", Arial, sans-serif' },
+  { label: "Poppins", value: '"Poppins", Arial, sans-serif' },
+  { label: "Raleway", value: '"Raleway", Arial, sans-serif' },
+  { label: "Montserrat", value: '"Montserrat", Arial, sans-serif' },
+  { label: "Helvetica Neue", value: '"Helvetica Neue", Helvetica, Arial, sans-serif' },
 ] as const;
 
 export const CERTIFICATE_FONT_PAIRINGS = [
@@ -156,6 +163,36 @@ export const CERTIFICATE_FONT_PAIRINGS = [
   },
 ] as const;
 
+export const ADDITIONAL_CERTIFICATE_FONT_PAIRINGS = [
+  {
+    id: "clean-professional",
+    name: "Clean & Professional — EB Garamond + Inter",
+    heading: '"EB Garamond", Georgia, serif',
+    recipient: '"EB Garamond", Georgia, serif',
+    body: '"EB Garamond", Georgia, serif',
+    supporting: '"Inter", Arial, sans-serif',
+    signatory: '"EB Garamond", Georgia, serif',
+  },
+  {
+    id: "luxury-fashion",
+    name: "Luxury & High Fashion — Cormorant Garamond + Raleway",
+    heading: '"Cormorant Garamond", Georgia, serif',
+    recipient: '"Cormorant Garamond", Georgia, serif',
+    body: '"Cormorant Garamond", Georgia, serif',
+    supporting: '"Raleway", Arial, sans-serif',
+    signatory: '"Cormorant Garamond", Georgia, serif',
+  },
+  {
+    id: "warm-readable",
+    name: "Warm & Readable — Palatino Linotype + Poppins",
+    heading: '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif',
+    recipient: '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif',
+    body: '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif',
+    supporting: '"Poppins", Arial, sans-serif',
+    signatory: '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif',
+  },
+] as const;
+
 export const DEFAULT_TEMPLATE_SETTINGS: CertificateTemplateSettings = {
   template_url: null as string | null,
   name_x: 300,
@@ -171,9 +208,21 @@ export const DEFAULT_TEMPLATE_SETTINGS: CertificateTemplateSettings = {
   qr_size: 90,
   liturgical_year: currentLiturgicalYear(),
   font_family: "Georgia, serif",
+  secondary_font_family: '"Inter", Arial, sans-serif',
+  recipient_font_family: "Georgia, serif",
+  recipient_font_color: "#0f172a",
+  recipient_font_size: 20,
+  recipient_font_weight: "normal",
+  recipient_text_case: "normal",
+  recipient_font_url: null,
+  recipient_font_name: null,
   header_text: "Diocese of Kalookan",
   body_text: "This is to certify that",
   footer_text: "has been duly commissioned as a liturgical minister",
+
+  // Existing templates remain portrait A4 unless explicitly changed.
+  orientation: "portrait",
+  paper_size: "a4",
 
   // Visual certificate designer
   canvas_width: 600,

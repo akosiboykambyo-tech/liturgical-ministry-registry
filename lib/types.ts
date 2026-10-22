@@ -163,6 +163,7 @@ export interface CertificateElement {
   font_size?: number;
   font_weight?: string;
   font_style?: string;
+  text_case?: "normal" | "uppercase" | "small-caps";
   text_align?: "left" | "center" | "right" | "justify";
 
   color?: string;
@@ -191,9 +192,21 @@ export interface CertificateTemplateSettings {
   qr_size: number;
   liturgical_year: string;
   font_family: string;
+  secondary_font_family?: string;
+  recipient_font_family?: string;
+  recipient_font_color?: string;
+  recipient_font_size?: number;
+  recipient_font_weight?: string;
+  recipient_text_case?: "normal" | "uppercase" | "small-caps";
+  recipient_font_url?: string | null;
+  recipient_font_name?: string | null;
   header_text: string;
   body_text: string;
   footer_text: string;
+
+  // Layout is saved independently for every certificate template.
+  orientation?: "portrait" | "landscape";
+  paper_size?: "a4" | "letter";
 
   // Visual certificate designer
   canvas_width: number;

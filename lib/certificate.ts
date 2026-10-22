@@ -17,8 +17,6 @@ export interface CertificateData {
 
 export const DYNAMIC_SIGNATORY_SLOT = "__dynamic_ministry_signatory__";
 
-const CANVAS_W = 600;
-const CANVAS_H = 850;
 
 /** A dynamic template slot resolves by certificate ministry, not by saved person ID. */
 export function resolveCertificateSignatory(
@@ -49,47 +47,54 @@ export function resolveCertificateSignatory(
 }
 
 
-let fontLoadPromise: Promise<void> | null = null;
-
-function ensureFontsLoaded(): Promise<void> {
-  if (fontLoadPromise) return fontLoadPromise;
-  fontLoadPromise = (async () => {
-    const families = ["EB Garamond", "Montserrat", "Playfair Display"];
-    await Promise.all(
-      families.map(async (family) => {
-        try {
-          const font = new FontFace(
-            family,
-            `url(https://fonts.gstatic.com/s/${family.toLowerCase().replace(/ /g, "")}/v1/regular.woff2)`
-          );
-          await font.load();
-          (document.fonts as FontFaceSet).add(font);
-        } catch {
-          // Font load failed; fallback to Georgia/sans-serif via CSS font stack
-        }
-      })
-    );
+/** Wait for the stylesheets' actual font faces before measuring or exporting text. */
+async function ensureFontsLoaded(settings: CertificateTemplateSettings): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
+  if (settings.recipient_font_url && settings.recipient_font_name) {
+    const family = settings.recipient_font_name;
     try {
-      await (document.fonts as FontFaceSet).ready;
+      let alreadyLoaded = false;
+      document.fonts.forEach((face) => {
+        if (face.family.replace(/["']/g, "") === family && face.status === "loaded") alreadyLoaded = true;
+      });
+      if (!alreadyLoaded) {
+        const customFont = new FontFace(family, `url("${settings.recipient_font_url}")`);
+        await customFont.load();
+        document.fonts.add(customFont);
+      }
     } catch {
-      // ignore
+      throw new Error("The uploaded recipient font could not be loaded. PDF generation was stopped to prevent incorrect typography.");
     }
-  })();
-  return fontLoadPromise;
+  }
+  const stacks = new Set<string>([
+    settings.font_family || "Georgia, serif",
+    ...(settings.elements ?? []).map((element) => element.font_family || settings.font_family || "Georgia, serif"),
+  ]);
+  await Promise.all(Array.from(stacks).map(async (family) => {
+    try {
+      // Load regular and bold faces used by the canvas renderer.
+      await Promise.all([
+        document.fonts.load(`16px ${family}`),
+        document.fonts.load(`bold 16px ${family}`),
+      ]);
+    } catch {
+      // Unavailable font faces fall back to the corresponding system font stack.
+    }
+  }));
 }
 
-function drawDefaultBackground(ctx: CanvasRenderingContext2D) {
-  const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+function drawDefaultBackground(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number) {
+  const grad = ctx.createLinearGradient(0, 0, 0, canvasH);
   grad.addColorStop(0, "#fff5f6");
   grad.addColorStop(1, "#ffe8eb");
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  ctx.fillRect(0, 0, canvasW, canvasH);
   ctx.strokeStyle = "#b8071a";
   ctx.lineWidth = 3;
-  ctx.strokeRect(20, 20, CANVAS_W - 40, CANVAS_H - 40);
+  ctx.strokeRect(20, 20, canvasW - 40, canvasH - 40);
   ctx.strokeStyle = "#e85461";
   ctx.lineWidth = 1;
-  ctx.strokeRect(28, 28, CANVAS_W - 56, CANVAS_H - 56);
+  ctx.strokeRect(28, 28, canvasW - 56, canvasH - 56);
 }
 
 function drawWrappedText(
@@ -210,12 +215,14 @@ export async function renderCertificate(
   signatories: Signatory[] = [],
   scale = 1
 ): Promise<void> {
-  await ensureFontsLoaded();
+  await ensureFontsLoaded(settings);
 
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Certificate canvas is unavailable.");
-  canvas.width = Math.round(CANVAS_W * scale);
-  canvas.height = Math.round(CANVAS_H * scale);
+  const canvasW = settings.canvas_width || 600;
+  const canvasH = settings.canvas_height || 850;
+  canvas.width = Math.round(canvasW * scale);
+  canvas.height = Math.round(canvasH * scale);
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
   const fontFam = settings.font_family || "Georgia, serif";
@@ -324,16 +331,17 @@ export async function renderCertificate(
             const fontSize = element.font_size ?? 14;
             const fontWeight = element.font_weight ?? "normal";
             const fontStyle = element.font_style ?? "normal";
+            const textCase = element.text_case ?? (element.type === "member_name" ? settings.recipient_text_case : undefined) ?? "normal";
             const alignment = element.text_align ?? "center";
 
-            ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+            ctx.font = `${fontStyle} ${textCase === "small-caps" ? "small-caps" : "normal"} ${fontWeight} ${fontSize}px ${fontFamily}`;
             ctx.fillStyle = element.color || "#0f172a";
             ctx.textBaseline = "middle";
             ctx.textAlign = alignment as CanvasTextAlign;
 
 drawWrappedText(
   ctx,
-  value,
+  textCase === "uppercase" ? value.toLocaleUpperCase() : value,
   element.width,
   element.height,
   alignment
@@ -469,20 +477,20 @@ drawWrappedText(
         const img = new Image();
         await new Promise<void>((resolve) => {
           img.onload = () => {
-            ctx.drawImage(img, 0, 0, CANVAS_W, CANVAS_H);
+            ctx.drawImage(img, 0, 0, canvasW, canvasH);
             resolve();
           };
           img.onerror = () => resolve();
           img.src = dataUrl;
         });
       } else {
-        drawDefaultBackground(ctx);
+        drawDefaultBackground(ctx, canvasW, canvasH);
       }
     } catch {
-      drawDefaultBackground(ctx);
+      drawDefaultBackground(ctx, canvasW, canvasH);
     }
   } else {
-    drawDefaultBackground(ctx);
+    drawDefaultBackground(ctx, canvasW, canvasH);
   }
 
   await drawOverlay();
@@ -496,7 +504,7 @@ export function downloadCanvasAsPng(canvas: HTMLCanvasElement, filename: string)
 }
 
 
-/** Print-ready, A4 portrait PDF; raster elements rendered at approximately 300 DPI. */
+/** Print-ready PDF honoring the saved paper size and orientation. */
 export async function downloadCertificateAsPdf(
   data: CertificateData,
   settings: CertificateTemplateSettings,
@@ -505,10 +513,15 @@ export async function downloadCertificateAsPdf(
 ): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const canvas = document.createElement("canvas");
-  const scale = 2480 / CANVAS_W;
+  const canvasW = settings.canvas_width || 600;
+  const paperSize = settings.paper_size === "letter" ? "letter" : "a4";
+  const orientation = settings.orientation === "landscape" ? "landscape" : "portrait";
+  const pageW = paperSize === "a4" ? (orientation === "portrait" ? 210 : 297) : (orientation === "portrait" ? 215.9 : 279.4);
+  const pageH = paperSize === "a4" ? (orientation === "portrait" ? 297 : 210) : (orientation === "portrait" ? 279.4 : 215.9);
+  const scale = (pageW / 25.4 * 300) / canvasW;
   await renderCertificate(canvas, data, settings, signatories, scale);
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+  const pdf = new jsPDF({ orientation, unit: "mm", format: paperSize, compress: true });
   const imageData = canvas.toDataURL("image/jpeg", 0.96);
-  pdf.addImage(imageData, "JPEG", 0, 0, 210, 297);
+  pdf.addImage(imageData, "JPEG", 0, 0, pageW, pageH);
   pdf.save(filename.replace(/\.(png|jpg|jpeg)$/i, ".pdf"));
 }

@@ -5,6 +5,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
 import {
   CERTIFICATE_FONT_PAIRINGS,
+  ADDITIONAL_CERTIFICATE_FONT_PAIRINGS,
   DEFAULT_TEMPLATE_SETTINGS,
   FONT_OPTIONS,
   MINISTRIES,
@@ -70,27 +71,91 @@ export default function CertificateManagerPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [fontUploading, setFontUploading] = useState(false);
   const [setDefaultKey, setSetDefaultKey] = useState<string | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("layout");
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  const [backgroundDimensions, setBackgroundDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [backgroundDimensionsUnavailable, setBackgroundDimensionsUnavailable] = useState(false);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const widthQuery = window.matchMedia("(min-width: 1024px)");
+    const pointerQuery = window.matchMedia("(pointer: fine)");
 
     const updateDesktopState = () => {
-      setIsDesktop(mediaQuery.matches);
+      // A spacious viewport and precision pointer are needed for drag positioning.
+      setIsDesktop(widthQuery.matches && pointerQuery.matches);
     };
 
     updateDesktopState();
-    mediaQuery.addEventListener("change", updateDesktopState);
+    widthQuery.addEventListener("change", updateDesktopState);
+    pointerQuery.addEventListener("change", updateDesktopState);
 
     return () => {
-      mediaQuery.removeEventListener("change", updateDesktopState);
+      widthQuery.removeEventListener("change", updateDesktopState);
+      pointerQuery.removeEventListener("change", updateDesktopState);
     };
   }, []);
+
+  useEffect(() => {
+    const url = settings.template_url;
+    setBackgroundDimensions(null);
+    setBackgroundDimensionsUnavailable(false);
+    if (!url) return;
+    let cancelled = false;
+    const image = new window.Image();
+    image.onload = () => {
+      if (cancelled) return;
+      if (image.naturalWidth && image.naturalHeight) {
+        setBackgroundDimensions({ width: image.naturalWidth, height: image.naturalHeight });
+      } else {
+        setBackgroundDimensionsUnavailable(true);
+      }
+    };
+    image.onerror = () => {
+      if (!cancelled) setBackgroundDimensionsUnavailable(true);
+    };
+    image.src = url;
+    return () => {
+      cancelled = true;
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [settings.template_url]);
+
+  useEffect(() => {
+    if (!settings.recipient_font_url || !settings.recipient_font_name) return;
+    let cancelled = false;
+    const family = settings.recipient_font_name;
+    const url = settings.recipient_font_url;
+    const loadPreviewFont = async () => {
+      try {
+        let alreadyLoaded = false;
+      document.fonts.forEach((face) => {
+        if (face.family.replace(/["']/g, "") === family && face.status === "loaded") alreadyLoaded = true;
+      });
+      if (!alreadyLoaded) {
+          const face = new FontFace(family, `url("${url}")`);
+          await face.load();
+          if (!cancelled) document.fonts.add(face);
+        }
+      } catch {
+        if (!cancelled) setError("The uploaded recipient font cannot be loaded in this browser. Please check storage permissions or replace the font.");
+      }
+    };
+    void loadPreviewFont();
+    return () => { cancelled = true; };
+  }, [settings.recipient_font_url, settings.recipient_font_name]);
+
+  const targetAspectRatio = (settings.canvas_width || 600) / (settings.canvas_height || 850);
+  const backgroundAspectRatio = backgroundDimensions
+    ? backgroundDimensions.width / backgroundDimensions.height
+    : null;
+  const backgroundAspectMismatch = backgroundAspectRatio !== null &&
+    Math.abs(backgroundAspectRatio / targetAspectRatio - 1) > 0.04;
 
   // Signatory state
   const [signatories, setSignatories] = useState<Signatory[]>([]);
@@ -169,6 +234,19 @@ export default function CertificateManagerPage() {
       .getPublicUrl(path);
     setSettings((s) => ({ ...s, template_url: pub.publicUrl }));
     setUploading(false);
+  };
+
+  const updatePageLayout = (paperSize: "a4" | "letter", orientation: "portrait" | "landscape") => {
+    // Keep existing portrait A4 dimensions and element coordinates unchanged.
+    const portraitWidth = 600;
+    const portraitHeight = paperSize === "a4" ? 850 : 776;
+    setSettings((current) => ({
+      ...current,
+      paper_size: paperSize,
+      orientation,
+      canvas_width: orientation === "portrait" ? portraitWidth : portraitHeight,
+      canvas_height: orientation === "portrait" ? portraitHeight : portraitWidth,
+    }));
   };
 
   const handleSave = async () => {
@@ -264,61 +342,105 @@ export default function CertificateManagerPage() {
     setSettings((s) => ({ ...s, [key]: value }));
   };
 
-  const applyFontPairing = (pairingId: string) => {
-  const pairing = CERTIFICATE_FONT_PAIRINGS.find(
-    (item) => item.id === pairingId
-  );
+  const fontSuggestions: Record<string, string> = {
+    '"EB Garamond", Georgia, serif': '"Inter", Arial, sans-serif',
+    '"Cormorant Garamond", Georgia, serif': '"Raleway", Arial, sans-serif',
+    '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif': '"Poppins", Arial, sans-serif',
+    '"Playfair Display", Georgia, serif': '"Montserrat", Arial, sans-serif',
+    'Georgia, serif': '"Inter", Arial, sans-serif',
+  };
+  const suggestedSecondary = fontSuggestions[settings.font_family] ?? '"Inter", Arial, sans-serif';
+  const suggestedLabel = FONT_OPTIONS.find((font) => font.value === suggestedSecondary)?.label ?? "Inter";
 
-  if (!pairing) return;
+  const setTypographyFont = (role: "primary" | "secondary" | "recipient", family: string) => {
+    setSettings((current) => {
+      const patch = role === "primary" ? { font_family: family }
+        : role === "secondary" ? { secondary_font_family: family }
+        : { recipient_font_family: family, recipient_font_url: null, recipient_font_name: null };
+      return {
+        ...current,
+        ...patch,
+        elements: current.elements.map((element) => {
+          const matches = role === "primary"
+            ? ["text", "liturgical_year", "signatory"].includes(element.type)
+            : role === "secondary"
+              ? ["parish", "ministry", "uid"].includes(element.type)
+              : element.type === "member_name";
+          return matches ? { ...element, font_family: family } : element;
+        }),
+      };
+    });
+  };
 
-  setSettings((current) => ({
-    ...current,
-    font_family: pairing.body,
-    elements: current.elements.map((element) => {
-      switch (element.type) {
-        case "text":
-          return {
-            ...element,
-            font_family: pairing.body,
-          };
+  const updateRecipientStyle = (field: "color" | "size" | "weight", value: string | number) => {
+    setSettings((current) => ({
+      ...current,
+      ...(field === "color" ? { recipient_font_color: String(value) }
+        : field === "size" ? { recipient_font_size: Number(value) }
+        : { recipient_font_weight: String(value) }),
+      elements: current.elements.map((element) => element.type === "member_name"
+        ? { ...element, ...(field === "color" ? { color: String(value) }
+            : field === "size" ? { font_size: Number(value) }
+            : { font_weight: String(value) }) }
+        : element),
+    }));
+  };
 
-        case "member_name":
-          return {
-            ...element,
-            font_family: pairing.recipient,
-          };
+  const setRecipientTextCase = (textCase: "normal" | "uppercase" | "small-caps") => {
+    setSettings((current) => ({
+      ...current,
+      recipient_text_case: textCase,
+      elements: current.elements.map((element) =>
+        element.type === "member_name" ? { ...element, text_case: textCase } : element
+      ),
+    }));
+  };
 
-        case "parish":
-        case "ministry":
-          return {
-            ...element,
-            font_family: pairing.supporting,
-          };
-
-        case "liturgical_year":
-          return {
-            ...element,
-            font_family: pairing.heading,
-          };
-
-        case "signatory":
-          return {
-            ...element,
-            font_family: pairing.signatory,
-          };
-
-        case "uid":
-          return {
-            ...element,
-            font_family: pairing.supporting,
-          };
-
-        default:
-          return element;
+  const handleRecipientFontUpload = async (file: File) => {
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    const mime: Record<string, string> = {
+      ttf: "font/ttf", otf: "font/otf", woff: "font/woff", woff2: "font/woff2",
+    };
+    if (!extension || !mime[extension] || file.size > 5 * 1024 * 1024 || file.size === 0) {
+      setError("Use a licensed TTF, OTF, WOFF or WOFF2 font up to 5 MB.");
+      return;
+    }
+    setFontUploading(true);
+    setError(null);
+    try {
+      const bytes = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      const magic = Array.from(bytes).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      const signatures: Record<string, string[]> = {
+        ttf: ["00010000", "74727565"], otf: ["4f54544f"], woff: ["774f4646"], woff2: ["774f4632"],
+      };
+      if (!signatures[extension].includes(magic)) {
+        setError("The selected file does not appear to be a valid font of the specified type.");
+        return;
       }
-    }),
-  }));
-};
+      const path = `recipient-fonts/${crypto.randomUUID()}.${extension}`;
+      // Windows/browser font files may have application/octet-stream as their File.type.
+      // Supabase's multipart upload uses the file's MIME type, so normalize it.
+      const fontFile = new File([file], file.name, { type: mime[extension] });
+      const { error: uploadError } = await supabase.storage.from("certificate-templates").upload(
+        path, fontFile, { contentType: mime[extension], upsert: false }
+      );
+      if (uploadError) throw uploadError;
+      const { data: publicData } = supabase.storage.from("certificate-templates").getPublicUrl(path);
+      const family = `RecipientCustom-${path.split("/").pop()?.replace(".", "-")}`;
+      setSettings((current) => ({
+        ...current,
+        recipient_font_url: publicData.publicUrl,
+        recipient_font_name: family,
+        recipient_font_family: `"${family}", Georgia, serif`,
+        elements: current.elements.map((element) => element.type === "member_name"
+          ? { ...element, font_family: `"${family}", Georgia, serif` } : element),
+      }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Custom font upload failed.");
+    } finally {
+      setFontUploading(false);
+    }
+  };
 
   // Signatory handlers
   const handleSigUpload = async (file: File) => {
@@ -398,37 +520,41 @@ export default function CertificateManagerPage() {
     await loadSignatories();
   };
 
-  if (loading) {
+  // Do not flash editing controls while screen/pointer capability is being checked.
+  if (isDesktop === null) {
+    return <div className="min-h-[60vh]" aria-label="Checking device compatibility" />;
+  }
+
+  if (!isDesktop) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-[#890022]" />
+      <div className="flex min-h-[60vh] items-center justify-center px-4 py-12">
+        <div className="w-full max-w-lg border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-7 text-center sm:p-9">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center bg-[#F8F1F3] text-[#890022]">
+            <ImageIcon className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <h1 className={`${ebGaramond.className} mt-5 text-[34px] font-medium leading-tight text-[#1E1114]`}>
+            Certificate Template Manager
+          </h1>
+          <p className="mt-3 text-sm font-semibold text-[#890022]">
+            Desktop access required
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[#66565A]">
+            Certificate design is available only on a desktop or laptop with a
+            sufficiently wide screen and a mouse or trackpad. This prevents
+            accidental changes while positioning certificate elements.
+          </p>
+          <p className="mt-4 text-sm font-medium text-[#1E1114]">
+            Please open this page on a desktop or laptop, or widen your desktop browser window.
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (isDesktop === false) {
+  if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-8 text-center ">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none bg-[#890022]/10 text-[#890022]">
-            <ImageIcon className="h-6 w-6" />
-          </div>
-
-          <h1 className={`${ebGaramond.className} mt-5 text-[34px] font-medium leading-none text-[#1E1114]`}>
-            Certificate Template Manager
-          </h1>
-
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            This editor is designed for desktop computers. The certificate
-            canvas requires a larger screen for precise positioning, resizing,
-            and template design.
-          </p>
-
-          <p className="mt-3 text-sm font-medium text-foreground">
-            Please open the Certificate Template Manager on a desktop PC or
-            larger screen.
-          </p>
-        </div>
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-[#890022]" />
       </div>
     );
   }
@@ -467,13 +593,13 @@ export default function CertificateManagerPage() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+        <div className="flex items-start gap-2 rounded-none border border-[#C9A5AF] bg-[#F8F1F3] px-4 py-3 text-sm text-[#682037]">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
       {saved && (
-        <div className="flex items-start gap-2 rounded-none bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
+        <div className="flex items-start gap-2 rounded-none border border-[#C9B8BE] bg-[#F5F0F1] px-4 py-3 text-sm text-[#52212F]">
           <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
           <span>Template settings saved.</span>
         </div>
@@ -511,6 +637,32 @@ export default function CertificateManagerPage() {
         <div className="space-y-6">
           {activeTab === "layout" && (
             <>
+              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5 space-y-3">
+                <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Page Layout</h2>
+                <label className="block text-xs font-medium text-muted-foreground" htmlFor="certificate-paper-size">Paper size</label>
+                <select
+                  id="certificate-paper-size"
+                  value={settings.paper_size ?? "a4"}
+                  onChange={(event) => updatePageLayout(event.target.value as "a4" | "letter", settings.orientation ?? "portrait")}
+                  className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                >
+                  <option value="a4">A4</option>
+                  <option value="letter">Letter</option>
+                </select>
+                <label className="block text-xs font-medium text-muted-foreground" htmlFor="certificate-orientation">Orientation</label>
+                <select
+                  id="certificate-orientation"
+                  value={settings.orientation ?? "portrait"}
+                  onChange={(event) => updatePageLayout(settings.paper_size ?? "a4", event.target.value as "portrait" | "landscape")}
+                  className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                >
+                  <option value="portrait">Portrait</option>
+                  <option value="landscape">Landscape</option>
+                </select>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Layout is saved per template. Changing orientation resizes the canvas without moving existing elements. Reposition elements before saving as needed.
+                </p>
+              </div>
               <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
                 <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Background Image</h2>
                 {settings.template_url ? (
@@ -536,7 +688,7 @@ export default function CertificateManagerPage() {
                     </label>
                     <button
                       onClick={() => setSettings((s) => ({ ...s, template_url: null }))}
-                      className="text-xs text-destructive hover:underline"
+                      className="text-xs text-[#890022] hover:underline"
                     >
                       Remove (use default placeholder)
                     </button>
@@ -566,38 +718,122 @@ export default function CertificateManagerPage() {
                 )}
               </div>
 
-              {/* Typography */}
-              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
-                <div>
-                  <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Typography</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Choose a coordinated font pairing for the certificate.
-                  </p>
+              {settings.template_url && backgroundAspectMismatch && (
+                <div role="status" className="flex items-start gap-2 border border-[#C9A5AF] bg-[#F8F1F3] px-3 py-2.5 text-xs leading-5 text-[#682037]">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="font-semibold">Background proportions do not match this page layout.</p>
+                    <p className="mt-1">
+                      Image: {backgroundDimensions?.width} × {backgroundDimensions?.height} px.
+                      The background may appear stretched on the certificate and in the PDF.
+                      Replace it with artwork matching the selected paper size and orientation.
+                      Your original image will not be cropped or changed automatically.
+                    </p>
+                  </div>
                 </div>
+              )}
+              {settings.template_url && backgroundDimensionsUnavailable && (
+                <p role="status" className="text-xs leading-5 text-muted-foreground">
+                  Unable to read background dimensions. Check the preview for stretching.
+                </p>
+              )}
 
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Font Pairing
-                  </span>
-                  <select
-  value={
-    CERTIFICATE_FONT_PAIRINGS.find(
-      (pairing) =>
-        pairing.body === settings.font_family
-    )?.id ?? ""
-  }
-  onChange={(e) => applyFontPairing(e.target.value)}
-  className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
->
-  <option value="">Choose a font pairing</option>
-
-  {CERTIFICATE_FONT_PAIRINGS.map((pairing) => (
-    <option key={pairing.id} value={pairing.id}>
-      {pairing.name}
-    </option>
-  ))}
-</select>
+              {/* Typography */}
+              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5 space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-[#27232A]">Certificate Typography</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">Select fonts freely. Suggestions are optional.</p>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium">Primary font</span>
+                  <select value={settings.font_family} onChange={(e) => setTypographyFont("primary", e.target.value)}
+                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm">
+                    {!FONT_OPTIONS.some((f) => f.value === settings.font_family) && <option value={settings.font_family}>Current selection</option>}
+                    {FONT_OPTIONS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
+                  </select>
                 </label>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-[#66565A]">Suggested pairing: {suggestedLabel}</span>
+                  <button type="button" onClick={() => setTypographyFont("secondary", suggestedSecondary)}
+                    className="shrink-0 border border-[#C9B8BE] px-2 py-1 text-xs font-medium text-[#890022] hover:bg-[#F8F1F3]">Use suggestion</button>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium">Secondary font</span>
+                  <select value={settings.secondary_font_family ?? ""}
+                    onChange={(e) => setTypographyFont("secondary", e.target.value)}
+                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm">
+                    <option value="">No selection</option>
+                    {settings.secondary_font_family && !FONT_OPTIONS.some((f) => f.value === settings.secondary_font_family) &&
+                      <option value={settings.secondary_font_family}>Current selection</option>}
+                    {FONT_OPTIONS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
+                  </select>
+                  <span className="block text-[11px] text-[#66565A]">Your secondary choice is never changed automatically.</span>
+                </label>
+                <div className="border-t border-[#E5DDDF] pt-4 space-y-3">
+                  <h3 className="text-xs font-semibold text-[#27232A]">Recipient name typography</h3>
+                  <label className="block space-y-1">
+                    <span className="text-xs">Independent recipient font</span>
+                    <select value={settings.recipient_font_family ?? ""}
+                      onChange={(e) => setTypographyFont("recipient", e.target.value)}
+                      className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm">
+                      <option value="">Choose recipient font</option>
+                      {settings.recipient_font_url && settings.recipient_font_family &&
+                        <option value={settings.recipient_font_family}>Uploaded custom font</option>}
+                      {FONT_OPTIONS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-2 items-end gap-3">
+                      <label className="flex min-w-0 flex-col gap-1.5">
+                        <span className="min-h-8 text-xs leading-4">Recipient name color</span>
+                        <div className="flex h-10 min-w-0 items-center gap-2">
+                          <input type="color" aria-label="Recipient name color" value={settings.recipient_font_color ?? "#0f172a"}
+                            onChange={(e) => updateRecipientStyle("color", e.target.value)}
+                            className="h-10 w-10 shrink-0 cursor-pointer rounded-none border border-[#D9CDD1] bg-white p-1" />
+                          <input type="text" aria-label="Recipient color HEX" value={settings.recipient_font_color ?? "#0f172a"}
+                            onChange={(e) => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) updateRecipientStyle("color", e.target.value); }}
+                            className="h-10 min-w-0 flex-1 border border-[#D9CDD1] bg-white px-2 text-xs" />
+                        </div>
+                      </label>
+                      <label className="flex min-w-0 flex-col gap-1.5">
+                        <span className="min-h-8 text-xs leading-4">Name size (px)</span>
+                        <input type="number" min={8} max={120} value={settings.recipient_font_size ?? 20}
+                          onChange={(e) => updateRecipientStyle("size", Math.min(120, Math.max(8, Number(e.target.value) || 8)))}
+                          className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-sm" />
+                      </label>
+                    </div>
+                  </div>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Recipient name capitalization</span>
+                    <select value={settings.recipient_text_case ?? "normal"}
+                      onChange={(e) => setRecipientTextCase(e.target.value as "normal" | "uppercase" | "small-caps")}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Normal case</option>
+                      <option value="uppercase">ALL CAPS</option>
+                      <option value="small-caps">Small Caps</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-xs">Recipient font weight</span>
+                    <select value={settings.recipient_font_weight ?? "normal"}
+                      onChange={(e) => updateRecipientStyle("weight", e.target.value)}
+                      className="w-full border border-[#D9CDD1] bg-white p-2 text-sm">
+                      <option value="normal">Regular</option><option value="500">Medium</option>
+                      <option value="600">Semibold</option><option value="bold">Bold</option>
+                    </select>
+                  </label>
+                  <label className="block cursor-pointer border border-[#D9CDD1] p-3 text-xs text-[#52212F]">
+                    <span className="font-semibold">{fontUploading ? "Uploading font..." : "Upload licensed recipient font"}</span>
+                    <span className="mt-1 block text-[#66565A]">TTF, OTF, WOFF, WOFF2 · maximum 5 MB</span>
+                    <input type="file" accept=".ttf,.otf,.woff,.woff2" disabled={fontUploading}
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleRecipientFontUpload(file); e.target.value = ""; }}
+                      className="mt-2 block w-full text-xs" />
+                  </label>
+                  {settings.recipient_font_url && <p className="text-xs text-[#682037]">Custom recipient font selected. Save the template to keep this choice.</p>}
+                </div>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Each element remains individually editable in the certificate designer.
+                </p>
               </div>
             </>
           )}
@@ -712,7 +948,7 @@ export default function CertificateManagerPage() {
                     />
                   </label>
                   {sigUploadUrl && (
-                    <p className="text-[11px] text-emerald-600 mt-1">Signature image uploaded.</p>
+                    <p className="text-[11px] text-[#682037] mt-1">Signature image uploaded.</p>
                   )}
                 </div>
 
@@ -750,8 +986,8 @@ export default function CertificateManagerPage() {
                             <p className="text-sm font-medium truncate">{sig.name}</p>
                             <span className={`inline-flex items-center rounded-none px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
                               sig.display_type === "static"
-                                ? "bg-blue-50 text-blue-700 ring-blue-600/20"
-                                : "bg-amber-50 text-amber-700 ring-amber-600/20"
+                                ? "bg-[#F2EAED] text-[#682037] ring-[#890022]/20"
+                                : "bg-[#F4F0F1] text-[#66565A] ring-[#C9B8BE]"
                             }`}>
                               {sig.display_type === "static" ? "Static" : sig.ministry}
                             </span>
@@ -772,7 +1008,7 @@ export default function CertificateManagerPage() {
                           </button>
                           <button
                             onClick={() => handleSigDelete(sig.id)}
-                            className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1 text-xs text-destructive hover:bg-destructive/5 transition-colors"
+                            className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1 text-xs text-[#890022] hover:bg-[#F8F1F3] transition-colors"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -860,7 +1096,7 @@ export default function CertificateManagerPage() {
                         {templateLabel(row.key)}
                       </p>
                       {isDefault && (
-                        <span className="inline-flex items-center gap-1 rounded-none bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                        <span className="inline-flex items-center gap-1 rounded-none bg-[#F2EAED] px-2 py-0.5 text-[11px] font-medium text-[#682037] ring-1 ring-inset ring-[#890022]/20">
                           <Star className="h-3 w-3" /> Default
                         </span>
                       )}
@@ -894,7 +1130,7 @@ export default function CertificateManagerPage() {
                       onClick={() => handleDelete(row.key)}
                       disabled={deletingKey !== null || isDefault}
                       title={isDefault ? "Cannot delete the default template" : "Delete template"}
-                      className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1.5 text-xs text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1.5 text-xs text-[#890022] hover:bg-[#F8F1F3] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {deletingKey === row.key ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
