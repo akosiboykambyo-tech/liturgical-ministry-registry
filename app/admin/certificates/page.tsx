@@ -122,6 +122,26 @@ export default function CertificateManagerPage() {
     };
   }, [settings.template_url]);
 
+  useEffect(() => {
+    if (!settings.recipient_font_url || !settings.recipient_font_name) return;
+    let cancelled = false;
+    const family = settings.recipient_font_name;
+    const url = settings.recipient_font_url;
+    const loadPreviewFont = async () => {
+      try {
+        if (!document.fonts.check(`16px "${family}"`)) {
+          const face = new FontFace(family, `url("${url}")`);
+          await face.load();
+          if (!cancelled) document.fonts.add(face);
+        }
+      } catch {
+        if (!cancelled) setError("The uploaded recipient font cannot be loaded in this browser. Please check storage permissions or replace the font.");
+      }
+    };
+    void loadPreviewFont();
+    return () => { cancelled = true; };
+  }, [settings.recipient_font_url, settings.recipient_font_name]);
+
   const targetAspectRatio = (settings.canvas_width || 600) / (settings.canvas_height || 850);
   const backgroundAspectRatio = backgroundDimensions
     ? backgroundDimensions.width / backgroundDimensions.height
