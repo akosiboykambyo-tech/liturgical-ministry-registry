@@ -590,7 +590,7 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
             </p>
           </div>
           <span className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground">
-            600 × 850
+            {canvasW} × {canvasH}
           </span>
         </div>
 
