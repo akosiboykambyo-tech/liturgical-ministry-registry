@@ -195,6 +195,10 @@ export interface CertificateTemplateSettings {
   body_text: string;
   footer_text: string;
 
+  // Layout is saved independently for every certificate template.
+  orientation?: "portrait" | "landscape";
+  paper_size?: "a4" | "letter";
+
   // Visual certificate designer
   canvas_width: number;
   canvas_height: number;
