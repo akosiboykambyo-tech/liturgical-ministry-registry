@@ -98,6 +98,7 @@ export default function RenewalBatchPreparationPage() {
           <div className="mt-3 flex flex-wrap gap-3">
             <Link href="/admin/import?tab=renewal" className="text-xs font-semibold text-[#890022] underline underline-offset-2">Open CSV Renewal Processor</Link>
             <Link href="/admin/import?tab=history" className="inline-flex items-center gap-1 text-xs font-semibold text-[#890022] underline underline-offset-2"><History className="h-3.5 w-3.5" /> Renewal History</Link>
+            <Link href="/admin/renewal-reviews" className="text-xs font-semibold text-[#890022] underline underline-offset-2">Renewal Review Queue</Link>
           </div>
         </div>
       </div>
