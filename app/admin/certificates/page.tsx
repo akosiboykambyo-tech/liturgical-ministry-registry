@@ -71,6 +71,7 @@ export default function CertificateManagerPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [fontUploading, setFontUploading] = useState(false);
   const [setDefaultKey, setSetDefaultKey] = useState<string | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -313,81 +314,92 @@ export default function CertificateManagerPage() {
     setSettings((s) => ({ ...s, [key]: value }));
   };
 
-  const allFontPairings = [...CERTIFICATE_FONT_PAIRINGS, ...ADDITIONAL_CERTIFICATE_FONT_PAIRINGS];
+  const fontSuggestions: Record<string, string> = {
+    '"EB Garamond", Georgia, serif': '"Inter", Arial, sans-serif',
+    '"Cormorant Garamond", Georgia, serif': '"Raleway", Arial, sans-serif',
+    '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif': '"Poppins", Arial, sans-serif',
+    '"Playfair Display", Georgia, serif': '"Montserrat", Arial, sans-serif',
+    'Georgia, serif': '"Inter", Arial, sans-serif',
+  };
+  const suggestedSecondary = fontSuggestions[settings.font_family] ?? '"Inter", Arial, sans-serif';
+  const suggestedLabel = FONT_OPTIONS.find((font) => font.value === suggestedSecondary)?.label ?? "Inter";
 
-  const applyCustomFont = (role: "primary" | "secondary", fontFamily: string) => {
+  const setTypographyFont = (role: "primary" | "secondary" | "recipient", family: string) => {
+    setSettings((current) => {
+      const patch = role === "primary" ? { font_family: family }
+        : role === "secondary" ? { secondary_font_family: family }
+        : { recipient_font_family: family, recipient_font_url: null, recipient_font_name: null };
+      return {
+        ...current,
+        ...patch,
+        elements: current.elements.map((element) => {
+          const matches = role === "primary"
+            ? ["text", "liturgical_year", "signatory"].includes(element.type)
+            : role === "secondary"
+              ? ["parish", "ministry", "uid"].includes(element.type)
+              : element.type === "member_name";
+          return matches ? { ...element, font_family: family } : element;
+        }),
+      };
+    });
+  };
+
+  const updateRecipientStyle = (field: "color" | "size" | "weight", value: string | number) => {
     setSettings((current) => ({
       ...current,
-      font_family: role === "primary" ? fontFamily : current.font_family,
-      elements: current.elements.map((element) => {
-        const isPrimary = element.type === "text" ||
-          element.type === "member_name" ||
-          element.type === "liturgical_year" ||
-          element.type === "signatory";
-        const isSecondary = element.type === "parish" ||
-          element.type === "ministry" || element.type === "uid";
-        return (role === "primary" ? isPrimary : isSecondary)
-          ? { ...element, font_family: fontFamily }
-          : element;
-      }),
+      ...(field === "color" ? { recipient_font_color: String(value) }
+        : field === "size" ? { recipient_font_size: Number(value) }
+        : { recipient_font_weight: String(value) }),
+      elements: current.elements.map((element) => element.type === "member_name"
+        ? { ...element, ...(field === "color" ? { color: String(value) }
+            : field === "size" ? { font_size: Number(value) }
+            : { font_weight: String(value) }) }
+        : element),
     }));
   };
 
-  const applyFontPairing = (pairingId: string) => {
-  const pairing = allFontPairings.find(
-    (item) => item.id === pairingId
-  );
-
-  if (!pairing) return;
-
-  setSettings((current) => ({
-    ...current,
-    font_family: pairing.body,
-    elements: current.elements.map((element) => {
-      switch (element.type) {
-        case "text":
-          return {
-            ...element,
-            font_family: pairing.body,
-          };
-
-        case "member_name":
-          return {
-            ...element,
-            font_family: pairing.recipient,
-          };
-
-        case "parish":
-        case "ministry":
-          return {
-            ...element,
-            font_family: pairing.supporting,
-          };
-
-        case "liturgical_year":
-          return {
-            ...element,
-            font_family: pairing.heading,
-          };
-
-        case "signatory":
-          return {
-            ...element,
-            font_family: pairing.signatory,
-          };
-
-        case "uid":
-          return {
-            ...element,
-            font_family: pairing.supporting,
-          };
-
-        default:
-          return element;
+  const handleRecipientFontUpload = async (file: File) => {
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    const mime: Record<string, string> = {
+      ttf: "font/ttf", otf: "font/otf", woff: "font/woff", woff2: "font/woff2",
+    };
+    if (!extension || !mime[extension] || file.size > 5 * 1024 * 1024 || file.size === 0) {
+      setError("Use a licensed TTF, OTF, WOFF or WOFF2 font up to 5 MB.");
+      return;
+    }
+    setFontUploading(true);
+    setError(null);
+    try {
+      const bytes = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      const magic = Array.from(bytes).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      const signatures: Record<string, string[]> = {
+        ttf: ["00010000", "74727565"], otf: ["4f54544f"], woff: ["774f4646"], woff2: ["774f4632"],
+      };
+      if (!signatures[extension].includes(magic)) {
+        setError("The selected file does not appear to be a valid font of the specified type.");
+        return;
       }
-    }),
-  }));
-};
+      const path = `recipient-fonts/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from("certificate-templates").upload(
+        path, file, { contentType: mime[extension], upsert: false }
+      );
+      if (uploadError) throw uploadError;
+      const { data: publicData } = supabase.storage.from("certificate-templates").getPublicUrl(path);
+      const family = `RecipientCustom-${path.split("/").pop()?.replace(".", "-")}`;
+      setSettings((current) => ({
+        ...current,
+        recipient_font_url: publicData.publicUrl,
+        recipient_font_name: family,
+        recipient_font_family: `"${family}", Georgia, serif`,
+        elements: current.elements.map((element) => element.type === "member_name"
+          ? { ...element, font_family: `"${family}", Georgia, serif` } : element),
+      }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Custom font upload failed.");
+    } finally {
+      setFontUploading(false);
+    }
+  };
 
   // Signatory handlers
   const handleSigUpload = async (file: File) => {
@@ -682,65 +694,87 @@ export default function CertificateManagerPage() {
               )}
 
               {/* Typography */}
-              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
+              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5 space-y-4">
                 <div>
-                  <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Typography</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Choose a coordinated font pairing for the certificate.
-                  </p>
+                  <h2 className="text-sm font-semibold text-[#27232A]">Certificate Typography</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">Select fonts freely. Suggestions are optional.</p>
                 </div>
-
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Suggested pairing</span>
-                  <select
-                    value={allFontPairings.find((pairing) =>
-                      settings.font_family === pairing.body &&
-                      settings.elements.every((element) => {
-                        const expected = element.type === "text" ? pairing.body
-                          : element.type === "member_name" ? pairing.recipient
-                          : element.type === "liturgical_year" ? pairing.heading
-                          : element.type === "signatory" ? pairing.signatory
-                          : ["parish", "ministry", "uid"].includes(element.type) ? pairing.supporting
-                          : null;
-                        return expected === null || element.font_family === expected;
-                      })
-                    )?.id ?? ""}
-                    onChange={(event) => applyFontPairing(event.target.value)}
-                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
-                  >
-                    <option value="">Custom / mixed fonts</option>
-                    {allFontPairings.map((pairing) => (
-                      <option key={pairing.id} value={pairing.id}>{pairing.name}</option>
-                    ))}
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium">Primary font</span>
+                  <select value={settings.font_family} onChange={(e) => setTypographyFont("primary", e.target.value)}
+                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm">
+                    {!FONT_OPTIONS.some((f) => f.value === settings.font_family) && <option value={settings.font_family}>Current selection</option>}
+                    {FONT_OPTIONS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
                   </select>
                 </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Primary font — heading, name, body, signatory</span>
-                  <select
-                    value={FONT_OPTIONS.some((option) => option.value === settings.font_family) ? settings.font_family : ""}
-                    onChange={(event) => applyCustomFont("primary", event.target.value)}
-                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
-                  >
-                    <option value="" disabled>Choose primary font</option>
-                    {FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-[#66565A]">Suggested pairing: {suggestedLabel}</span>
+                  <button type="button" onClick={() => setTypographyFont("secondary", suggestedSecondary)}
+                    className="shrink-0 border border-[#C9B8BE] px-2 py-1 text-xs font-medium text-[#890022] hover:bg-[#F8F1F3]">Use suggestion</button>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium">Secondary font</span>
+                  <select value={settings.secondary_font_family ?? ""}
+                    onChange={(e) => setTypographyFont("secondary", e.target.value)}
+                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm">
+                    <option value="">No selection</option>
+                    {settings.secondary_font_family && !FONT_OPTIONS.some((f) => f.value === settings.secondary_font_family) &&
+                      <option value={settings.secondary_font_family}>Current selection</option>}
+                    {FONT_OPTIONS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
                   </select>
+                  <span className="block text-[11px] text-[#66565A]">Your secondary choice is never changed automatically.</span>
                 </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Secondary font — parish, ministry, UID</span>
-                  <select
-                    value={(() => {
-                      const secondary = settings.elements.find((element) => ["parish", "ministry", "uid"].includes(element.type))?.font_family;
-                      return FONT_OPTIONS.some((option) => option.value === secondary) ? secondary : "";
-                    })()}
-                    onChange={(event) => applyCustomFont("secondary", event.target.value)}
-                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
-                  >
-                    <option value="" disabled>Choose secondary font</option>
-                    {FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
-                  </select>
-                </label>
+                <div className="border-t border-[#E5DDDF] pt-4 space-y-3">
+                  <h3 className="text-xs font-semibold text-[#27232A]">Recipient name typography</h3>
+                  <label className="block space-y-1">
+                    <span className="text-xs">Independent recipient font</span>
+                    <select value={settings.recipient_font_family ?? ""}
+                      onChange={(e) => setTypographyFont("recipient", e.target.value)}
+                      className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm">
+                      <option value="">Choose recipient font</option>
+                      {settings.recipient_font_url && settings.recipient_font_family &&
+                        <option value={settings.recipient_font_family}>Uploaded custom font</option>}
+                      {FONT_OPTIONS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block space-y-1">
+                      <span className="text-xs">Recipient name color</span>
+                      <div className="flex items-center gap-2">
+                        <input type="color" aria-label="Recipient name color" value={settings.recipient_font_color ?? "#0f172a"}
+                          onChange={(e) => updateRecipientStyle("color", e.target.value)} className="h-9 w-10 cursor-pointer" />
+                        <input type="text" aria-label="Recipient color HEX" value={settings.recipient_font_color ?? "#0f172a"}
+                          onChange={(e) => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) updateRecipientStyle("color", e.target.value); }}
+                          className="w-full min-w-0 border border-[#D9CDD1] p-2 text-xs" />
+                      </div>
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs">Name size (px)</span>
+                      <input type="number" min={8} max={120} value={settings.recipient_font_size ?? 20}
+                        onChange={(e) => updateRecipientStyle("size", Math.min(120, Math.max(8, Number(e.target.value) || 8)))}
+                        className="w-full border border-[#D9CDD1] p-2 text-sm" />
+                    </label>
+                  </div>
+                  <label className="block space-y-1">
+                    <span className="text-xs">Recipient font weight</span>
+                    <select value={settings.recipient_font_weight ?? "normal"}
+                      onChange={(e) => updateRecipientStyle("weight", e.target.value)}
+                      className="w-full border border-[#D9CDD1] bg-white p-2 text-sm">
+                      <option value="normal">Regular</option><option value="500">Medium</option>
+                      <option value="600">Semibold</option><option value="bold">Bold</option>
+                    </select>
+                  </label>
+                  <label className="block cursor-pointer border border-[#D9CDD1] p-3 text-xs text-[#52212F]">
+                    <span className="font-semibold">{fontUploading ? "Uploading font..." : "Upload licensed recipient font"}</span>
+                    <span className="mt-1 block text-[#66565A]">TTF, OTF, WOFF, WOFF2 · maximum 5 MB</span>
+                    <input type="file" accept=".ttf,.otf,.woff,.woff2" disabled={fontUploading}
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleRecipientFontUpload(file); e.target.value = ""; }}
+                      className="mt-2 block w-full text-xs" />
+                  </label>
+                  {settings.recipient_font_url && <p className="text-xs text-[#682037]">Custom recipient font selected. Save the template to keep this choice.</p>}
+                </div>
                 <p className="text-xs leading-5 text-muted-foreground">
-                  Apply a preset or mix fonts independently. Individual elements can still use their own font in the designer.
+                  Each element remains individually editable in the certificate designer.
                 </p>
               </div>
             </>
