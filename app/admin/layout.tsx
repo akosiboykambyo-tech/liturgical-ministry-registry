@@ -121,31 +121,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             <div className="min-w-0">
               <div className={`${ebGaramond.className} text-[23px] font-medium leading-none`}>Admin Portal</div>
-              <div className="mt-1 text-[10px] leading-4 text-white/80">Liturgical Ministry Registry</div>
+              <div className="mt-1 text-[14px] leading-4 text-white/80">Liturgical Ministry Registry</div>
             </div>
           </div>
 
           <nav aria-label="Admin navigation" className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-6">
             {NAV_GROUPS.map(group => (
               <div key={group.name}>
-                <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/65">{group.name}</p>
+                <p className="px-3 pb-2 text-[14px] font-semibold uppercase tracking-[0.12em] text-white/75">{group.name}</p>
                 <div className="space-y-1">
                   {group.items.map(item => {
                     const Icon = item.icon;
                     const active = isActive(item.href);
-                    return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)} className={`flex min-h-10 items-center gap-3 border-l-[3px] px-3 py-2 text-[13px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15 hover:text-white"}`}>
+                    return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)} className={`flex min-h-10 items-center gap-3 border-l-[3px] px-3 py-2 text-[14px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15 hover:text-white"}`}>
                       <Icon className="h-[16px] w-[16px] shrink-0" aria-hidden="true" />{item.label}
                     </Link>;
                   })}
                 </div>
               </div>
             ))}
-            <div className="px-3"><Link href="/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 py-2 text-[13px] font-medium text-white/90 underline-offset-4 hover:underline">Public Website <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></Link></div>
+            <div className="px-3"><Link href="/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 py-2 text-[14px] font-medium text-white/90 underline-offset-4 hover:underline">Public Website <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></Link></div>
           </nav>
           <div className="border-t border-white/25 px-5 py-4">
             <p className="truncate text-[14px] font-semibold text-white" title={displayName}>{displayName}</p>
-            <p className="mt-1 text-[12px] text-white/75">Administrator</p>
-            <button type="button" onClick={handleSignOut} className="mt-3 inline-flex min-h-10 items-center gap-2 text-[13px] font-semibold text-white hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"><LogOut className="h-4 w-4" aria-hidden="true" />Sign Out</button>
+            <p className="mt-1 text-[14px] text-white/75">Administrator</p>
+            <button type="button" onClick={handleSignOut} className="mt-3 inline-flex min-h-10 items-center gap-2 text-[14px] font-semibold text-white hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"><LogOut className="h-4 w-4" aria-hidden="true" />Sign Out</button>
           </div>
         </aside>
 
