@@ -7,7 +7,7 @@ Persistent follow-up for renewal CSV staging exceptions, independent of `duplica
 - `/admin/import?tab=renewal`: stages CSV as before, then optionally saves **Needs Review** and **Unmatched** cases through an explicit **Save Review Cases** action.
 - `/admin/renewal-reviews`: lists saved cases, filters Open/Resolved/Dismissed/All, displays candidate UIDs and parish with links to registry member details, and requires a documented decision plus notes (10 characters minimum). Each case is closed once and cannot be reopened/rewritten without a separately reviewed process.
 - Links from Renewal Batches and Admin navigation; registration Pending Merges remains completely separate.
-- New additive proposed SQL: `supabase/proposals/renewal_review_queue.sql`. **NOT applied to production.**
+- Queue migration `supabase/proposals/renewal_review_queue.sql` was **applied to the connected Supabase database** in the preceding development phase. The SQL file is retained as a reference; do not run it again without migration review.
 
 ## Security gate / go-live requirements
 1. Review SQL with diocesan registry administrator and Supabase RLS/security advisors. Confirm the exposed table is RLS-protected, with no access for `anon`.
