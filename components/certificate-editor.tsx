@@ -565,10 +565,11 @@ export function CertificateEditor({
           </div>
           <div style={{
             width: "100%", marginTop: 3,
-            fontFamily: element.font_family || settings.signatory_font_family || "Georgia, serif",
-            fontSize: Math.max(8, (element.font_size ?? settings.signatory_font_size ?? 12) - 2),
-            fontVariant: (element.text_case ?? settings.signatory_text_case) === "small-caps" ? "small-caps" : "normal",
-            textTransform: (element.text_case ?? settings.signatory_text_case) === "uppercase" ? "uppercase" : "none",
+            fontFamily: settings.signatory_title_font_family || element.font_family || settings.signatory_font_family || "Georgia, serif",
+            fontSize: settings.signatory_title_font_size ?? Math.max(8, (element.font_size ?? settings.signatory_font_size ?? 12) - 2),
+            fontWeight: settings.signatory_title_font_weight || "normal",
+            fontVariant: settings.signatory_title_text_case === "small-caps" ? "small-caps" : "normal",
+            textTransform: settings.signatory_title_text_case === "uppercase" ? "uppercase" : "none",
             color: settings.signatory_title_color || "#71717a",
             lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
           }}>
