@@ -203,6 +203,10 @@ export interface CertificateTemplateSettings {
   signatory_font_family?: string;
   signatory_font_color?: string;
   signatory_title_color?: string;
+  signatory_title_font_family?: string;
+  signatory_title_font_size?: number;
+  signatory_title_font_weight?: string;
+  signatory_title_text_case?: "normal" | "uppercase" | "small-caps";
   signatory_font_size?: number;
   signatory_font_weight?: string;
   signatory_text_case?: "normal" | "uppercase" | "small-caps";
