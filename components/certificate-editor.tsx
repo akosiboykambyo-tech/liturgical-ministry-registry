@@ -548,6 +548,8 @@ export function CertificateEditor({
           fontSize: element.font_size || 14,
           fontWeight: element.font_weight || "normal",
           fontStyle: element.font_style || "normal",
+          fontVariant: (element.text_case ?? (element.type === "member_name" ? settings.recipient_text_case : undefined)) === "small-caps" ? "small-caps" : "normal",
+          textTransform: (element.text_case ?? (element.type === "member_name" ? settings.recipient_text_case : undefined)) === "uppercase" ? "uppercase" : "none",
           color: element.color || "#0f172a",
           textAlign: element.text_align || "center",
           overflow: "hidden",
@@ -850,6 +852,22 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                     }
                     className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
                   />
+                </label>
+
+                <label className="block space-y-1">
+                  <span className="text-[11px] text-muted-foreground">Capitalization</span>
+                  <select
+                    value={selectedElement.text_case ?? (selectedElement.type === "member_name" ? settings.recipient_text_case : undefined) ?? "normal"}
+                    disabled={selectedElement.locked}
+                    onChange={(event) => updateElement(selectedElement.id, {
+                      text_case: event.target.value as "normal" | "uppercase" | "small-caps",
+                    })}
+                    className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                  >
+                    <option value="normal">Normal case</option>
+                    <option value="uppercase">ALL CAPS</option>
+                    <option value="small-caps">Small Caps</option>
+                  </select>
                 </label>
 
                 <div className="grid grid-cols-2 gap-2">
