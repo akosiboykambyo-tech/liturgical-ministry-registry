@@ -20,6 +20,7 @@ const NAV_GROUPS = [
     { href: "/admin/verify", label: "Quick-Scan Matrix", icon: ShieldCheck },
     { href: "/admin/import", label: "Bulk Registration Import", icon: Upload },
     { href: "/admin/renewal-batches", label: "Renewal Batches", icon: ClipboardList },
+    { href: "/admin/renewal-reviews", label: "Renewal Review Queue", icon: ShieldCheck },
   ] },
   { name: "Documents", items: [{ href: "/admin/certificates", label: "Certificate Templates", icon: FileBadge }] },
   { name: "Governance", items: [
