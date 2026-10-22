@@ -223,11 +223,19 @@ export default function CertificateManagerPage() {
   const handleUpload = async (file: File) => {
     setUploading(true);
     setError(null);
-    const ext = file.name.split(".").pop();
-    const path = `template-${Date.now()}.${ext}`;
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (!extension || !["png", "jpg", "jpeg"].includes(extension) ||
+        !["image/png", "image/jpeg"].includes(file.type)) {
+      setError("Use a PNG or JPEG certificate background.");
+      setUploading(false);
+      return;
+    }
+    // Each upload receives its own object, so replacing an image for one
+    // template cannot overwrite another template's background in Storage.
+    const path = `backgrounds/${crypto.randomUUID()}.${extension}`;
     const { error: upErr } = await supabase.storage
       .from("certificate-templates")
-      .upload(path, file, { upsert: true });
+      .upload(path, file, { contentType: file.type, upsert: false });
     if (upErr) {
       setError(upErr.message);
       setUploading(false);
