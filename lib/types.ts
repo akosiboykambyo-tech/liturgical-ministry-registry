@@ -200,6 +200,14 @@ export interface CertificateTemplateSettings {
   recipient_text_case?: "normal" | "uppercase" | "small-caps";
   recipient_font_url?: string | null;
   recipient_font_name?: string | null;
+  signatory_font_family?: string;
+  signatory_font_color?: string;
+  signatory_title_color?: string;
+  signatory_font_size?: number;
+  signatory_font_weight?: string;
+  signatory_text_case?: "normal" | "uppercase" | "small-caps";
+  signatory_font_url?: string | null;
+  signatory_font_name?: string | null;
   header_text: string;
   body_text: string;
   footer_text: string;
