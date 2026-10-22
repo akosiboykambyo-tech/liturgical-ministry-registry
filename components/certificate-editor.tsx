@@ -106,6 +106,7 @@ export function CertificateEditor({
   const canvasW = settings.canvas_width || 600;
   const canvasH = settings.canvas_height || 850;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingCustomFontId, setEditingCustomFontId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [canvasScale, setCanvasScale] = useState(1);
   const [previewMinistry, setPreviewMinistry] = useState("");
@@ -841,6 +842,7 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                   <select
                     value={(() => {
                       const family = selectedElement.font_family || settings.font_family || "Georgia, serif";
+                      if (editingCustomFontId === selectedElement.id) return "__custom__";
                       if (selectedElement.type === "member_name" &&
                           settings.recipient_font_url && family === settings.recipient_font_family) {
                         return "__uploaded_recipient__";
@@ -850,7 +852,11 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                     disabled={selectedElement.locked}
                     onChange={(event) => {
                       const value = event.target.value;
-                      if (value === "__custom__") return;
+                      if (value === "__custom__") {
+                        setEditingCustomFontId(selectedElement.id);
+                        return;
+                      }
+                      setEditingCustomFontId(null);
                       updateElement(selectedElement.id, {
                         font_family: value === "__uploaded_recipient__"
                           ? settings.recipient_font_family || "Georgia, serif"
@@ -868,36 +874,21 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                     <option value="__custom__">Custom font stack / existing font</option>
                   </select>
                 </label>
-                {!FONT_OPTIONS.some((font) =>
-                  font.value === (selectedElement.font_family || settings.font_family || "Georgia, serif")
-                ) && !(selectedElement.type === "member_name" && settings.recipient_font_url &&
-                  selectedElement.font_family === settings.recipient_font_family) && (
-                  <label className="block space-y-1">
-                    <span className="text-[11px] text-muted-foreground">
-                      Custom font stack
-                    </span>
+                {(editingCustomFontId === selectedElement.id ||
+                  (!FONT_OPTIONS.some((font) => font.value === (selectedElement.font_family || settings.font_family || "Georgia, serif")) &&
+                    !(selectedElement.type === "member_name" && settings.recipient_font_url &&
+                      selectedElement.font_family === settings.recipient_font_family))) && (
+                  <label className="block space-y-1.5">
+                    <span className="text-[11px] text-muted-foreground">Custom font stack</span>
                     <input
                       type="text"
                       value={selectedElement.font_family || settings.font_family || "Georgia, serif"}
                       disabled={selectedElement.locked}
-                      onChange={(event) => updateElement(selectedElement.id, {
-                        font_family: event.target.value,
-                      })}
+                      onChange={(event) => updateElement(selectedElement.id, { font_family: event.target.value })}
                       className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30 disabled:opacity-50"
                     />
                   </label>
                 )}
-                <details className="group text-[11px] text-muted-foreground">
-                  <summary className="cursor-pointer text-[#682037]">Advanced: enter a custom font stack</summary>
-                  <input
-                    type="text"
-                    aria-label="Custom font stack"
-                    value={selectedElement.font_family || settings.font_family || "Georgia, serif"}
-                    disabled={selectedElement.locked}
-                    onChange={(event) => updateElement(selectedElement.id, { font_family: event.target.value })}
-                    className="mt-2 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-xs text-foreground"
-                  />
-                </details>
                 <label className="block space-y-1">
                   <span className="text-[11px] text-muted-foreground">Capitalization</span>
                   <select
@@ -914,44 +905,56 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                   </select>
                 </label>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1">
-                    <span className="text-[11px] text-muted-foreground">
-                      Size
-                    </span>
+                <div className="grid grid-cols-2 items-end gap-2">
+                  <label className="flex min-w-0 flex-col gap-1.5">
+                    <span className="text-[11px] text-muted-foreground">Size (px)</span>
                     <input
-                      type="number"
-                      value={selectedElement.font_size || 14}
+                      type="number" min={1} max={200}
+                      value={selectedElement.font_size ?? 14}
                       disabled={selectedElement.locked}
-                      onChange={(event) =>
-                        updateElement(selectedElement.id, {
-                          font_size: Math.max(
-                            1,
-                            Number(event.target.value)
-                          ),
-                        })
-                      }
-                      className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                      onChange={(event) => updateElement(selectedElement.id, {
+                        font_size: Math.min(200, Math.max(1, Number(event.target.value) || 1)),
+                      })}
+                      className="h-9 w-full min-w-0 rounded-none border border-[#D9CDD1] bg-white px-2 text-xs"
                     />
                   </label>
-
-                  <label className="space-y-1">
-                    <span className="text-[11px] text-muted-foreground">
-                      Color
-                    </span>
-                    <input
-                      type="text"
-                      value={selectedElement.color || "#0f172a"}
+                  <label className="flex min-w-0 flex-col gap-1.5">
+                    <span className="text-[11px] text-muted-foreground">Font weight</span>
+                    <select
+                      value={selectedElement.font_weight || "normal"}
                       disabled={selectedElement.locked}
-                      onChange={(event) =>
-                        updateElement(selectedElement.id, {
-                          color: event.target.value,
-                        })
-                      }
-                      className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
-                    />
+                      onChange={(event) => updateElement(selectedElement.id, { font_weight: event.target.value })}
+                      className="h-9 w-full min-w-0 rounded-none border border-[#D9CDD1] bg-white px-2 text-xs"
+                    >
+                      {["normal", "500", "600", "bold"].map((weight) => (
+                        <option key={weight} value={weight}>
+                          {weight === "normal" ? "Regular" : weight === "bold" ? "Bold" : weight === "500" ? "Medium" : "Semibold"}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
+                <label className="block space-y-1.5">
+                  <span className="text-[11px] text-muted-foreground">Text color</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      aria-label="Choose text color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(selectedElement.color || "") ? selectedElement.color : "#0f172a"}
+                      disabled={selectedElement.locked}
+                      onChange={(event) => updateElement(selectedElement.id, { color: event.target.value })}
+                      className="h-9 w-10 shrink-0 cursor-pointer border border-[#D9CDD1] bg-white p-1"
+                    />
+                    <input
+                      type="text"
+                      aria-label="Text color HEX"
+                      value={selectedElement.color || "#0f172a"}
+                      disabled={selectedElement.locked}
+                      onChange={(event) => updateElement(selectedElement.id, { color: event.target.value })}
+                      className="h-9 w-full min-w-0 rounded-none border border-[#D9CDD1] bg-white px-2 text-xs"
+                    />
+                  </div>
+                </label>
 
                 {selectedElement.type === "text" && (
                   <label className="block space-y-1">
