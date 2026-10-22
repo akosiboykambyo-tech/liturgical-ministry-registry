@@ -38,6 +38,7 @@ export default function RenewalReviewQueuePage() {
   const [notes, setNotes] = useState("");
   const [outcome, setOutcome] = useState<"resolved" | "dismissed">("resolved");
   const [saving, setSaving] = useState(false);
+  const [duplicateConfirmation, setDuplicateConfirmation] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -66,8 +67,30 @@ export default function RenewalReviewQueuePage() {
 
   const beginReview = (item: SavedRenewalReview) => {
     setSelected(item); setDecision(""); setNotes(""); setOutcome("resolved");
+    setDuplicateConfirmation(false);
     setError(null); setNotice(null);
   };
+  const dismissDuplicate = async () => {
+    if (!selected || selected.status !== "open" || !duplicateConfirmation) return;
+    if (notes.trim().length < 10) {
+      setError("Explain why the entry is a duplicate (at least 10 characters).");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await resolveRenewalReview(selected, "dismissed", "duplicate_row", notes);
+      setSelected(null);
+      setDuplicateConfirmation(false);
+      setNotice("Duplicate renewal entry dismissed. The registered member and ministry assignments were not deleted or modified.");
+      await reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to dismiss duplicate.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const submitDecision = async () => {
     if (!selected || !decision || notes.trim().length < 10) {
       setError("Choose a decision and enter an explanation of at least 10 characters.");
@@ -156,13 +179,50 @@ export default function RenewalReviewQueuePage() {
               <Link href={`/admin/members/${candidate.id}?returnTo=renewal-reviews&case=${selected.id}`} className="text-xs font-semibold text-[#890022] underline">Open registry record</Link>
             </div>)}
         </div>
+        {selected.status === "open" && selected.reason === "duplicate_csv_membership" && (
+          <div className="space-y-3 border border-[#DFC7CE] bg-[#F8F1F3] p-4">
+            <h3 className="text-sm font-semibold text-[#592E3B]">Duplicate renewal entry</h3>
+            <p className="text-xs leading-5 text-[#66545B]">
+              This row was repeated in the renewal CSV. Dismissing closes this review case only;
+              it does not delete a registered member, modify a ministry, or change other CSV rows.
+            </p>
+            {!duplicateConfirmation ? (
+              <button type="button" onClick={() => { setDuplicateConfirmation(true); setDecision(""); setOutcome("dismissed"); setNotes(""); }}
+                className="min-h-10 border border-[#890022] bg-white px-4 text-sm font-semibold text-[#890022] hover:bg-[#F6E9EC]">
+                Mark as Duplicate &amp; Dismiss
+              </button>
+            ) : (
+              <div className="space-y-3 border-t border-[#DFC7CE] pt-3">
+                <p className="text-sm font-semibold text-[#592E3B]">Confirm duplicate dismissal</p>
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold">Reason for dismissing this specific entry</span>
+                  <textarea rows={3} maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)}
+                    placeholder="For example: This minister appears twice in the submitted roster; original row was retained."
+                    className="w-full border border-[#D7C9CD] bg-white p-3 text-sm" />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void dismissDuplicate()}
+                    disabled={saving || notes.trim().length < 10}
+                    className="min-h-10 bg-[#890022] px-4 text-sm font-semibold text-white disabled:opacity-50">
+                    {saving ? "Recording..." : "Confirm Dismissal"}
+                  </button>
+                  <button type="button" disabled={saving}
+                    onClick={() => { setDuplicateConfirmation(false); setNotes(""); setOutcome("resolved"); }}
+                    className="min-h-10 border border-[#D7C9CD] bg-white px-4 text-sm font-semibold">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {selected.status !== "open" ? (
           <div className="border border-[#E8E0E2] bg-[#FBF9F9] p-3 text-sm">
             <p><strong>Decision:</strong> {DECISIONS.find(d=>d.value===selected.resolution)?.label ?? selected.resolution}</p>
             <p className="mt-2 whitespace-pre-wrap"><strong>Notes:</strong> {selected.resolution_notes}</p>
             <p className="mt-2 text-xs text-[#716168]">Reviewed {selected.resolved_at ? new Date(selected.resolved_at).toLocaleString() : "—"}</p>
           </div>
-        ) : (
+        ) : duplicateConfirmation ? null : (
           <div className="space-y-3 border-t border-[#EEE5E7] pt-4">
             <label className="block space-y-1"><span className="text-xs font-semibold">Outcome</span>
               <select value={outcome} onChange={e=>setOutcome(e.target.value as "resolved" | "dismissed")} className="h-10 w-full border border-[#D7C9CD] px-3 text-sm">
