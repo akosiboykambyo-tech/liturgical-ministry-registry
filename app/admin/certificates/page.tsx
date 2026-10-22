@@ -469,6 +469,16 @@ export default function CertificateManagerPage() {
     }));
   };
 
+  const updateSignatoryTitle = (field: "family" | "size" | "weight" | "case", value: string | number) => {
+    setSettings((current) => ({
+      ...current,
+      ...(field === "family" ? { signatory_title_font_family: String(value) }
+        : field === "size" ? { signatory_title_font_size: Number(value) }
+        : field === "weight" ? { signatory_title_font_weight: String(value) }
+        : { signatory_title_text_case: String(value) as "normal" | "uppercase" | "small-caps" }),
+    }));
+  };
+
   const updateSignatoryTypography = (field: "color" | "titleColor" | "size" | "weight" | "case", value: string | number) => {
     setSettings((current) => ({
       ...current,
@@ -889,92 +899,133 @@ export default function CertificateManagerPage() {
                 <div>
                   <h2 className="text-sm font-semibold text-[#27232A]">Signatory Typography</h2>
                   <p className="mt-1 text-xs leading-5 text-[#66565A]">
-                    Style signatory names and titles for this certificate template. Applies to static and dynamic signatories; individual elements remain editable in the designer.
+                    Configure signatory names and titles separately. These settings apply to static and dynamic signatories in this template.
                   </p>
                 </div>
-                <label className="block space-y-1.5">
-                  <span className="text-xs">Signatory font</span>
-                  <select
-                    value={settings.signatory_font_family ?? "Georgia, serif"}
-                    onChange={(event) => setSignatoryFont(event.target.value)}
-                    className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm"
-                  >
-                    {settings.signatory_font_url && settings.signatory_font_family && (
-                      <option value={settings.signatory_font_family}>Uploaded signatory font</option>
-                    )}
-                    {!FONT_OPTIONS.some((font) => font.value === (settings.signatory_font_family ?? "Georgia, serif")) &&
-                      !settings.signatory_font_url && (
+                <section className="space-y-3" aria-label="Signatory name typography">
+                  <h3 className="border-b border-[#E5DDDF] pb-2 text-xs font-semibold text-[#52212F]">Signatory Name</h3>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Name font</span>
+                    <select value={settings.signatory_font_family ?? "Georgia, serif"}
+                      onChange={(event) => setSignatoryFont(event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      {settings.signatory_font_url && settings.signatory_font_family && (
+                        <option value={settings.signatory_font_family}>Uploaded signatory font</option>
+                      )}
+                      {!FONT_OPTIONS.some((font) => font.value === (settings.signatory_font_family ?? "Georgia, serif")) && !settings.signatory_font_url && (
                         <option value={settings.signatory_font_family ?? "Georgia, serif"}>Current custom font</option>
                       )}
-                    {FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
-                  </select>
-                </label>
-                <div className="grid grid-cols-2 items-end gap-3">
-                  <label className="flex min-w-0 flex-col gap-1.5">
-                    <span className="min-h-8 text-xs leading-4">Signatory name color</span>
-                    <div className="flex h-10 min-w-0 items-center gap-2">
-                      <input type="color" aria-label="Signatory name color"
-                        value={settings.signatory_font_color ?? "#0f172a"}
-                        onChange={(event) => updateSignatoryTypography("color", event.target.value)}
-                        className="h-10 w-10 shrink-0 cursor-pointer border border-[#D9CDD1] bg-white p-1" />
-                      <input type="text" aria-label="Signatory name color HEX"
-                        value={settings.signatory_font_color ?? "#0f172a"}
-                        onChange={(event) => { if (/^#[0-9a-fA-F]{6}$/.test(event.target.value)) updateSignatoryTypography("color", event.target.value); }}
-                        className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-xs" />
-                    </div>
+                      {FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
+                    </select>
                   </label>
-                  <label className="flex min-w-0 flex-col gap-1.5">
-                    <span className="min-h-8 text-xs leading-4">Name size (px)</span>
-                    <input type="number" min={8} max={120} value={settings.signatory_font_size ?? 12}
-                      onChange={(event) => updateSignatoryTypography("size", Math.min(120, Math.max(8, Number(event.target.value) || 8)))}
-                      className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-sm" />
-                  </label>
-                </div>
-                <label className="block space-y-1.5">
-                  <span className="text-xs">Signatory title color</span>
-                  <div className="flex h-10 items-center gap-2">
-                    <input type="color" aria-label="Signatory title color"
-                      value={settings.signatory_title_color ?? "#71717a"}
-                      onChange={(event) => updateSignatoryTypography("titleColor", event.target.value)}
-                      className="h-10 w-10 shrink-0 cursor-pointer border border-[#D9CDD1] bg-white p-1" />
-                    <input type="text" aria-label="Signatory title color HEX"
-                      value={settings.signatory_title_color ?? "#71717a"}
-                      onChange={(event) => { if (/^#[0-9a-fA-F]{6}$/.test(event.target.value)) updateSignatoryTypography("titleColor", event.target.value); }}
-                      className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-xs" />
+                  <div className="grid grid-cols-2 items-end gap-3">
+                    <label className="flex min-w-0 flex-col gap-1.5">
+                      <span className="min-h-8 text-xs leading-4">Name color</span>
+                      <div className="flex h-10 min-w-0 items-center gap-2">
+                        <input type="color" aria-label="Signatory name color"
+                          value={settings.signatory_font_color ?? "#0f172a"}
+                          onChange={(event) => updateSignatoryTypography("color", event.target.value)}
+                          className="h-10 w-10 shrink-0 cursor-pointer border border-[#D9CDD1] bg-white p-1" />
+                        <input type="text" aria-label="Signatory name color HEX"
+                          value={settings.signatory_font_color ?? "#0f172a"}
+                          onChange={(event) => { if (/^#[0-9a-fA-F]{6}$/.test(event.target.value)) updateSignatoryTypography("color", event.target.value); }}
+                          className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-xs" />
+                      </div>
+                    </label>
+                    <label className="flex min-w-0 flex-col gap-1.5">
+                      <span className="min-h-8 text-xs leading-4">Name size (px)</span>
+                      <input type="number" min={8} max={120} value={settings.signatory_font_size ?? 12}
+                        onChange={(event) => updateSignatoryTypography("size", Math.min(120, Math.max(8, Number(event.target.value) || 8)))}
+                        className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-sm" />
+                    </label>
                   </div>
-                  <span className="block text-[11px] text-[#66565A]">The title uses the selected font at a slightly smaller size.</span>
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs">Signatory text capitalization</span>
-                  <select value={settings.signatory_text_case ?? "normal"}
-                    onChange={(event) => updateSignatoryTypography("case", event.target.value)}
-                    className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
-                    <option value="normal">Normal case</option>
-                    <option value="uppercase">ALL CAPS</option>
-                    <option value="small-caps">Small Caps</option>
-                  </select>
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs">Signatory name font weight</span>
-                  <select value={settings.signatory_font_weight ?? "bold"}
-                    onChange={(event) => updateSignatoryTypography("weight", event.target.value)}
-                    className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
-                    <option value="normal">Regular</option>
-                    <option value="500">Medium</option>
-                    <option value="600">Semibold</option>
-                    <option value="bold">Bold</option>
-                  </select>
-                </label>
-                <label className="block cursor-pointer border border-[#D9CDD1] p-3 text-xs text-[#52212F]">
-                  <span className="font-semibold">{signatoryFontUploading ? "Uploading font..." : "Upload licensed signatory font"}</span>
-                  <span className="mt-1 block text-[#66565A]">TTF, OTF, WOFF, WOFF2 · maximum 5 MB</span>
-                  <input type="file" accept=".ttf,.otf,.woff,.woff2" disabled={signatoryFontUploading}
-                    onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleRecipientFontUpload(file, "signatory"); event.target.value = ""; }}
-                    className="mt-2 block w-full text-xs" />
-                </label>
-                {settings.signatory_font_url && (
-                  <p className="text-xs text-[#682037]">Custom signatory font selected. Save the certificate template to keep this choice.</p>
-                )}
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Name capitalization</span>
+                    <select value={settings.signatory_text_case ?? "normal"}
+                      onChange={(event) => updateSignatoryTypography("case", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Normal case</option><option value="uppercase">ALL CAPS</option>
+                      <option value="small-caps">Small Caps</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Name weight</span>
+                    <select value={settings.signatory_font_weight ?? "bold"}
+                      onChange={(event) => updateSignatoryTypography("weight", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Regular</option><option value="500">Medium</option>
+                      <option value="600">Semibold</option><option value="bold">Bold</option>
+                    </select>
+                  </label>
+                  <label className="block cursor-pointer border border-[#D9CDD1] p-3 text-xs text-[#52212F]">
+                    <span className="font-semibold">{signatoryFontUploading ? "Uploading font..." : "Upload licensed signatory font"}</span>
+                    <span className="mt-1 block text-[#66565A]">TTF, OTF, WOFF, WOFF2 · maximum 5 MB</span>
+                    <input type="file" accept=".ttf,.otf,.woff,.woff2" disabled={signatoryFontUploading}
+                      onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleRecipientFontUpload(file, "signatory"); event.target.value = ""; }}
+                      className="mt-2 block w-full text-xs" />
+                  </label>
+                  {settings.signatory_font_url && <p className="text-xs text-[#682037]">Custom signatory font selected. Save the template to keep this choice.</p>}
+                </section>
+                <section className="space-y-3 border-t border-[#E5DDDF] pt-4" aria-label="Signatory title typography">
+                  <h3 className="border-b border-[#E5DDDF] pb-2 text-xs font-semibold text-[#52212F]">Signatory Title</h3>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Title font (independent)</span>
+                    <select value={settings.signatory_title_font_family ?? "Georgia, serif"}
+                      onChange={(event) => updateSignatoryTitle("family", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      {settings.signatory_font_url && settings.signatory_font_family && (
+                        <option value={settings.signatory_font_family}>Uploaded signatory font</option>
+                      )}
+                      {!FONT_OPTIONS.some((font) => font.value === (settings.signatory_title_font_family ?? "Georgia, serif")) &&
+                        settings.signatory_title_font_family !== settings.signatory_font_family && (
+                          <option value={settings.signatory_title_font_family ?? "Georgia, serif"}>Current custom font</option>
+                        )}
+                      {FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-2 items-end gap-3">
+                    <label className="flex min-w-0 flex-col gap-1.5">
+                      <span className="min-h-8 text-xs leading-4">Title color</span>
+                      <div className="flex h-10 min-w-0 items-center gap-2">
+                        <input type="color" aria-label="Signatory title color"
+                          value={settings.signatory_title_color ?? "#71717a"}
+                          onChange={(event) => updateSignatoryTypography("titleColor", event.target.value)}
+                          className="h-10 w-10 shrink-0 cursor-pointer border border-[#D9CDD1] bg-white p-1" />
+                        <input type="text" aria-label="Signatory title color HEX"
+                          value={settings.signatory_title_color ?? "#71717a"}
+                          onChange={(event) => { if (/^#[0-9a-fA-F]{6}$/.test(event.target.value)) updateSignatoryTypography("titleColor", event.target.value); }}
+                          className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-xs" />
+                      </div>
+                    </label>
+                    <label className="flex min-w-0 flex-col gap-1.5">
+                      <span className="min-h-8 text-xs leading-4">Title size (px)</span>
+                      <input type="number" min={8} max={120} value={settings.signatory_title_font_size ?? 10}
+                        onChange={(event) => updateSignatoryTitle("size", Math.min(120, Math.max(8, Number(event.target.value) || 8)))}
+                        className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-sm" />
+                    </label>
+                  </div>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Title capitalization</span>
+                    <select value={settings.signatory_title_text_case ?? "normal"}
+                      onChange={(event) => updateSignatoryTitle("case", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Normal case</option><option value="uppercase">ALL CAPS</option>
+                      <option value="small-caps">Small Caps</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Title weight</span>
+                    <select value={settings.signatory_title_font_weight ?? "normal"}
+                      onChange={(event) => updateSignatoryTitle("weight", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Regular</option><option value="500">Medium</option>
+                      <option value="600">Semibold</option><option value="bold">Bold</option>
+                    </select>
+                  </label>
+                </section>
+                <p className="text-xs leading-5 text-[#66565A]">
+                  The signatory name can still be customized individually on the certificate canvas. Name and title styles are saved with this template.
+                </p>
               </div>
 
               {/* Add signatory form */}
