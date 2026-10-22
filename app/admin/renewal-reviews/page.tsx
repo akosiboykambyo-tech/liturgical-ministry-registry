@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { ClipboardCheck, Loader2, RefreshCw, Search } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import { listRenewalReviews, resolveRenewalReview,
@@ -27,8 +26,8 @@ const DECISIONS: { value: RenewalResolution; label: string }[] = [
 ];
 
 export default function RenewalReviewQueuePage() {
-  const params = useSearchParams();
-  const requestedCase = params.get("case");
+  const [requestedCase, setRequestedCase] = useState<string | null>(null);
+  useEffect(() => { setRequestedCase(new URLSearchParams(window.location.search).get("case")); }, []);
   const [status, setStatus] = useState<RenewalReviewStatus | "all">("open");
   const [items, setItems] = useState<SavedRenewalReview[]>([]);
   const [search, setSearch] = useState("");
