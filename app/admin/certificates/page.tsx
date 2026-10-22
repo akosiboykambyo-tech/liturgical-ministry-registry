@@ -593,7 +593,7 @@ export default function CertificateManagerPage() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
+        <div className="flex items-start gap-2 rounded-none border border-[#C9A5AF] bg-[#F8F1F3] px-4 py-3 text-sm text-[#682037]">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -688,7 +688,7 @@ export default function CertificateManagerPage() {
                     </label>
                     <button
                       onClick={() => setSettings((s) => ({ ...s, template_url: null }))}
-                      className="text-xs text-destructive hover:underline"
+                      className="text-xs text-[#890022] hover:underline"
                     >
                       Remove (use default placeholder)
                     </button>
@@ -1008,7 +1008,7 @@ export default function CertificateManagerPage() {
                           </button>
                           <button
                             onClick={() => handleSigDelete(sig.id)}
-                            className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1 text-xs text-destructive hover:bg-destructive/5 transition-colors"
+                            className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1 text-xs text-[#890022] hover:bg-[#F8F1F3] transition-colors"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -1130,7 +1130,7 @@ export default function CertificateManagerPage() {
                       onClick={() => handleDelete(row.key)}
                       disabled={deletingKey !== null || isDefault}
                       title={isDefault ? "Cannot delete the default template" : "Delete template"}
-                      className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1.5 text-xs text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 rounded-none border border-[#D9CDD1] bg-white px-2 py-1.5 text-xs text-[#890022] hover:bg-[#F8F1F3] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {deletingKey === row.key ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
