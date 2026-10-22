@@ -35,7 +35,7 @@ async function authorizedReviewer() {
 export async function saveRenewalReviewCases(
   staged: RenewalBatchStagingResult,
   filename: string
-): Promise<number> {
+): Promise<{ saved: number; alreadyOpen: number }> {
   const supabase = getSupabaseBrowserClient();
   const reviewer = await authorizedReviewer();
   const items = [
