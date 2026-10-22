@@ -2230,12 +2230,10 @@ export default function CsvImportPage() {
           <div>
             <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <GitMerge className="h-6 w-6 text-primary" />
-              Pending Merges — Reconciliation Queue
+              Registration Import — Pending Duplicate Merges
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Duplicate records intercepted during batch import. Compare the
-              existing profile against the incoming upload record, then choose
-              an action. The queue advances automatically after each decision.
+              Only duplicates held during new-member registration imports appear here. Renewal CSV rows marked Needs Review are separate staging results, not saved to this queue.
             </p>
           </div>
 
