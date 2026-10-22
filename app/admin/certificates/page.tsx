@@ -521,7 +521,7 @@ export default function CertificateManagerPage() {
         </div>
       )}
       {saved && (
-        <div className="flex items-start gap-2 rounded-none bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-600/20">
+        <div className="flex items-start gap-2 rounded-none border border-[#C9B8BE] bg-[#F5F0F1] px-4 py-3 text-sm text-[#52212F]">
           <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
           <span>Template settings saved.</span>
         </div>
@@ -641,7 +641,7 @@ export default function CertificateManagerPage() {
               </div>
 
               {settings.template_url && backgroundAspectMismatch && (
-                <div role="status" className="flex items-start gap-2 border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-950">
+                <div role="status" className="flex items-start gap-2 border border-[#C9A5AF] bg-[#F8F1F3] px-3 py-2.5 text-xs leading-5 text-[#682037]">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
                     <p className="font-semibold">Background proportions do not match this page layout.</p>
@@ -806,7 +806,7 @@ export default function CertificateManagerPage() {
                     />
                   </label>
                   {sigUploadUrl && (
-                    <p className="text-[11px] text-emerald-600 mt-1">Signature image uploaded.</p>
+                    <p className="text-[11px] text-[#682037] mt-1">Signature image uploaded.</p>
                   )}
                 </div>
 
@@ -844,8 +844,8 @@ export default function CertificateManagerPage() {
                             <p className="text-sm font-medium truncate">{sig.name}</p>
                             <span className={`inline-flex items-center rounded-none px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
                               sig.display_type === "static"
-                                ? "bg-blue-50 text-blue-700 ring-blue-600/20"
-                                : "bg-amber-50 text-amber-700 ring-amber-600/20"
+                                ? "bg-[#F2EAED] text-[#682037] ring-[#890022]/20"
+                                : "bg-[#F4F0F1] text-[#66565A] ring-[#C9B8BE]"
                             }`}>
                               {sig.display_type === "static" ? "Static" : sig.ministry}
                             </span>
@@ -954,7 +954,7 @@ export default function CertificateManagerPage() {
                         {templateLabel(row.key)}
                       </p>
                       {isDefault && (
-                        <span className="inline-flex items-center gap-1 rounded-none bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                        <span className="inline-flex items-center gap-1 rounded-none bg-[#F2EAED] px-2 py-0.5 text-[11px] font-medium text-[#682037] ring-1 ring-inset ring-[#890022]/20">
                           <Star className="h-3 w-3" /> Default
                         </span>
                       )}
