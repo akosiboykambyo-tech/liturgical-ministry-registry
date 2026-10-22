@@ -72,6 +72,7 @@ async function ensureFontsLoaded(settings: CertificateTemplateSettings): Promise
   const stacks = new Set<string>([
     settings.font_family || "Georgia, serif",
     settings.signatory_font_family || "Georgia, serif",
+    settings.signatory_title_font_family || "Georgia, serif",
     ...(settings.elements ?? []).map((element) => element.font_family || settings.font_family || "Georgia, serif"),
   ]);
   await Promise.all(Array.from(stacks).map(async (family) => {
@@ -518,11 +519,15 @@ if (element.type === "member_name") {
           const width = Math.max(1, element.width - 16);
           const height = Math.max(1, element.height - 8);
           const nameSize = element.font_size ?? settings.signatory_font_size ?? 12;
-          const titleSize = Math.max(8, nameSize - 2);
+          const titleSize = settings.signatory_title_font_size ?? Math.max(8, nameSize - 2);
           const fontFamily = element.font_family || settings.signatory_font_family || "Georgia, serif";
           const textCase = element.text_case ?? settings.signatory_text_case ?? "normal";
           const transformText = (value: string) => textCase === "uppercase" ? value.toLocaleUpperCase() : value;
           const fontVariant = textCase === "small-caps" ? "small-caps" : "normal";
+          const titleFamily = settings.signatory_title_font_family || fontFamily;
+          const titleCase = settings.signatory_title_text_case ?? "normal";
+          const titleVariant = titleCase === "small-caps" ? "small-caps" : "normal";
+          const titleText = titleCase === "uppercase" ? signatory.title.toLocaleUpperCase() : signatory.title;
           const alignment = element.text_align || "center";
           const textX = alignment === "left" ? -width / 2 :
             alignment === "right" ? width / 2 : 0;
@@ -555,9 +560,9 @@ if (element.type === "member_name") {
           ctx.font = `${element.font_style || "normal"} ${fontVariant} ${element.font_weight || settings.signatory_font_weight || "bold"} ${nameSize}px ${fontFamily}`;
           ctx.fillStyle = element.color || settings.signatory_font_color || "#0f172a";
           ctx.fillText(transformText(signatory.name), textX, nameY, width);
-          ctx.font = `normal ${fontVariant} ${titleSize}px ${fontFamily}`;
+          ctx.font = `normal ${titleVariant} ${settings.signatory_title_font_weight || "normal"} ${titleSize}px ${titleFamily}`;
           ctx.fillStyle = settings.signatory_title_color || "#71717a";
-          ctx.fillText(transformText(signatory.title), textX, titleY, width);
+          ctx.fillText(titleText, textX, titleY, width);
           break;
         }
       }
