@@ -178,7 +178,7 @@ export default function CertificateManagerPage() {
     alignment: "left" as "left" | "center" | "right",
   });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (selectedKey?: string) => {
     setLoading(true);
     const { data } = await supabase
       .from("system_settings")
@@ -192,7 +192,7 @@ export default function CertificateManagerPage() {
       updated_at: (row.updated_at as string) ?? "",
     }));
     setTemplates(rows);
-    const defaultRow = rows.find((r) => r.is_default) ?? rows[0];
+    const defaultRow = rows.find((r) => r.key === selectedKey) ?? rows.find((r) => r.is_default) ?? rows[0];
     if (defaultRow) {
       setSettings(defaultRow.settings);
       setEditingKey(defaultRow.key);
@@ -254,24 +254,37 @@ export default function CertificateManagerPage() {
   };
 
   const handleSave = async () => {
+    const creating = editingKey === null;
+    const name = templateName.trim();
+    if (creating && !name) {
+      setError("Enter a name before creating a new certificate template.");
+      return;
+    }
+    const key = creating ? nameToKey(name) : editingKey;
+    if (creating && (key === TEMPLATE_KEY_PREFIX || templates.some((row) => row.key === key))) {
+      setError("A template with that name already exists. Use a different name or edit the existing template.");
+      return;
+    }
     setSaving(true);
     setError(null);
-    const key = editingKey ?? nameToKey(templateName || "Default Template");
-    const { error } = await supabase
-      .from("system_settings")
-      .upsert({
-        key,
-        value: settings as unknown as Record<string, unknown>,
-        is_default: templates.find((t) => t.key === key)?.is_default ?? templates.length === 0,
-      });
+    // Never upsert a new template: a concurrent name collision must not overwrite an existing design.
+    const { error } = creating
+      ? await supabase.from("system_settings").insert({
+          key, value: settings as unknown as Record<string, unknown>,
+          is_default: templates.length === 0,
+        })
+      : await supabase.from("system_settings")
+          .update({ value: settings as unknown as Record<string, unknown> }).eq("key", key);
     setSaving(false);
     if (error) {
-      setError(error.message);
-    } else {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-      await load();
+      setError(creating && error.code === "23505"
+        ? "A template with that name already exists. Choose another name."
+        : error.message);
+      return;
     }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+    await load(key);
   };
 
   const handleSetDefault = async (key: string) => {
@@ -627,6 +640,18 @@ export default function CertificateManagerPage() {
           </p>
         </div>
 
+        <div className="flex flex-wrap items-end gap-2">
+          <button type="button" onClick={handleNew}
+            className="inline-flex min-h-10 items-center gap-1.5 border border-[#D9CDD1] bg-white px-3 py-2 text-sm font-medium text-[#682037] hover:bg-[#F8F1F3]">
+            <Plus className="h-4 w-4" /> New Template
+          </button>
+          {editingKey && (
+            <button type="button"
+              onClick={() => { setEditingKey(null); setTemplateName(""); setSaved(false); setError(null); }}
+              className="inline-flex min-h-10 items-center gap-1.5 border border-[#D9CDD1] bg-white px-3 py-2 text-sm font-medium text-[#682037] hover:bg-[#F8F1F3]">
+              <FileText className="h-4 w-4" /> Save as New
+            </button>
+          )}
         <button
           type="button"
           onClick={handleSave}
@@ -645,6 +670,7 @@ export default function CertificateManagerPage() {
             </>
           )}
         </button>
+        </div>
       </div>
 
       {error && (
@@ -659,6 +685,21 @@ export default function CertificateManagerPage() {
           <span>Template settings saved.</span>
         </div>
       )}
+
+      <div className="border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-4 sm:p-5">
+        <label className="block max-w-lg space-y-1.5">
+          <span className="text-xs font-semibold text-[#27232A]">{editingKey ? "Editing saved template" : "New template name"}</span>
+          <input type="text" value={templateName} maxLength={80} disabled={Boolean(editingKey)}
+            onChange={(event) => setTemplateName(event.target.value)}
+            placeholder="e.g. Commissioning Certificate Landscape"
+            className="block h-10 w-full border border-[#D9CDD1] bg-white px-3 text-sm disabled:bg-[#F7F2F3] disabled:text-[#66565A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30" />
+        </label>
+        <p className="mt-2 text-xs leading-5 text-[#66565A]">
+          {editingKey
+            ? "Save Template updates only the selected template. Save as New creates an independent copy; New Template starts with defaults."
+            : "Save Template creates a separate record without overwriting an existing certificate."}
+        </p>
+      </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-1 rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-1 ">
@@ -721,32 +762,27 @@ export default function CertificateManagerPage() {
               <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
                 <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Background Image</h2>
                 {settings.template_url ? (
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={settings.template_url}
-                      alt="template"
-                      className="h-16 w-24 rounded border border-border object-cover"
-                    />
-                    <label className="cursor-pointer">
-                      <span className="inline-flex items-center gap-1.5 rounded-none border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
-                        <Upload className="h-3.5 w-3.5" /> Replace
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleUpload(f);
-                        }}
-                      />
-                    </label>
-                    <button
-                      onClick={() => setSettings((s) => ({ ...s, template_url: null }))}
-                      className="text-xs text-[#890022] hover:underline"
-                    >
-                      Remove (use default placeholder)
-                    </button>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={settings.template_url} alt="Current certificate background"
+                        className="h-20 w-24 shrink-0 border border-[#D9CDD1] bg-white object-contain" />
+                      <p className="min-w-0 text-xs leading-5 text-[#66565A]">Current background for this template.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="flex min-h-10 cursor-pointer items-center justify-center gap-1.5 border border-[#D9CDD1] px-2 text-xs font-medium text-[#682037] hover:bg-[#F8F1F3]">
+                        <Upload className="h-3.5 w-3.5 shrink-0" />
+                        {uploading ? "Uploading..." : "Replace"}
+                        <input type="file" accept="image/jpeg,image/png" disabled={uploading} className="hidden"
+                          onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleUpload(file); event.target.value = ""; }} />
+                      </label>
+                      <button type="button" disabled={uploading}
+                        onClick={() => setSettings((current) => ({ ...current, template_url: null }))}
+                        className="min-h-10 border border-[#C9B8BE] px-2 text-xs font-medium text-[#890022] hover:bg-[#F8F1F3] disabled:opacity-50">
+                        Remove image
+                      </button>
+                    </div>
+                    <p className="text-[11px] leading-4 text-[#66565A]">Removing the image restores the placeholder when you save.</p>
                   </div>
                 ) : (
                   <label className="block">
