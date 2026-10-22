@@ -175,6 +175,10 @@ export const DEFAULT_TEMPLATE_SETTINGS: CertificateTemplateSettings = {
   body_text: "This is to certify that",
   footer_text: "has been duly commissioned as a liturgical minister",
 
+  // Existing templates remain portrait A4 unless explicitly changed.
+  orientation: "portrait",
+  paper_size: "a4",
+
   // Visual certificate designer
   canvas_width: 600,
   canvas_height: 850,
