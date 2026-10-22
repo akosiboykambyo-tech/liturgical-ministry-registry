@@ -157,3 +157,19 @@ export async function comparePossibleDuplicateMembers(item: SavedRenewalReview):
   }
   return result;
 }
+
+/** UI-only conservative preflight. This is NOT permission to delete a member. */
+export function duplicateRemovalWarnings(member: DuplicateComparison): string[] {
+  const warnings: string[] = [];
+  if (member.dependency_warning) warnings.push("Some linked data could not be checked.");
+  if (member.status === "Renewed") warnings.push("This record has a renewed registration status.");
+  if (member.document_url || member.archived_documents.length)
+    warnings.push("Current or archived member documents are attached.");
+  if (member.renewal_history_count) warnings.push("Historical renewal records reference this member.");
+  if (member.audit_log_count) warnings.push("Administrative audit records refer to this member.");
+  if (member.assignments.some(a => a.status !== "Pending Verification" ||
+    a.document_url || a.archived_document_count > 0 || a.expiration_date))
+    warnings.push("At least one ministry assignment contains status, expiry or document evidence.");
+  warnings.push("Additional linked tables and storage references still require transaction-time checks.");
+  return warnings;
+}
