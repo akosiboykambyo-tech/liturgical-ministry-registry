@@ -382,6 +382,16 @@ export default function CertificateManagerPage() {
     }));
   };
 
+  const setRecipientTextCase = (textCase: "normal" | "uppercase" | "small-caps") => {
+    setSettings((current) => ({
+      ...current,
+      recipient_text_case: textCase,
+      elements: current.elements.map((element) =>
+        element.type === "member_name" ? { ...element, text_case: textCase } : element
+      ),
+    }));
+  };
+
   const handleRecipientFontUpload = async (file: File) => {
     const extension = file.name.split(".").pop()?.toLowerCase();
     const mime: Record<string, string> = {
@@ -764,24 +774,37 @@ export default function CertificateManagerPage() {
                       {FONT_OPTIONS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
                     </select>
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block space-y-1">
-                      <span className="text-xs">Recipient name color</span>
-                      <div className="flex items-center gap-2">
-                        <input type="color" aria-label="Recipient name color" value={settings.recipient_font_color ?? "#0f172a"}
-                          onChange={(e) => updateRecipientStyle("color", e.target.value)} className="h-9 w-10 cursor-pointer" />
-                        <input type="text" aria-label="Recipient color HEX" value={settings.recipient_font_color ?? "#0f172a"}
-                          onChange={(e) => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) updateRecipientStyle("color", e.target.value); }}
-                          className="w-full min-w-0 border border-[#D9CDD1] p-2 text-xs" />
-                      </div>
-                    </label>
-                    <label className="block space-y-1">
-                      <span className="text-xs">Name size (px)</span>
-                      <input type="number" min={8} max={120} value={settings.recipient_font_size ?? 20}
-                        onChange={(e) => updateRecipientStyle("size", Math.min(120, Math.max(8, Number(e.target.value) || 8)))}
-                        className="w-full border border-[#D9CDD1] p-2 text-sm" />
-                    </label>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-2 items-end gap-3">
+                      <label className="flex min-w-0 flex-col gap-1.5">
+                        <span className="min-h-8 text-xs leading-4">Recipient name color</span>
+                        <div className="flex h-10 min-w-0 items-center gap-2">
+                          <input type="color" aria-label="Recipient name color" value={settings.recipient_font_color ?? "#0f172a"}
+                            onChange={(e) => updateRecipientStyle("color", e.target.value)}
+                            className="h-10 w-10 shrink-0 cursor-pointer rounded-none border border-[#D9CDD1] bg-white p-1" />
+                          <input type="text" aria-label="Recipient color HEX" value={settings.recipient_font_color ?? "#0f172a"}
+                            onChange={(e) => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) updateRecipientStyle("color", e.target.value); }}
+                            className="h-10 min-w-0 flex-1 border border-[#D9CDD1] bg-white px-2 text-xs" />
+                        </div>
+                      </label>
+                      <label className="flex min-w-0 flex-col gap-1.5">
+                        <span className="min-h-8 text-xs leading-4">Name size (px)</span>
+                        <input type="number" min={8} max={120} value={settings.recipient_font_size ?? 20}
+                          onChange={(e) => updateRecipientStyle("size", Math.min(120, Math.max(8, Number(e.target.value) || 8)))}
+                          className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-sm" />
+                      </label>
+                    </div>
                   </div>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Recipient name capitalization</span>
+                    <select value={settings.recipient_text_case ?? "normal"}
+                      onChange={(e) => setRecipientTextCase(e.target.value as "normal" | "uppercase" | "small-caps")}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Normal case</option>
+                      <option value="uppercase">ALL CAPS</option>
+                      <option value="small-caps">Small Caps</option>
+                    </select>
+                  </label>
                   <label className="block space-y-1">
                     <span className="text-xs">Recipient font weight</span>
                     <select value={settings.recipient_font_weight ?? "normal"}
