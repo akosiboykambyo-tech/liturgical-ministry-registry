@@ -5,6 +5,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
 import {
   CERTIFICATE_FONT_PAIRINGS,
+  ADDITIONAL_CERTIFICATE_FONT_PAIRINGS,
   DEFAULT_TEMPLATE_SETTINGS,
   FONT_OPTIONS,
   MINISTRIES,
@@ -312,8 +313,28 @@ export default function CertificateManagerPage() {
     setSettings((s) => ({ ...s, [key]: value }));
   };
 
+  const allFontPairings = [...CERTIFICATE_FONT_PAIRINGS, ...ADDITIONAL_CERTIFICATE_FONT_PAIRINGS];
+
+  const applyCustomFont = (role: "primary" | "secondary", fontFamily: string) => {
+    setSettings((current) => ({
+      ...current,
+      font_family: role === "primary" ? fontFamily : current.font_family,
+      elements: current.elements.map((element) => {
+        const isPrimary = element.type === "text" ||
+          element.type === "member_name" ||
+          element.type === "liturgical_year" ||
+          element.type === "signatory";
+        const isSecondary = element.type === "parish" ||
+          element.type === "ministry" || element.type === "uid";
+        return (role === "primary" ? isPrimary : isSecondary)
+          ? { ...element, font_family: fontFamily }
+          : element;
+      }),
+    }));
+  };
+
   const applyFontPairing = (pairingId: string) => {
-  const pairing = CERTIFICATE_FONT_PAIRINGS.find(
+  const pairing = allFontPairings.find(
     (item) => item.id === pairingId
   );
 
@@ -670,28 +691,57 @@ export default function CertificateManagerPage() {
                 </div>
 
                 <label className="block space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Font Pairing
-                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">Suggested pairing</span>
                   <select
-  value={
-    CERTIFICATE_FONT_PAIRINGS.find(
-      (pairing) =>
-        pairing.body === settings.font_family
-    )?.id ?? ""
-  }
-  onChange={(e) => applyFontPairing(e.target.value)}
-  className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
->
-  <option value="">Choose a font pairing</option>
-
-  {CERTIFICATE_FONT_PAIRINGS.map((pairing) => (
-    <option key={pairing.id} value={pairing.id}>
-      {pairing.name}
-    </option>
-  ))}
-</select>
+                    value={allFontPairings.find((pairing) =>
+                      settings.font_family === pairing.body &&
+                      settings.elements.every((element) => {
+                        const expected = element.type === "text" ? pairing.body
+                          : element.type === "member_name" ? pairing.recipient
+                          : element.type === "liturgical_year" ? pairing.heading
+                          : element.type === "signatory" ? pairing.signatory
+                          : ["parish", "ministry", "uid"].includes(element.type) ? pairing.supporting
+                          : null;
+                        return expected === null || element.font_family === expected;
+                      })
+                    )?.id ?? ""}
+                    onChange={(event) => applyFontPairing(event.target.value)}
+                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
+                  >
+                    <option value="">Custom / mixed fonts</option>
+                    {allFontPairings.map((pairing) => (
+                      <option key={pairing.id} value={pairing.id}>{pairing.name}</option>
+                    ))}
+                  </select>
                 </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Primary font — heading, name, body, signatory</span>
+                  <select
+                    value={FONT_OPTIONS.some((option) => option.value === settings.font_family) ? settings.font_family : ""}
+                    onChange={(event) => applyCustomFont("primary", event.target.value)}
+                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
+                  >
+                    <option value="" disabled>Choose primary font</option>
+                    {FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
+                  </select>
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Secondary font — parish, ministry, UID</span>
+                  <select
+                    value={(() => {
+                      const secondary = settings.elements.find((element) => ["parish", "ministry", "uid"].includes(element.type))?.font_family;
+                      return FONT_OPTIONS.some((option) => option.value === secondary) ? secondary : "";
+                    })()}
+                    onChange={(event) => applyCustomFont("secondary", event.target.value)}
+                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30"
+                  >
+                    <option value="" disabled>Choose secondary font</option>
+                    {FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
+                  </select>
+                </label>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Apply a preset or mix fonts independently. Individual elements can still use their own font in the designer.
+                </p>
               </div>
             </>
           )}
