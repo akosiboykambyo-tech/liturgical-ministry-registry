@@ -7,7 +7,7 @@ import { PARISHES } from "@/lib/constants";
 function parishKey(value: string) {
   return value.normalize("NFKC").trim().toLocaleLowerCase("en")
     .replace(/[\u2018\u2019]/g, "'")
-    .replace(/\bst\.?\b/g, "saint")
+    .replace(/\bst\.?(?=\s|$)/g, "saint")
     .replace(/\s+/g, " ")
     .replace(/\s*\.\s*/g, " ")
     .replace(/\s+/g, " ")
