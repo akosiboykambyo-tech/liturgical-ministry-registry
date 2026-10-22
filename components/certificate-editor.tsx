@@ -213,7 +213,7 @@ export function CertificateEditor({
           y: 470,
           font_size: 16,
           font_weight: "bold",
-          color: "#b8071a",
+          color: "#890022",
         };
 
       case "uid":
@@ -411,7 +411,7 @@ export function CertificateEditor({
 
     const selectionStyle: React.CSSProperties = isSelected
       ? {
-          outline: "2px solid hsl(var(--primary))",
+          outline: "2px solid #890022",
           outlineOffset: "2px",
         }
       : {};
@@ -682,14 +682,14 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                 transform: `scale(${canvasScale})`,
                 backgroundImage: settings.template_url
                   ? `url("${settings.template_url}")`
-                  : "linear-gradient(to bottom, #fff5f6, #ffe8eb)",
+                  : "linear-gradient(to bottom, #F8F1F3, #F1E8EA)",
                 backgroundSize: "100% 100%",
                 backgroundPosition: "center",
                 backgroundRepeat: "no-repeat",
               }}
             >
               {!settings.template_url && (
-                <div className="pointer-events-none absolute inset-0 border-[3px] border-red-700/50" />
+                <div className="pointer-events-none absolute inset-0 border-[3px] border-[#890022]/50" />
               )}
 
               {settings.elements
@@ -823,7 +823,7 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
             }
             className={`inline-flex items-center justify-center rounded-md border px-2 py-1.5 text-xs transition-colors ${
               selectedElement.text_align === alignment
-                ? "border-primary bg-primary text-primary-foreground"
+                ? "border-[#890022] bg-[#890022] text-white"
                 : "border-input bg-background hover:bg-muted"
             } disabled:cursor-not-allowed disabled:opacity-50`}
             title={label}
@@ -960,7 +960,7 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                   type="button"
                   onClick={() => deleteElement(selectedElement.id)}
                   disabled={selectedElement.locked}
-                  className="rounded-md border border-destructive/30 bg-background px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/5 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-md border border-[#C9A5AF] bg-white px-2.5 py-1.5 text-xs font-medium text-[#890022] hover:bg-[#F8F1F3] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Delete
                 </button>
