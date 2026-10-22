@@ -108,3 +108,52 @@ export async function resolveRenewalReview(
     .eq("id", item.id).eq("status", "open").select("id").single();
   if (error || !data) throw new Error(error?.message ?? "This case has already been resolved by another reviewer.");
 }
+
+export type DuplicateComparison = {
+  id: string; uid: string; first_name: string; last_name: string; parish: string;
+  status: string; service_year: number; created_at: string; expiration_date: string | null;
+  document_url: string | null; archived_documents: unknown[];
+  assignments: { id: string; ministry: string; status: string; document_url: string | null; expiration_date: string | null; archived_document_count: number }[];
+  renewal_history_count: number; audit_log_count: number;
+  dependency_warning: string | null;
+};
+
+/** Read-only duplicate investigation. Does not remove, merge, or mark member records. */
+export async function comparePossibleDuplicateMembers(item: SavedRenewalReview): Promise<DuplicateComparison[]> {
+  await authorizedReviewer();
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.from("members")
+    .select("id,uid,first_name,last_name,parish,status,service_year,created_at,expiration_date,document_url,archived_documents")
+    .eq("parish", item.parish)
+    .ilike("first_name", item.first_name.trim())
+    .ilike("last_name", item.last_name.trim())
+    .limit(20);
+  if (error) throw new Error("Unable to retrieve possible duplicate members: " + error.message);
+  const members = data ?? [];
+  const result: DuplicateComparison[] = [];
+  for (const m of members) {
+    const [assignments, history, audit] = await Promise.all([
+      supabase.from("member_ministries").select("id,ministry,status,document_url,expiration_date,archived_documents").eq("member_id", m.id),
+      supabase.from("recommendation_renewal_memberships").select("id", { count: "exact", head: true }).eq("member_id", m.id),
+      supabase.from("audit_logs").select("id", { count: "exact", head: true }).eq("member_id", m.id),
+    ]);
+    const dependencyWarning = [assignments.error, history.error, audit.error]
+      .filter(Boolean).map(e => e?.message).join("; ") || null;
+    result.push({
+      id: m.id, uid: m.uid, first_name: m.first_name, last_name: m.last_name,
+      parish: m.parish, status: m.status, service_year: m.service_year,
+      created_at: m.created_at, expiration_date: m.expiration_date,
+      document_url: m.document_url,
+      archived_documents: Array.isArray(m.archived_documents) ? m.archived_documents : [],
+      assignments: (assignments.data ?? []).map(a => ({
+        id: a.id, ministry: a.ministry, status: a.status,
+        document_url: a.document_url, expiration_date: a.expiration_date,
+        archived_document_count: Array.isArray(a.archived_documents) ? a.archived_documents.length : 0,
+      })),
+      renewal_history_count: history.count ?? 0,
+      audit_log_count: audit.count ?? 0,
+      dependency_warning: dependencyWarning,
+    });
+  }
+  return result;
+}
