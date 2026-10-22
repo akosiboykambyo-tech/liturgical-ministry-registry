@@ -57,20 +57,25 @@ export async function saveRenewalReviewCases(
       candidates: [] as RenewalReviewCandidate[],
     })),
   ];
-  if (!items.length) return 0;
+  if (!items.length) return { saved: 0, alreadyOpen: 0 };
   const submission = crypto.randomUUID();
   const rows = items.map((item, index) => ({
     ...item, submission_id: submission, source_filename: filename.slice(0, 255),
     source_position: index + 1, created_by: reviewer.id,
   }));
   // One PostgREST request: no silent partial success or overwriting older review decisions.
-  const { error } = await supabase.from(TABLE).insert(rows);
+  // A generated, unique open_case_key prevents duplicate unresolved exceptions
+  // across repeated staging of the same roster. DO NOTHING preserves existing cases.
+  const { data, error } = await supabase.from(TABLE)
+    .upsert(rows, { onConflict: "open_case_key", ignoreDuplicates: true })
+    .select("id");
   if (error) throw new Error(
     error.code === "42P01" || error.code === "PGRST205"
       ? "The renewal review queue database is not installed yet. Your staged results were not saved."
       : "Review cases could not be saved. Check reviewer permissions and database configuration: " + error.message
   );
-  return rows.length;
+  const saved = data?.length ?? 0;
+  return { saved, alreadyOpen: rows.length - saved };
 }
 
 export async function listRenewalReviews(status: RenewalReviewStatus | "all") {
