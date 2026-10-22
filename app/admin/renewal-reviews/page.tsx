@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ClipboardCheck, Loader2, RefreshCw, Search } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import { listRenewalReviews, resolveRenewalReview,
@@ -26,6 +27,8 @@ const DECISIONS: { value: RenewalResolution; label: string }[] = [
 ];
 
 export default function RenewalReviewQueuePage() {
+  const params = useSearchParams();
+  const requestedCase = params.get("case");
   const [status, setStatus] = useState<RenewalReviewStatus | "all">("open");
   const [items, setItems] = useState<SavedRenewalReview[]>([]);
   const [search, setSearch] = useState("");
@@ -41,10 +44,17 @@ export default function RenewalReviewQueuePage() {
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try { setItems(await listRenewalReviews(status)); }
+    try {
+      const results = await listRenewalReviews(status);
+      setItems(results);
+      if (requestedCase) {
+        const match = results.find((item) => item.id === requestedCase);
+        if (match) setSelected(match);
+      }
+    }
     catch (cause) { setItems([]); setError(cause instanceof Error ? cause.message : "Unable to load review cases."); }
     finally { setLoading(false); }
-  }, [status]);
+  }, [status, requestedCase]);
   useEffect(() => { void reload(); }, [reload]);
   const shown = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
@@ -144,7 +154,7 @@ export default function RenewalReviewQueuePage() {
             selected.candidates.map((candidate) => <div key={candidate.id} className="flex flex-wrap justify-between gap-2 border border-[#E8E0E2] bg-[#FBF9F9] p-3 text-sm">
               <div><p className="font-semibold">{candidate.name} · {candidate.uid}</p>
                 <p className="text-xs text-[#716168]">{candidate.parish} · {candidate.matchType} ({Math.round(candidate.similarity*100)}% match)</p></div>
-              <Link href={`/admin/members/${candidate.id}`} className="text-xs font-semibold text-[#890022] underline">Open registry record</Link>
+              <Link href={`/admin/members/${candidate.id}?returnTo=renewal-reviews&case=${selected.id}`} className="text-xs font-semibold text-[#890022] underline">Open registry record</Link>
             </div>)}
         </div>
         {selected.status !== "open" ? (
