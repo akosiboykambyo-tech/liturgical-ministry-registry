@@ -486,6 +486,8 @@ export default function CsvImportPage() {
     setRenewalParseError(null);
     setRenewalLetter(null);
     setRenewalStaging(null);
+    setReviewQueueSaved(null);
+    setReviewQueueError(null);
     setRenewalActionError(null);
     setRenewalSelected(new Set());
     setRenewalNotes("");
