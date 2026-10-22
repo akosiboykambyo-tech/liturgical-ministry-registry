@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Link from "next/link";
 import Papa from "papaparse";
 import { ebGaramond } from "@/app/fonts";
 import {
@@ -190,6 +191,14 @@ export default function CsvImportPage() {
   const [dragOver, setDragOver] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("import");
+  // Backwards-compatible entry points while renewal processing is consolidated.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    if (requested === "renewal" || requested === "history" || requested === "pending") {
+      setActiveTab(requested);
+    }
+  }, []);
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Renewal import state
@@ -1056,11 +1065,14 @@ export default function CsvImportPage() {
     <div className="w-full space-y-5 pb-16 text-[#1E1114]">
       <div>
         <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
-          CSV Import &amp; Renewals
+          Bulk Registration Import &amp; Legacy Renewals
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Import member rosters, process parish renewals, review history, and reconcile duplicate records.
+          Import new member rosters and reconcile duplicates. The existing renewal processor is retained here temporarily while its workflow is consolidated into the Renewal Processing Desk.
         </p>
+      </div>
+      <div className="border border-[#E6DADB] bg-[#F8F1F3] px-4 py-3 text-sm text-[#5D3540]">
+        For renewal batches, start at <Link href="/admin/renewal-batches" className="font-semibold text-[#890022] underline underline-offset-2">Renewal Processing Desk</Link>. This page preserves existing CSV renewal validation, document handling and history while the consolidated workflow is being completed.
       </div>
       {/* Tab bar */}
       <div className="grid grid-cols-2 gap-0 border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-1 sm:flex sm:flex-wrap">
