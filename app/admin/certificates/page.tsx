@@ -171,6 +171,19 @@ export default function CertificateManagerPage() {
     setUploading(false);
   };
 
+  const updatePageLayout = (paperSize: "a4" | "letter", orientation: "portrait" | "landscape") => {
+    // Keep existing portrait A4 dimensions and element coordinates unchanged.
+    const portraitWidth = 600;
+    const portraitHeight = paperSize === "a4" ? 850 : 776;
+    setSettings((current) => ({
+      ...current,
+      paper_size: paperSize,
+      orientation,
+      canvas_width: orientation === "portrait" ? portraitWidth : portraitHeight,
+      canvas_height: orientation === "portrait" ? portraitHeight : portraitWidth,
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -511,6 +524,32 @@ export default function CertificateManagerPage() {
         <div className="space-y-6">
           {activeTab === "layout" && (
             <>
+              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5 space-y-3">
+                <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Page Layout</h2>
+                <label className="block text-xs font-medium text-muted-foreground" htmlFor="certificate-paper-size">Paper size</label>
+                <select
+                  id="certificate-paper-size"
+                  value={settings.paper_size ?? "a4"}
+                  onChange={(event) => updatePageLayout(event.target.value as "a4" | "letter", settings.orientation ?? "portrait")}
+                  className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                >
+                  <option value="a4">A4</option>
+                  <option value="letter">Letter</option>
+                </select>
+                <label className="block text-xs font-medium text-muted-foreground" htmlFor="certificate-orientation">Orientation</label>
+                <select
+                  id="certificate-orientation"
+                  value={settings.orientation ?? "portrait"}
+                  onChange={(event) => updatePageLayout(settings.paper_size ?? "a4", event.target.value as "portrait" | "landscape")}
+                  className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                >
+                  <option value="portrait">Portrait</option>
+                  <option value="landscape">Landscape</option>
+                </select>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Layout is saved per template. Changing orientation resizes the canvas without moving existing elements. Reposition elements before saving as needed.
+                </p>
+              </div>
               <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
                 <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Background Image</h2>
                 {settings.template_url ? (
