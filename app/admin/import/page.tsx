@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Link from "next/link";
 import Papa from "papaparse";
 import { ebGaramond } from "@/app/fonts";
 import {
@@ -15,7 +16,9 @@ import {
   type RenewalReviewItem,
 } from "@/lib/duplicate-check";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { saveRenewalReviewCases } from "@/lib/renewal-review-queue";
 import { MINISTRIES, PARISHES, shortMinistry } from "@/lib/constants";
+import { canonicalParish } from "@/lib/parish-normalization";
 import type {
   Member,
   MemberMinistry,
@@ -190,6 +193,14 @@ export default function CsvImportPage() {
   const [dragOver, setDragOver] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("import");
+  // Backwards-compatible entry points while renewal processing is consolidated.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    if (requested === "renewal" || requested === "history" || requested === "pending") {
+      setActiveTab(requested);
+    }
+  }, []);
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Renewal import state
@@ -200,6 +211,9 @@ export default function CsvImportPage() {
   const [renewalParseError, setRenewalParseError] = useState<string | null>(null);
   const [renewalLetter, setRenewalLetter] = useState<File | null>(null);
   const [renewalStaging, setRenewalStaging] = useState<RenewalBatchStagingResult | null>(null);
+  const [reviewQueueSaving, setReviewQueueSaving] = useState(false);
+  const [reviewQueueSaved, setReviewQueueSaved] = useState<{ saved: number; alreadyOpen: number } | null>(null);
+  const [reviewQueueError, setReviewQueueError] = useState<string | null>(null);
   const [renewalProcessing, setRenewalProcessing] = useState(false);
   const [renewalActionError, setRenewalActionError] = useState<string | null>(null);
   const [renewalSelected, setRenewalSelected] = useState<Set<string>>(new Set());
@@ -269,10 +283,7 @@ export default function CsvImportPage() {
           const firstName = (r.first_name ?? "").trim();
           const lastName = (r.last_name ?? "").trim();
           const rawParish = (r.parish ?? "").trim();
-          const normalizedParish = rawParish.normalize("NFC");
-          const parish = PARISHES.find(
-            (candidate) => candidate.normalize("NFC") === normalizedParish
-          ) ?? "";
+          const parish = canonicalParish(rawParish) ?? "";
           const ministry = (r.ministry ?? "").trim();
           if (!firstName || !lastName || !rawParish || !ministry) {
             skipped.push(`${firstName || "?"} ${lastName || "?"}`.trim());
@@ -401,6 +412,8 @@ export default function CsvImportPage() {
   const handleRenewalCsv = useCallback((file: File) => {
     setRenewalParseError(null);
     setRenewalStaging(null);
+    setReviewQueueSaved(null);
+    setReviewQueueError(null);
     setRenewalActionError(null);
     setRenewalSuccess(null);
     setRenewalSelected(new Set());
@@ -424,11 +437,7 @@ export default function CsvImportPage() {
           const firstName = (r.first_name ?? "").trim();
           const lastName = (r.last_name ?? "").trim();
           const rawParish = (r.parish ?? "").trim();
-          const normalizedParish = rawParish.normalize("NFC");
-          const parish =
-            PARISHES.find(
-              (candidate) => candidate.normalize("NFC") === normalizedParish
-            ) ?? "";
+          const parish = canonicalParish(rawParish) ?? "";
           const ministry = (r.ministry ?? "").trim();
 
           if (!firstName || !lastName || !rawParish || !ministry) {
@@ -477,6 +486,8 @@ export default function CsvImportPage() {
     setRenewalParseError(null);
     setRenewalLetter(null);
     setRenewalStaging(null);
+    setReviewQueueSaved(null);
+    setReviewQueueError(null);
     setRenewalActionError(null);
     setRenewalSelected(new Set());
     setRenewalNotes("");
@@ -489,6 +500,8 @@ export default function CsvImportPage() {
     if (renewalRows.length === 0) return;
 
     setRenewalProcessing(true);
+    setReviewQueueSaved(null);
+    setReviewQueueError(null);
     setRenewalActionError(null);
     setRenewalSuccess(null);
 
@@ -521,6 +534,20 @@ export default function CsvImportPage() {
       );
     } finally {
       setRenewalProcessing(false);
+    }
+  };
+
+  const saveStagedReviewCases = async () => {
+    if (!renewalStaging || reviewQueueSaved !== null || reviewQueueSaving) return;
+    setReviewQueueSaving(true);
+    setReviewQueueError(null);
+    try {
+      const result = await saveRenewalReviewCases(renewalStaging, renewalCsvName || "Renewal roster");
+      setReviewQueueSaved(result);
+    } catch (cause) {
+      setReviewQueueError(cause instanceof Error ? cause.message : "Unable to save review cases.");
+    } finally {
+      setReviewQueueSaving(false);
     }
   };
 
@@ -1056,11 +1083,14 @@ export default function CsvImportPage() {
     <div className="w-full space-y-5 pb-16 text-[#1E1114]">
       <div>
         <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
-          CSV Import &amp; Renewals
+          Bulk Registration Import &amp; Legacy Renewals
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Import member rosters, process parish renewals, review history, and reconcile duplicate records.
+          Import new member rosters and reconcile duplicates. The existing renewal processor is retained here temporarily while its workflow is consolidated into the Renewal Processing Desk.
         </p>
+      </div>
+      <div className="border border-[#E6DADB] bg-[#F8F1F3] px-4 py-3 text-sm text-[#5D3540]">
+        For renewal batches, start at <Link href="/admin/renewal-batches" className="font-semibold text-[#890022] underline underline-offset-2">Renewal Processing Desk</Link>. This page preserves existing CSV renewal validation, document handling and history while the consolidated workflow is being completed.
       </div>
       {/* Tab bar */}
       <div className="grid grid-cols-2 gap-0 border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-1 sm:flex sm:flex-wrap">
@@ -1728,6 +1758,31 @@ export default function CsvImportPage() {
 
               {renewalStaging && (
                 <div className="space-y-5">
+                  {(renewalStaging.review.length + renewalStaging.unmatched.length) > 0 && (
+                    <div className="border border-[#DEC6CD] border-t-[3px] border-t-[#890022] bg-[#F8F1F3] p-4">
+                      <h2 className="text-sm font-semibold text-[#582D3A]">Save renewal exceptions for later review</h2>
+                      <p className="mt-1 text-xs leading-5 text-[#69535A]">
+                        Needs Review and Unmatched are temporary results until saved. Save them to the dedicated renewal queue so you can return later. This does not merge, create, or renew any member.
+                      </p>
+                      {reviewQueueError && <p role="alert" className="mt-2 text-xs font-medium text-[#890022]">{reviewQueueError}</p>}
+                      {reviewQueueSaved !== null ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <p role="status" className="text-sm font-semibold text-[#582D3A]">{reviewQueueSaved.saved} new cases saved; {reviewQueueSaved.alreadyOpen} already in the open queue.</p>
+                          <Link href="/admin/renewal-reviews" className="text-xs font-semibold text-[#890022] underline underline-offset-2">Open Renewal Review Queue</Link>
+                        </div>
+                      ) : (
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <button type="button" onClick={() => void saveStagedReviewCases()}
+                            disabled={reviewQueueSaving}
+                            className="inline-flex min-h-10 items-center gap-2 bg-[#890022] px-4 text-sm font-semibold text-white disabled:opacity-50">
+                            {reviewQueueSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                            Save {renewalStaging.review.length + renewalStaging.unmatched.length} Review Cases
+                          </button>
+                          <Link href="/admin/renewal-reviews" className="text-xs font-semibold text-[#890022] underline underline-offset-2">View existing reviews</Link>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="rounded-none border border-emerald-200 bg-emerald-50 p-4">
                       <p className="text-2xl font-bold text-emerald-700">
@@ -2224,12 +2279,10 @@ export default function CsvImportPage() {
           <div>
             <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <GitMerge className="h-6 w-6 text-primary" />
-              Pending Merges — Reconciliation Queue
+              Registration Import — Pending Duplicate Merges
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Duplicate records intercepted during batch import. Compare the
-              existing profile against the incoming upload record, then choose
-              an action. The queue advances automatically after each decision.
+              Only duplicates held during new-member registration imports appear here. Renewal CSV rows marked Needs Review are separate staging results, not saved to this queue.
             </p>
           </div>
 

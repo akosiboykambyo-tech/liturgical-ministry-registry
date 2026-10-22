@@ -8,7 +8,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   ExternalLink, LayoutDashboard, Loader2, LogOut,
   Menu, ScrollText, Settings, ShieldCheck, Upload, Users, X,
-  FileBadge, UserPlus,
+  FileBadge, UserPlus, ClipboardList,
 } from "lucide-react";
 import { ebGaramond, inter } from "@/app/fonts";
 
@@ -18,7 +18,9 @@ const NAV_GROUPS = [
     { href: "/admin/members", label: "Members", icon: Users },
     { href: "/admin/members/add", label: "Add Member", icon: UserPlus },
     { href: "/admin/verify", label: "Quick-Scan Matrix", icon: ShieldCheck },
-    { href: "/admin/import", label: "CSV Import", icon: Upload },
+    { href: "/admin/import", label: "Bulk Registration Import", icon: Upload },
+    { href: "/admin/renewal-batches", label: "Renewal Batches", icon: ClipboardList },
+    { href: "/admin/renewal-reviews", label: "Renewal Review Queue", icon: ShieldCheck },
   ] },
   { name: "Documents", items: [{ href: "/admin/certificates", label: "Certificate Templates", icon: FileBadge }] },
   { name: "Governance", items: [

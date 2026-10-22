@@ -29,6 +29,16 @@ import {
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const [returnReview, setReturnReview] = useState<string | null>(null);
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("returnTo") === "renewal-reviews") {
+      const id = query.get("case");
+      if (id && /^[0-9a-f-]{36}$/i.test(id)) setReturnReview(id);
+    }
+  }, []);
+  const backHref = returnReview ? `/admin/renewal-reviews?case=${encodeURIComponent(returnReview)}` : "/admin/members";
+  const backText = returnReview ? "Back to Renewal Review Queue" : "Back to members";
   const supabase = getSupabaseBrowserClient();
   const [member, setMember] = useState<Member | null>(null);
   const [audits, setAudits] = useState<AuditLog[]>([]);
@@ -186,8 +196,8 @@ export default function MemberDetailPage() {
     return (
       <div className="text-center py-16">
         <p className="text-sm text-muted-foreground">Member not found.</p>
-        <Link href="/admin/members" className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline">
-          <ArrowLeft className="h-4 w-4" /> Back to members
+        <Link href={backHref} className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" /> {backText}
         </Link>
       </div>
     );
@@ -203,7 +213,7 @@ export default function MemberDetailPage() {
 
       <div>
         <Link
-          href="/admin/members"
+          href={backHref}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" /> Back to members
