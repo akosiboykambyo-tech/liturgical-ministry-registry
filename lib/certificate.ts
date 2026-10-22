@@ -47,33 +47,24 @@ export function resolveCertificateSignatory(
 }
 
 
-let fontLoadPromise: Promise<void> | null = null;
-
-function ensureFontsLoaded(): Promise<void> {
-  if (fontLoadPromise) return fontLoadPromise;
-  fontLoadPromise = (async () => {
-    const families = ["EB Garamond", "Montserrat", "Playfair Display"];
-    await Promise.all(
-      families.map(async (family) => {
-        try {
-          const font = new FontFace(
-            family,
-            `url(https://fonts.gstatic.com/s/${family.toLowerCase().replace(/ /g, "")}/v1/regular.woff2)`
-          );
-          await font.load();
-          (document.fonts as FontFaceSet).add(font);
-        } catch {
-          // Font load failed; fallback to Georgia/sans-serif via CSS font stack
-        }
-      })
-    );
+/** Wait for the stylesheets' actual font faces before measuring or exporting text. */
+async function ensureFontsLoaded(settings: CertificateTemplateSettings): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
+  const stacks = new Set<string>([
+    settings.font_family || "Georgia, serif",
+    ...(settings.elements ?? []).map((element) => element.font_family || settings.font_family || "Georgia, serif"),
+  ]);
+  await Promise.all(Array.from(stacks).map(async (family) => {
     try {
-      await (document.fonts as FontFaceSet).ready;
+      // Load regular and bold faces used by the canvas renderer.
+      await Promise.all([
+        document.fonts.load(`16px ${family}`),
+        document.fonts.load(`bold 16px ${family}`),
+      ]);
     } catch {
-      // ignore
+      // Unavailable font faces fall back to the corresponding system font stack.
     }
-  })();
-  return fontLoadPromise;
+  }));
 }
 
 function drawDefaultBackground(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number) {
@@ -208,7 +199,7 @@ export async function renderCertificate(
   signatories: Signatory[] = [],
   scale = 1
 ): Promise<void> {
-  await ensureFontsLoaded();
+  await ensureFontsLoaded(settings);
 
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Certificate canvas is unavailable.");
