@@ -50,6 +50,18 @@ export function resolveCertificateSignatory(
 /** Wait for the stylesheets' actual font faces before measuring or exporting text. */
 async function ensureFontsLoaded(settings: CertificateTemplateSettings): Promise<void> {
   if (typeof document === "undefined" || !document.fonts) return;
+  if (settings.recipient_font_url && settings.recipient_font_name) {
+    const family = settings.recipient_font_name;
+    try {
+      if (!document.fonts.check(`16px "${family}"`)) {
+        const customFont = new FontFace(family, `url("${settings.recipient_font_url}")`);
+        await customFont.load();
+        document.fonts.add(customFont);
+      }
+    } catch {
+      throw new Error("The uploaded recipient font could not be loaded. PDF generation was stopped to prevent incorrect typography.");
+    }
+  }
   const stacks = new Set<string>([
     settings.font_family || "Georgia, serif",
     ...(settings.elements ?? []).map((element) => element.font_family || settings.font_family || "Georgia, serif"),
