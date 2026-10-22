@@ -131,7 +131,7 @@ export default function RenewalReviewQueuePage() {
           </table>
         </div>
       )}
-      {items.length === 500 && <p className="text-xs text-[#66575C]">Displaying the latest 500 cases. Refine the status or search to locate older cases; pagination is planned.</p>}
+      {items.length === 500 && <p className="text-xs text-[#66575C]">Displaying at most the latest 500 cases for the selected status. Older cases require server-side pagination, which must be implemented before production use.</p>}
       {selected && <section aria-label="Review details" className="space-y-4 border border-[#E0CED2] border-t-[3px] border-t-[#890022] bg-white p-5">
         <div className="flex items-start justify-between gap-3">
           <div><h2 className={`${ebGaramond.className} text-2xl`}>{selected.first_name} {selected.last_name}</h2>
