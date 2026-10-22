@@ -8,6 +8,7 @@ import {
   AlignRight,
 } from "lucide-react";
 import { DYNAMIC_SIGNATORY_SLOT, resolveCertificateSignatory } from "@/lib/certificate";
+import { FONT_OPTIONS } from "@/lib/constants";
 import type {
   CertificateElement,
   CertificateTemplateSettings,
@@ -835,25 +836,68 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
       </div>
     </div>
 
-                <label className="block space-y-1">
-                  <span className="text-[11px] text-muted-foreground">
-                    Font Family
-                  </span>
+                <label className="block space-y-1.5">
+                  <span className="text-[11px] text-muted-foreground">Font Family</span>
+                  <select
+                    value={(() => {
+                      const family = selectedElement.font_family || settings.font_family || "Georgia, serif";
+                      if (selectedElement.type === "member_name" &&
+                          settings.recipient_font_url && family === settings.recipient_font_family) {
+                        return "__uploaded_recipient__";
+                      }
+                      return FONT_OPTIONS.some((font) => font.value === family) ? family : "__custom__";
+                    })()}
+                    disabled={selectedElement.locked}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === "__custom__") return;
+                      updateElement(selectedElement.id, {
+                        font_family: value === "__uploaded_recipient__"
+                          ? settings.recipient_font_family || "Georgia, serif"
+                          : value,
+                      });
+                    }}
+                    className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30 disabled:opacity-50"
+                  >
+                    {FONT_OPTIONS.map((font) => (
+                      <option key={font.label} value={font.value}>{font.label}</option>
+                    ))}
+                    {selectedElement.type === "member_name" && settings.recipient_font_url && (
+                      <option value="__uploaded_recipient__">Uploaded recipient font</option>
+                    )}
+                    <option value="__custom__">Custom font stack / existing font</option>
+                  </select>
+                </label>
+                {!FONT_OPTIONS.some((font) =>
+                  font.value === (selectedElement.font_family || settings.font_family || "Georgia, serif")
+                ) && !(selectedElement.type === "member_name" && settings.recipient_font_url &&
+                  selectedElement.font_family === settings.recipient_font_family) && (
+                  <label className="block space-y-1">
+                    <span className="text-[11px] text-muted-foreground">
+                      Custom font stack
+                    </span>
+                    <input
+                      type="text"
+                      value={selectedElement.font_family || settings.font_family || "Georgia, serif"}
+                      disabled={selectedElement.locked}
+                      onChange={(event) => updateElement(selectedElement.id, {
+                        font_family: event.target.value,
+                      })}
+                      className="w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30 disabled:opacity-50"
+                    />
+                  </label>
+                )}
+                <details className="group text-[11px] text-muted-foreground">
+                  <summary className="cursor-pointer text-[#682037]">Advanced: enter a custom font stack</summary>
                   <input
                     type="text"
-                    value={
-                      selectedElement.font_family || "Georgia, serif"
-                    }
+                    aria-label="Custom font stack"
+                    value={selectedElement.font_family || settings.font_family || "Georgia, serif"}
                     disabled={selectedElement.locked}
-                    onChange={(event) =>
-                      updateElement(selectedElement.id, {
-                        font_family: event.target.value,
-                      })
-                    }
-                    className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                    onChange={(event) => updateElement(selectedElement.id, { font_family: event.target.value })}
+                    className="mt-2 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 py-2 text-xs text-foreground"
                   />
-                </label>
-
+                </details>
                 <label className="block space-y-1">
                   <span className="text-[11px] text-muted-foreground">Capitalization</span>
                   <select
