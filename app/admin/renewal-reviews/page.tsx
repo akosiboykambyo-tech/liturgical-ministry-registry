@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ClipboardCheck, Loader2, RefreshCw, Search } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
-import { comparePossibleDuplicateMembers, listRenewalReviews, resolveRenewalReview,
+import { comparePossibleDuplicateMembers, duplicateRemovalWarnings, listRenewalReviews, resolveRenewalReview,
   type DuplicateComparison,
   type RenewalResolution, type RenewalReviewStatus, type SavedRenewalReview } from "@/lib/renewal-review-queue";
 
@@ -220,7 +220,10 @@ export default function RenewalReviewQueuePage() {
                         {a.ministry} — {a.status} · Expiry {a.expiration_date ?? "—"} ·
                         Document {a.document_url ? "present" : "none"} · Archived {a.archived_document_count}
                       </p>)}
-                      {member.dependency_warning && <p role="alert" className="text-[#890022]">Dependency lookup incomplete: {member.dependency_warning}</p>}
+                      <div className="space-y-1 border-t border-[#E6DADB] pt-2">
+                        <p className="font-semibold text-[#890022]">Safety assessment — removal blocked</p>
+                        {duplicateRemovalWarnings(member).map(w => <p key={w} className="text-[#6B4C56]">• {w}</p>)}
+                      </div>
                       <Link href={`/admin/members/${member.id}?returnTo=renewal-reviews&case=${selected.id}`}
                         className="inline-block font-semibold text-[#890022] underline">Inspect this member</Link>
                     </div>
