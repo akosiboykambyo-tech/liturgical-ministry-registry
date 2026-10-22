@@ -212,7 +212,7 @@ export default function CsvImportPage() {
   const [renewalLetter, setRenewalLetter] = useState<File | null>(null);
   const [renewalStaging, setRenewalStaging] = useState<RenewalBatchStagingResult | null>(null);
   const [reviewQueueSaving, setReviewQueueSaving] = useState(false);
-  const [reviewQueueSaved, setReviewQueueSaved] = useState<number | null>(null);
+  const [reviewQueueSaved, setReviewQueueSaved] = useState<{ saved: number; alreadyOpen: number } | null>(null);
   const [reviewQueueError, setReviewQueueError] = useState<string | null>(null);
   const [renewalProcessing, setRenewalProcessing] = useState(false);
   const [renewalActionError, setRenewalActionError] = useState<string | null>(null);
@@ -542,8 +542,8 @@ export default function CsvImportPage() {
     setReviewQueueSaving(true);
     setReviewQueueError(null);
     try {
-      const count = await saveRenewalReviewCases(renewalStaging, renewalCsvName || "Renewal roster");
-      setReviewQueueSaved(count);
+      const result = await saveRenewalReviewCases(renewalStaging, renewalCsvName || "Renewal roster");
+      setReviewQueueSaved(result);
     } catch (cause) {
       setReviewQueueError(cause instanceof Error ? cause.message : "Unable to save review cases.");
     } finally {
@@ -1767,7 +1767,7 @@ export default function CsvImportPage() {
                       {reviewQueueError && <p role="alert" className="mt-2 text-xs font-medium text-[#890022]">{reviewQueueError}</p>}
                       {reviewQueueSaved !== null ? (
                         <div className="mt-3 flex flex-wrap items-center gap-3">
-                          <p role="status" className="text-sm font-semibold text-[#582D3A]">{reviewQueueSaved} cases saved successfully.</p>
+                          <p role="status" className="text-sm font-semibold text-[#582D3A]">{reviewQueueSaved.saved} new cases saved; {reviewQueueSaved.alreadyOpen} already in the open queue.</p>
                           <Link href="/admin/renewal-reviews" className="text-xs font-semibold text-[#890022] underline underline-offset-2">Open Renewal Review Queue</Link>
                         </div>
                       ) : (
