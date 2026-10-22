@@ -404,8 +404,11 @@ export default function CertificateManagerPage() {
         return;
       }
       const path = `recipient-fonts/${crypto.randomUUID()}.${extension}`;
+      // Windows/browser font files may have application/octet-stream as their File.type.
+      // Supabase's multipart upload uses the file's MIME type, so normalize it.
+      const fontFile = new File([file], file.name, { type: mime[extension] });
       const { error: uploadError } = await supabase.storage.from("certificate-templates").upload(
-        path, file, { contentType: mime[extension], upsert: false }
+        path, fontFile, { contentType: mime[extension], upsert: false }
       );
       if (uploadError) throw uploadError;
       const { data: publicData } = supabase.storage.from("certificate-templates").getPublicUrl(path);
