@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ClipboardCheck, Loader2, RefreshCw, Search } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
-import { comparePossibleDuplicateMembers, duplicateRemovalWarnings, listRenewalReviews, resolveRenewalReview,
+import { comparePossibleDuplicateMembers, listRenewalReviews, resolveRenewalReview,
   type DuplicateComparison,
   type RenewalResolution, type RenewalReviewStatus, type SavedRenewalReview } from "@/lib/renewal-review-queue";
 
@@ -43,8 +43,7 @@ export default function RenewalReviewQueuePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [comparison, setComparison] = useState<DuplicateComparison[] | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
-  const [retainId, setRetainId] = useState("");
-  const [removeId, setRemoveId] = useState("");
+
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -73,12 +72,12 @@ export default function RenewalReviewQueuePage() {
   const beginReview = (item: SavedRenewalReview) => {
     setSelected(item); setDecision(""); setNotes(""); setOutcome("resolved");
     setDuplicateConfirmation(false);
-    setComparison(null); setRetainId(""); setRemoveId("");
+    setComparison(null);
     setError(null); setNotice(null);
   };
   const investigateDuplicate = async () => {
     if (!selected) return;
-    setComparisonLoading(true); setComparison(null); setRetainId(""); setRemoveId(""); setError(null);
+    setComparisonLoading(true); setComparison(null); setError(null);
     try { setComparison(await comparePossibleDuplicateMembers(selected)); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to compare records."); }
     finally { setComparisonLoading(false); }
@@ -197,7 +196,7 @@ export default function RenewalReviewQueuePage() {
             <h3 className="text-sm font-semibold text-[#592E3B]">Investigate duplicate registry records</h3>
             <p className="text-xs leading-5 text-[#66545B]">
               Search exact member names within this parish and compare UIDs, ministry assignments,
-              registration dates, documentation and renewal history. This is a read-only investigation.
+              registration and renewal dates. You decide which UID is the duplicate; deletion is performed separately in Admin → Members.
             </p>
             <button type="button" disabled={comparisonLoading} onClick={() => void investigateDuplicate()}
               className="min-h-10 border border-[#890022] bg-white px-4 text-sm font-semibold text-[#890022] disabled:opacity-50">
@@ -214,47 +213,29 @@ export default function RenewalReviewQueuePage() {
                       <p className="break-all font-semibold text-[#890022]">UID: {member.uid}</p>
                       <p>Status: {member.status} · Service year: {member.service_year}</p>
                       <p>Created: {new Date(member.created_at).toLocaleDateString()} · Expiry: {member.expiration_date ?? "—"}</p>
-                      <p>Current document: {member.document_url ? "Present" : "None"} · Archived: {member.archived_documents.length}</p>
-                      <p>Renewal records: {member.renewal_history_count} · Audit entries: {member.audit_log_count}</p>
+                      <p>Renewal history entries: {member.renewal_history_count}</p>
                       {member.assignments.map(a => <p key={a.id} className="border-t border-[#E6DADB] pt-2">
-                        {a.ministry} — {a.status} · Expiry {a.expiration_date ?? "—"} ·
-                        Document {a.document_url ? "present" : "none"} · Archived {a.archived_document_count}
+                        {a.ministry} — {a.status} · Renewal/expiry date: {a.expiration_date ?? "—"}
                       </p>)}
-                      <div className="space-y-1 border-t border-[#E6DADB] pt-2">
-                        <p className="font-semibold text-[#890022]">Safety assessment — removal blocked</p>
-                        {duplicateRemovalWarnings(member).map(w => <p key={w} className="text-[#6B4C56]">• {w}</p>)}
-                      </div>
+                      <Link href={`/admin/members/${member.id}?returnTo=renewal-reviews&case=${selected.id}`}
+                        className="inline-block font-semibold text-[#890022] underline">Inspect registry record</Link>
+                    </div>
                       <Link href={`/admin/members/${member.id}?returnTo=renewal-reviews&case=${selected.id}`}
                         className="inline-block font-semibold text-[#890022] underline">Inspect this member</Link>
                     </div>
                   ))}
                 </div>
-                <div className="space-y-3 border border-[#DFC7CE] bg-[#F8F1F3] p-3">
-                  <p className="text-sm font-semibold text-[#592E3B]">Proposed reconciliation (no deletion enabled)</p>
-                  <label className="block space-y-1 text-xs"><span className="font-semibold">Keep this UID</span>
-                    <select className="h-10 w-full border border-[#D7C9CD] bg-white px-2" value={retainId}
-                      onChange={e => setRetainId(e.target.value)}>
-                      <option value="">Select record to retain</option>
-                      {comparison.map(m => <option key={m.id} value={m.id}>{m.uid} — {m.status}</option>)}
-                    </select>
-                  </label>
-                  <label className="block space-y-1 text-xs"><span className="font-semibold">Potential duplicate UID</span>
-                    <select className="h-10 w-full border border-[#D7C9CD] bg-white px-2" value={removeId}
-                      onChange={e => setRemoveId(e.target.value)}>
-                      <option value="">Select record for deletion assessment</option>
-                      {comparison.filter(m => m.id !== retainId).map(m => <option key={m.id} value={m.id}>{m.uid} — {m.status}</option>)}
-                    </select>
-                  </label>
-                  {retainId && removeId && retainId !== removeId && (
-                    <p className="text-xs leading-5 text-[#592E3B]">
-                      Records identified for further reconciliation. Deletion is disabled until all
-                      linked references (including documents, audit logs and renewal history) can be
-                      safely preserved in a transactional, auditable operation.
-                    </p>
-                  )}
-                  <button type="button" disabled className="min-h-10 bg-[#890022] px-4 text-sm font-semibold text-white opacity-50">
-                    Remove Duplicate — Safety Review Required
-                  </button>
+                <div className="space-y-2 border border-[#DFC7CE] bg-[#F8F1F3] p-3">
+                  <p className="text-sm font-semibold text-[#592E3B]">Manual duplicate cleanup</p>
+                  <p className="text-xs leading-5 text-[#592E3B]">
+                    Compare the UIDs and renewal dates. If a record is an erroneous duplicate, open
+                    Admin → Members, search its UID, and use the existing Delete action. Return
+                    here afterward to record the kept UID, deleted UID, and reason in review notes.
+                    Closing a review does not delete any registry record.
+                  </p>
+                  <Link href="/admin/members" className="inline-block min-h-10 border border-[#890022] bg-white px-4 py-2.5 text-sm font-semibold text-[#890022]">
+                    Open Admin Members for manual deletion
+                  </Link>
                 </div>
               </div>
             )}
