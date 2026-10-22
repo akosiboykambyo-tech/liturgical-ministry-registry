@@ -72,6 +72,7 @@ export default function CertificateManagerPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fontUploading, setFontUploading] = useState(false);
+  const [signatoryFontUploading, setSignatoryFontUploading] = useState(false);
   const [setDefaultKey, setSetDefaultKey] = useState<string | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -127,28 +128,31 @@ export default function CertificateManagerPage() {
   }, [settings.template_url]);
 
   useEffect(() => {
-    if (!settings.recipient_font_url || !settings.recipient_font_name) return;
     let cancelled = false;
-    const family = settings.recipient_font_name;
-    const url = settings.recipient_font_url;
-    const loadPreviewFont = async () => {
-      try {
-        let alreadyLoaded = false;
-      document.fonts.forEach((face) => {
-        if (face.family.replace(/["']/g, "") === family && face.status === "loaded") alreadyLoaded = true;
-      });
-      if (!alreadyLoaded) {
-          const face = new FontFace(family, `url("${url}")`);
-          await face.load();
-          if (!cancelled) document.fonts.add(face);
+    const loadPreviewFonts = async () => {
+      for (const font of [
+        { url: settings.recipient_font_url, family: settings.recipient_font_name, role: "recipient" },
+        { url: settings.signatory_font_url, family: settings.signatory_font_name, role: "signatory" },
+      ]) {
+        if (!font.url || !font.family) continue;
+        try {
+          let alreadyLoaded = false;
+          document.fonts.forEach((face) => {
+            if (face.family.replace(/["']/g, "") === font.family && face.status === "loaded") alreadyLoaded = true;
+          });
+          if (!alreadyLoaded) {
+            const face = new FontFace(font.family, `url("${font.url}")`);
+            await face.load();
+            if (!cancelled) document.fonts.add(face);
+          }
+        } catch {
+          if (!cancelled) setError(`The uploaded ${font.role} font cannot be loaded in this browser. Check storage permissions or replace the font.`);
         }
-      } catch {
-        if (!cancelled) setError("The uploaded recipient font cannot be loaded in this browser. Please check storage permissions or replace the font.");
       }
     };
-    void loadPreviewFont();
+    void loadPreviewFonts();
     return () => { cancelled = true; };
-  }, [settings.recipient_font_url, settings.recipient_font_name]);
+  }, [settings.recipient_font_url, settings.recipient_font_name, settings.signatory_font_url, settings.signatory_font_name]);
 
   const targetAspectRatio = (settings.canvas_width || 600) / (settings.canvas_height || 850);
   const backgroundAspectRatio = backgroundDimensions
@@ -174,7 +178,7 @@ export default function CertificateManagerPage() {
     alignment: "left" as "left" | "center" | "right",
   });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (selectedKey?: string) => {
     setLoading(true);
     const { data } = await supabase
       .from("system_settings")
@@ -188,7 +192,7 @@ export default function CertificateManagerPage() {
       updated_at: (row.updated_at as string) ?? "",
     }));
     setTemplates(rows);
-    const defaultRow = rows.find((r) => r.is_default) ?? rows[0];
+    const defaultRow = rows.find((r) => r.key === selectedKey) ?? rows.find((r) => r.is_default) ?? rows[0];
     if (defaultRow) {
       setSettings(defaultRow.settings);
       setEditingKey(defaultRow.key);
@@ -219,11 +223,19 @@ export default function CertificateManagerPage() {
   const handleUpload = async (file: File) => {
     setUploading(true);
     setError(null);
-    const ext = file.name.split(".").pop();
-    const path = `template-${Date.now()}.${ext}`;
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (!extension || !["png", "jpg", "jpeg"].includes(extension) ||
+        !["image/png", "image/jpeg"].includes(file.type)) {
+      setError("Use a PNG or JPEG certificate background.");
+      setUploading(false);
+      return;
+    }
+    // Each upload receives its own object, so replacing an image for one
+    // template cannot overwrite another template's background in Storage.
+    const path = `backgrounds/${crypto.randomUUID()}.${extension}`;
     const { error: upErr } = await supabase.storage
       .from("certificate-templates")
-      .upload(path, file, { upsert: true });
+      .upload(path, file, { contentType: file.type, upsert: false });
     if (upErr) {
       setError(upErr.message);
       setUploading(false);
@@ -250,24 +262,37 @@ export default function CertificateManagerPage() {
   };
 
   const handleSave = async () => {
+    const creating = editingKey === null;
+    const name = templateName.trim();
+    if (creating && !name) {
+      setError("Enter a name before creating a new certificate template.");
+      return;
+    }
+    const key = creating ? nameToKey(name) : editingKey;
+    if (creating && (key === TEMPLATE_KEY_PREFIX || templates.some((row) => row.key === key))) {
+      setError("A template with that name already exists. Use a different name or edit the existing template.");
+      return;
+    }
     setSaving(true);
     setError(null);
-    const key = editingKey ?? nameToKey(templateName || "Default Template");
-    const { error } = await supabase
-      .from("system_settings")
-      .upsert({
-        key,
-        value: settings as unknown as Record<string, unknown>,
-        is_default: templates.find((t) => t.key === key)?.is_default ?? templates.length === 0,
-      });
+    // Never upsert a new template: a concurrent name collision must not overwrite an existing design.
+    const { error } = creating
+      ? await supabase.from("system_settings").insert({
+          key, value: settings as unknown as Record<string, unknown>,
+          is_default: templates.length === 0,
+        })
+      : await supabase.from("system_settings")
+          .update({ value: settings as unknown as Record<string, unknown> }).eq("key", key);
     setSaving(false);
     if (error) {
-      setError(error.message);
-    } else {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-      await load();
+      setError(creating && error.code === "23505"
+        ? "A template with that name already exists. Choose another name."
+        : error.message);
+      return;
     }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+    await load(key);
   };
 
   const handleSetDefault = async (key: string) => {
@@ -362,7 +387,7 @@ export default function CertificateManagerPage() {
         ...patch,
         elements: current.elements.map((element) => {
           const matches = role === "primary"
-            ? ["text", "liturgical_year", "signatory"].includes(element.type)
+            ? ["text", "liturgical_year"].includes(element.type)
             : role === "secondary"
               ? ["parish", "ministry", "uid"].includes(element.type)
               : element.type === "member_name";
@@ -396,7 +421,7 @@ export default function CertificateManagerPage() {
     }));
   };
 
-  const handleRecipientFontUpload = async (file: File) => {
+  const handleRecipientFontUpload = async (file: File, role: "recipient" | "signatory" = "recipient") => {
     const extension = file.name.split(".").pop()?.toLowerCase();
     const mime: Record<string, string> = {
       ttf: "font/ttf", otf: "font/otf", woff: "font/woff", woff2: "font/woff2",
@@ -405,7 +430,8 @@ export default function CertificateManagerPage() {
       setError("Use a licensed TTF, OTF, WOFF or WOFF2 font up to 5 MB.");
       return;
     }
-    setFontUploading(true);
+    if (role === "recipient") setFontUploading(true);
+    else setSignatoryFontUploading(true);
     setError(null);
     try {
       const bytes = new Uint8Array(await file.slice(0, 4).arrayBuffer());
@@ -417,7 +443,7 @@ export default function CertificateManagerPage() {
         setError("The selected file does not appear to be a valid font of the specified type.");
         return;
       }
-      const path = `recipient-fonts/${crypto.randomUUID()}.${extension}`;
+      const path = `${role}-fonts/${crypto.randomUUID()}.${extension}`;
       // Windows/browser font files may have application/octet-stream as their File.type.
       // Supabase's multipart upload uses the file's MIME type, so normalize it.
       const fontFile = new File([file], file.name, { type: mime[extension] });
@@ -426,20 +452,70 @@ export default function CertificateManagerPage() {
       );
       if (uploadError) throw uploadError;
       const { data: publicData } = supabase.storage.from("certificate-templates").getPublicUrl(path);
-      const family = `RecipientCustom-${path.split("/").pop()?.replace(".", "-")}`;
-      setSettings((current) => ({
+      const family = `${role === "recipient" ? "RecipientCustom" : "SignatoryCustom"}-${path.split("/").pop()?.replace(".", "-")}`;
+      const stack = `"${family}", Georgia, serif`;
+      setSettings((current) => role === "recipient" ? ({
         ...current,
         recipient_font_url: publicData.publicUrl,
         recipient_font_name: family,
-        recipient_font_family: `"${family}", Georgia, serif`,
+        recipient_font_family: stack,
         elements: current.elements.map((element) => element.type === "member_name"
-          ? { ...element, font_family: `"${family}", Georgia, serif` } : element),
+          ? { ...element, font_family: stack } : element),
+      }) : ({
+        ...current,
+        signatory_font_url: publicData.publicUrl,
+        signatory_font_name: family,
+        signatory_font_family: stack,
+        elements: current.elements.map((element) => element.type === "signatory"
+          ? { ...element, font_family: stack } : element),
       }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Custom font upload failed.");
     } finally {
-      setFontUploading(false);
+      if (role === "recipient") setFontUploading(false);
+      else setSignatoryFontUploading(false);
     }
+  };
+
+  // The controls in this tab are template-wide defaults. Element properties remain
+  // independently editable in the Visual Canvas after applying these defaults.
+  const setSignatoryFont = (family: string) => {
+    setSettings((current) => ({
+      ...current,
+      signatory_font_family: family,
+      signatory_font_url: null,
+      signatory_font_name: null,
+      elements: current.elements.map((element) => element.type === "signatory"
+        ? { ...element, font_family: family } : element),
+    }));
+  };
+
+  const updateSignatoryTitle = (field: "family" | "size" | "weight" | "case", value: string | number) => {
+    setSettings((current) => ({
+      ...current,
+      ...(field === "family" ? { signatory_title_font_family: String(value) }
+        : field === "size" ? { signatory_title_font_size: Number(value) }
+        : field === "weight" ? { signatory_title_font_weight: String(value) }
+        : { signatory_title_text_case: String(value) as "normal" | "uppercase" | "small-caps" }),
+    }));
+  };
+
+  const updateSignatoryTypography = (field: "color" | "titleColor" | "size" | "weight" | "case", value: string | number) => {
+    setSettings((current) => ({
+      ...current,
+      ...(field === "color" ? { signatory_font_color: String(value) }
+        : field === "titleColor" ? { signatory_title_color: String(value) }
+        : field === "size" ? { signatory_font_size: Number(value) }
+        : field === "weight" ? { signatory_font_weight: String(value) }
+        : { signatory_text_case: String(value) as "normal" | "uppercase" | "small-caps" }),
+      elements: current.elements.map((element) => element.type === "signatory"
+        ? { ...element, ...(field === "color" ? { color: String(value) }
+          : field === "size" ? { font_size: Number(value) }
+          : field === "weight" ? { font_weight: String(value) }
+          : field === "case" ? { text_case: String(value) as "normal" | "uppercase" | "small-caps" }
+          : {}) }
+        : element),
+    }));
   };
 
   // Signatory handlers
@@ -572,6 +648,18 @@ export default function CertificateManagerPage() {
           </p>
         </div>
 
+        <div className="flex flex-wrap items-end gap-2">
+          <button type="button" onClick={handleNew}
+            className="inline-flex min-h-10 items-center gap-1.5 border border-[#D9CDD1] bg-white px-3 py-2 text-sm font-medium text-[#682037] hover:bg-[#F8F1F3]">
+            <Plus className="h-4 w-4" /> New Template
+          </button>
+          {editingKey && (
+            <button type="button"
+              onClick={() => { setEditingKey(null); setTemplateName(""); setSaved(false); setError(null); }}
+              className="inline-flex min-h-10 items-center gap-1.5 border border-[#D9CDD1] bg-white px-3 py-2 text-sm font-medium text-[#682037] hover:bg-[#F8F1F3]">
+              <FileText className="h-4 w-4" /> Save as New
+            </button>
+          )}
         <button
           type="button"
           onClick={handleSave}
@@ -590,6 +678,7 @@ export default function CertificateManagerPage() {
             </>
           )}
         </button>
+        </div>
       </div>
 
       {error && (
@@ -604,6 +693,21 @@ export default function CertificateManagerPage() {
           <span>Template settings saved.</span>
         </div>
       )}
+
+      <div className="border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-4 sm:p-5">
+        <label className="block max-w-lg space-y-1.5">
+          <span className="text-xs font-semibold text-[#27232A]">{editingKey ? "Editing saved template" : "New template name"}</span>
+          <input type="text" value={templateName} maxLength={80} disabled={Boolean(editingKey)}
+            onChange={(event) => setTemplateName(event.target.value)}
+            placeholder="e.g. Commissioning Certificate Landscape"
+            className="block h-10 w-full border border-[#D9CDD1] bg-white px-3 text-sm disabled:bg-[#F7F2F3] disabled:text-[#66565A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]/30" />
+        </label>
+        <p className="mt-2 text-xs leading-5 text-[#66565A]">
+          {editingKey
+            ? "Save Template updates only the selected template. Save as New creates an independent copy; New Template starts with defaults."
+            : "Save Template creates a separate record without overwriting an existing certificate."}
+        </p>
+      </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-1 rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-1 ">
@@ -666,32 +770,27 @@ export default function CertificateManagerPage() {
               <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
                 <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Background Image</h2>
                 {settings.template_url ? (
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={settings.template_url}
-                      alt="template"
-                      className="h-16 w-24 rounded border border-border object-cover"
-                    />
-                    <label className="cursor-pointer">
-                      <span className="inline-flex items-center gap-1.5 rounded-none border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
-                        <Upload className="h-3.5 w-3.5" /> Replace
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleUpload(f);
-                        }}
-                      />
-                    </label>
-                    <button
-                      onClick={() => setSettings((s) => ({ ...s, template_url: null }))}
-                      className="text-xs text-[#890022] hover:underline"
-                    >
-                      Remove (use default placeholder)
-                    </button>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={settings.template_url} alt="Current certificate background"
+                        className="h-20 w-24 shrink-0 border border-[#D9CDD1] bg-white object-contain" />
+                      <p className="min-w-0 text-xs leading-5 text-[#66565A]">Current background for this template.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="flex min-h-10 cursor-pointer items-center justify-center gap-1.5 border border-[#D9CDD1] px-2 text-xs font-medium text-[#682037] hover:bg-[#F8F1F3]">
+                        <Upload className="h-3.5 w-3.5 shrink-0" />
+                        {uploading ? "Uploading..." : "Replace"}
+                        <input type="file" accept="image/jpeg,image/png" disabled={uploading} className="hidden"
+                          onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleUpload(file); event.target.value = ""; }} />
+                      </label>
+                      <button type="button" disabled={uploading}
+                        onClick={() => setSettings((current) => ({ ...current, template_url: null }))}
+                        className="min-h-10 border border-[#C9B8BE] px-2 text-xs font-medium text-[#890022] hover:bg-[#F8F1F3] disabled:opacity-50">
+                        Remove image
+                      </button>
+                    </div>
+                    <p className="text-[11px] leading-4 text-[#66565A]">Removing the image restores the placeholder when you save.</p>
                   </div>
                 ) : (
                   <label className="block">
@@ -840,6 +939,139 @@ export default function CertificateManagerPage() {
 
           {activeTab === "signatories" && (
               <div className="space-y-4">
+              <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5 space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-[#27232A]">Signatory Typography</h2>
+                  <p className="mt-1 text-xs leading-5 text-[#66565A]">
+                    Configure signatory names and titles separately. These settings apply to static and dynamic signatories in this template.
+                  </p>
+                </div>
+                <section className="space-y-3" aria-label="Signatory name typography">
+                  <h3 className="border-b border-[#E5DDDF] pb-2 text-xs font-semibold text-[#52212F]">Signatory Name</h3>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Name font</span>
+                    <select value={settings.signatory_font_family ?? "Georgia, serif"}
+                      onChange={(event) => setSignatoryFont(event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      {settings.signatory_font_url && settings.signatory_font_family && (
+                        <option value={settings.signatory_font_family}>Uploaded signatory font</option>
+                      )}
+                      {!FONT_OPTIONS.some((font) => font.value === (settings.signatory_font_family ?? "Georgia, serif")) && !settings.signatory_font_url && (
+                        <option value={settings.signatory_font_family ?? "Georgia, serif"}>Current custom font</option>
+                      )}
+                      {FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-2 items-end gap-3">
+                    <label className="flex min-w-0 flex-col gap-1.5">
+                      <span className="min-h-8 text-xs leading-4">Name color</span>
+                      <div className="flex h-10 min-w-0 items-center gap-2">
+                        <input type="color" aria-label="Signatory name color"
+                          value={settings.signatory_font_color ?? "#0f172a"}
+                          onChange={(event) => updateSignatoryTypography("color", event.target.value)}
+                          className="h-10 w-10 shrink-0 cursor-pointer border border-[#D9CDD1] bg-white p-1" />
+                        <input type="text" aria-label="Signatory name color HEX"
+                          value={settings.signatory_font_color ?? "#0f172a"}
+                          onChange={(event) => { if (/^#[0-9a-fA-F]{6}$/.test(event.target.value)) updateSignatoryTypography("color", event.target.value); }}
+                          className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-xs" />
+                      </div>
+                    </label>
+                    <label className="flex min-w-0 flex-col gap-1.5">
+                      <span className="min-h-8 text-xs leading-4">Name size (px)</span>
+                      <input type="number" min={8} max={120} value={settings.signatory_font_size ?? 12}
+                        onChange={(event) => updateSignatoryTypography("size", Math.min(120, Math.max(8, Number(event.target.value) || 8)))}
+                        className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-sm" />
+                    </label>
+                  </div>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Name capitalization</span>
+                    <select value={settings.signatory_text_case ?? "normal"}
+                      onChange={(event) => updateSignatoryTypography("case", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Normal case</option><option value="uppercase">ALL CAPS</option>
+                      <option value="small-caps">Small Caps</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Name weight</span>
+                    <select value={settings.signatory_font_weight ?? "bold"}
+                      onChange={(event) => updateSignatoryTypography("weight", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Regular</option><option value="500">Medium</option>
+                      <option value="600">Semibold</option><option value="bold">Bold</option>
+                    </select>
+                  </label>
+                  <label className="block cursor-pointer border border-[#D9CDD1] p-3 text-xs text-[#52212F]">
+                    <span className="font-semibold">{signatoryFontUploading ? "Uploading font..." : "Upload licensed signatory font"}</span>
+                    <span className="mt-1 block text-[#66565A]">TTF, OTF, WOFF, WOFF2 · maximum 5 MB</span>
+                    <input type="file" accept=".ttf,.otf,.woff,.woff2" disabled={signatoryFontUploading}
+                      onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleRecipientFontUpload(file, "signatory"); event.target.value = ""; }}
+                      className="mt-2 block w-full text-xs" />
+                  </label>
+                  {settings.signatory_font_url && <p className="text-xs text-[#682037]">Custom signatory font selected. Save the template to keep this choice.</p>}
+                </section>
+                <section className="space-y-3 border-t border-[#E5DDDF] pt-4" aria-label="Signatory title typography">
+                  <h3 className="border-b border-[#E5DDDF] pb-2 text-xs font-semibold text-[#52212F]">Signatory Title</h3>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Title font (independent)</span>
+                    <select value={settings.signatory_title_font_family ?? "Georgia, serif"}
+                      onChange={(event) => updateSignatoryTitle("family", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      {settings.signatory_font_url && settings.signatory_font_family && (
+                        <option value={settings.signatory_font_family}>Uploaded signatory font</option>
+                      )}
+                      {!FONT_OPTIONS.some((font) => font.value === (settings.signatory_title_font_family ?? "Georgia, serif")) &&
+                        settings.signatory_title_font_family !== settings.signatory_font_family && (
+                          <option value={settings.signatory_title_font_family ?? "Georgia, serif"}>Current custom font</option>
+                        )}
+                      {FONT_OPTIONS.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-2 items-end gap-3">
+                    <label className="flex min-w-0 flex-col gap-1.5">
+                      <span className="min-h-8 text-xs leading-4">Title color</span>
+                      <div className="flex h-10 min-w-0 items-center gap-2">
+                        <input type="color" aria-label="Signatory title color"
+                          value={settings.signatory_title_color ?? "#71717a"}
+                          onChange={(event) => updateSignatoryTypography("titleColor", event.target.value)}
+                          className="h-10 w-10 shrink-0 cursor-pointer border border-[#D9CDD1] bg-white p-1" />
+                        <input type="text" aria-label="Signatory title color HEX"
+                          value={settings.signatory_title_color ?? "#71717a"}
+                          onChange={(event) => { if (/^#[0-9a-fA-F]{6}$/.test(event.target.value)) updateSignatoryTypography("titleColor", event.target.value); }}
+                          className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-xs" />
+                      </div>
+                    </label>
+                    <label className="flex min-w-0 flex-col gap-1.5">
+                      <span className="min-h-8 text-xs leading-4">Title size (px)</span>
+                      <input type="number" min={8} max={120} value={settings.signatory_title_font_size ?? 10}
+                        onChange={(event) => updateSignatoryTitle("size", Math.min(120, Math.max(8, Number(event.target.value) || 8)))}
+                        className="h-10 w-full min-w-0 border border-[#D9CDD1] bg-white px-2 text-sm" />
+                    </label>
+                  </div>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Title capitalization</span>
+                    <select value={settings.signatory_title_text_case ?? "normal"}
+                      onChange={(event) => updateSignatoryTitle("case", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Normal case</option><option value="uppercase">ALL CAPS</option>
+                      <option value="small-caps">Small Caps</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs">Title weight</span>
+                    <select value={settings.signatory_title_font_weight ?? "normal"}
+                      onChange={(event) => updateSignatoryTitle("weight", event.target.value)}
+                      className="h-10 w-full rounded-none border border-[#D9CDD1] bg-white px-2.5 text-sm">
+                      <option value="normal">Regular</option><option value="500">Medium</option>
+                      <option value="600">Semibold</option><option value="bold">Bold</option>
+                    </select>
+                  </label>
+                </section>
+                <p className="text-xs leading-5 text-[#66565A]">
+                  The signatory name can still be customized individually on the certificate canvas. Name and title styles are saved with this template.
+                </p>
+              </div>
+
               {/* Add signatory form */}
               <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
                 <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#27232A]">
