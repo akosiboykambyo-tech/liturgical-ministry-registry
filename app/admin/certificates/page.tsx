@@ -76,6 +76,8 @@ export default function CertificateManagerPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("layout");
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  const [backgroundDimensions, setBackgroundDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [backgroundDimensionsUnavailable, setBackgroundDimensionsUnavailable] = useState(false);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(min-width: 1024px)");
@@ -91,6 +93,39 @@ export default function CertificateManagerPage() {
       mediaQuery.removeEventListener("change", updateDesktopState);
     };
   }, []);
+
+  useEffect(() => {
+    const url = settings.template_url;
+    setBackgroundDimensions(null);
+    setBackgroundDimensionsUnavailable(false);
+    if (!url) return;
+    let cancelled = false;
+    const image = new window.Image();
+    image.onload = () => {
+      if (cancelled) return;
+      if (image.naturalWidth && image.naturalHeight) {
+        setBackgroundDimensions({ width: image.naturalWidth, height: image.naturalHeight });
+      } else {
+        setBackgroundDimensionsUnavailable(true);
+      }
+    };
+    image.onerror = () => {
+      if (!cancelled) setBackgroundDimensionsUnavailable(true);
+    };
+    image.src = url;
+    return () => {
+      cancelled = true;
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [settings.template_url]);
+
+  const targetAspectRatio = (settings.canvas_width || 600) / (settings.canvas_height || 850);
+  const backgroundAspectRatio = backgroundDimensions
+    ? backgroundDimensions.width / backgroundDimensions.height
+    : null;
+  const backgroundAspectMismatch = backgroundAspectRatio !== null &&
+    Math.abs(backgroundAspectRatio / targetAspectRatio - 1) > 0.04;
 
   // Signatory state
   const [signatories, setSignatories] = useState<Signatory[]>([]);
@@ -604,6 +639,26 @@ export default function CertificateManagerPage() {
                   </label>
                 )}
               </div>
+
+              {settings.template_url && backgroundAspectMismatch && (
+                <div role="status" className="flex items-start gap-2 border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-950">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="font-semibold">Background proportions do not match this page layout.</p>
+                    <p className="mt-1">
+                      Image: {backgroundDimensions?.width} × {backgroundDimensions?.height} px.
+                      The background may appear stretched on the certificate and in the PDF.
+                      Replace it with artwork matching the selected paper size and orientation.
+                      Your original image will not be cropped or changed automatically.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {settings.template_url && backgroundDimensionsUnavailable && (
+                <p role="status" className="text-xs leading-5 text-muted-foreground">
+                  Unable to read background dimensions. Check the preview for stretching.
+                </p>
+              )}
 
               {/* Typography */}
               <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-5  space-y-4">
