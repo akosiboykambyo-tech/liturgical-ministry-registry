@@ -259,7 +259,23 @@ export function CertificateEditor({
   type: CertificateElement["type"],
   signatoryId?: string
 ) => {
-    const element = createElement(type, signatoryId);
+    const created = createElement(type, signatoryId);
+    // New elements must be visible within the currently selected paper layout.
+    // Existing element coordinates are intentionally never adjusted here.
+    const margin = 12;
+    const halfWidth = created.width / 2;
+    const halfHeight = created.height / 2;
+    const element: CertificateElement = {
+      ...created,
+      x: Math.round(Math.max(
+        Math.min(canvasW / 2, halfWidth + margin),
+        Math.min(created.x, Math.max(canvasW / 2, canvasW - halfWidth - margin))
+      )),
+      y: Math.round(Math.max(
+        Math.min(canvasH / 2, halfHeight + margin),
+        Math.min(created.y, Math.max(canvasH / 2, canvasH - halfHeight - margin))
+      )),
+    };
 
     onChange({
       ...settings,
@@ -653,6 +669,9 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
               aria-label="Add static signatory"
             >
               <option value="">+ Add Static Signatory</option>
+              {!signatories.some((item) => item.is_active && item.display_type === "static") && (
+                <option value="" disabled>No active static signatories configured</option>
+              )}
               {signatories.filter((item) => item.is_active && item.display_type === "static")
                 .map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
@@ -663,6 +682,11 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
             >
               + Add Dynamic Signatory
             </button>
+            {!signatories.some((item) => item.is_active && item.display_type === "static") && (
+              <p className="w-full text-[11px] text-[#66565A]">
+                Add and activate a static signatory in the Signatories tab before selecting one here.
+              </p>
+            )}
           </div>
         </div>
 
