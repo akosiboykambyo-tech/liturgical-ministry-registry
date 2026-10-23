@@ -689,11 +689,23 @@ export default function CsvImportPage() {
     await new Promise((r) => setTimeout(r, 0));
 
     // Step 1: Stage — intercept all records before any DB insertion
-    const stagingResult = await stageBatchRecords(
-      incomingRecords,
-      fileHash,
-      serviceYear
-    );
+    let stagingResult: Awaited<ReturnType<typeof stageBatchRecords>>;
+    try {
+      stagingResult = await stageBatchRecords(
+        incomingRecords,
+        fileHash,
+        serviceYear
+      );
+    } catch (cause) {
+      setActionError(
+        cause instanceof Error
+          ? `Import stopped before creating members: ${cause.message}`
+          : "Import stopped because duplicate validation could not be completed."
+      );
+      setProcessing(false);
+      setProgress(null);
+      return;
+    }
     const { unique, duplicates } = stagingResult;
 
     // Idempotency check — warn if this exact file was already imported
