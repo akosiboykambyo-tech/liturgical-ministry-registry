@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test:registration": "node --test tests/registration-matching.test.cjs tests/duplicate-review-plan.test.cjs tests/duplicate-review-queue.test.cjs tests/registration-intake-preflight.test.cjs tests/registration-intake-validation.test.cjs tests/registration-ministry-validation.test.cjs"
+    "test:registration": "node --test tests/registration-matching.test.cjs tests/duplicate-review-plan.test.cjs tests/duplicate-review-queue.test.cjs tests/registration-intake-preflight.test.cjs tests/registration-intake-validation.test.cjs tests/registration-ministry-validation.test.cjs tests/recommendation-letter-check.test.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
