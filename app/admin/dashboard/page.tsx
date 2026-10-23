@@ -263,18 +263,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6 pb-8 text-[#1E1114] sm:space-y-8">
-      <header className="bg-[#890022] px-5 py-8 text-white sm:px-8 sm:py-10 lg:px-10">
-        <p className={ebGaramond.className + " text-[24px] italic leading-tight text-[#F3C6D0] lg:text-[36px]"}>
-          The Liturgical Ministry Registry
-        </p>
-        <h1 className={ebGaramond.className + " mt-1 text-[52px] font-medium leading-[0.95] tracking-[-0.03em] sm:text-[70px] xl:text-[100px]"}>
-          Dashboard
-        </h1>
-        <p className="mt-5 max-w-2xl text-[17px] leading-7 text-[#F3C6D0] sm:text-[18px]">
-          A clear view of registrations, verification and what needs your attention.
-        </p>
-        <p className="mt-3 text-[14px] text-[#EBCDD5]">All service years · Unique people counted once</p>
-      </header>
+      <h1 className="sr-only">Dashboard</h1>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className={ebGaramond.className + " text-[18px] font-medium uppercase tracking-[0.08em] text-[#5F4A4F]"} style={{ fontVariant: "small-caps" }}>
