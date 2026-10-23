@@ -48,7 +48,7 @@ export function preflightBatchIntake(rows: readonly IntakeRow[]): IntakePrefligh
 
   return {
     standaloneRows: validIndices.map((index) => index + 1).filter((row) => !review.has(row)),
-    reviewRows: [...review].sort((a, b) => a - b),
+    reviewRows: Array.from(review).sort((a, b) => a - b),
     conflicts,
     invalid,
   };
