@@ -6,6 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useRouter } from "next/navigation";
 import { importSingleMember } from "@/lib/duplicate-check";
+import { validateRegistrationIntake } from "@/lib/registration-intake-validation";
+import { normalizeApprovedMinistries } from "@/lib/registration-ministry-validation";
 import { PARISHES } from "@/lib/constants";
 import { MinistryMultiSelect } from "@/components/ministry-multi-select";
 import { Member } from "@/lib/types";
@@ -42,26 +44,30 @@ export default function AddMemberPage() {
     setSuccess(null);
     setDupeMatch(null);
 
-    if (!firstName.trim() || !lastName.trim() || !resolvedParish.trim()) {
-      setError("First name, last name, and parish are required.");
+    const validated = validateRegistrationIntake({
+      first_name: firstName, last_name: lastName,
+      parish: resolvedParish, ministries,
+    });
+    if (!validated.valid) {
+      setError(validated.errors.join(" "));
       return;
     }
-
+    const approved = normalizeApprovedMinistries(validated.normalized.ministries);
+    if (!approved.valid) {
+      setError("Select only approved COWL-DOK ministries.");
+      return;
+    }
     if (!Number.isInteger(serviceYear) || serviceYear < 2000 || serviceYear > 2100) {
       setError("Please select a valid service year.");
-      return;
-    }
-    if (ministries.length === 0) {
-      setError("Please select at least one ministry.");
       return;
     }
 
     setSubmitting(true);
     const result = await importSingleMember({
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      parish: resolvedParish.trim(),
-      ministries,
+      first_name: validated.normalized.first_name,
+      last_name: validated.normalized.last_name,
+      parish: validated.normalized.parish,
+      ministries: approved.ministries,
       service_year: serviceYear,
       notes: notes.trim() || null,
     });
