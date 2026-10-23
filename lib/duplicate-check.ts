@@ -211,7 +211,8 @@ export async function findDuplicateMembers(
     .ilike("last_name", trimmedLast)
     .ilike("parish", trimmedParish);
 
-  if (!exactError && exactMatches) {
+  if (exactError) throw new Error(`Duplicate lookup failed: ${exactError.message}`);
+  if (exactMatches) {
     for (const m of exactMatches as Member[]) {
       matches.push({
         existing: m,
@@ -230,7 +231,8 @@ export async function findDuplicateMembers(
     .ilike("last_name", trimmedLast)
     .not("parish", "ilike", trimmedParish);
 
-  if (!parishError && sameNameDiffParish) {
+  if (parishError) throw new Error(`Duplicate lookup failed: ${parishError.message}`);
+  if (sameNameDiffParish) {
     for (const m of sameNameDiffParish as Member[]) {
       // Avoid duplicates if already matched
       if (!matches.some((x) => x.existing.id === m.id)) {
@@ -246,12 +248,8 @@ export async function findDuplicateMembers(
 
   // 3. Similar names (fuzzy matching) - fetch all and filter client-side
   // This catches misspellings like "Juan" vs "Juhn", "Dela Cruz" vs "Dela Crz"
-  let allMembers: Member[] = [];
-  try {
-    allMembers = await fetchAllMembers();
-  } catch {
-    allMembers = [];
-  }
+  // A failed full-registry lookup cannot mean "no duplicates". Fail closed.
+  const allMembers = await fetchAllMembers();
 
   if (allMembers.length > 0) {
     for (const m of allMembers) {
@@ -314,11 +312,21 @@ export async function importSingleMember(
 > {
   const supabase = getSupabaseBrowserClient();
 
-  const dupes = await findDuplicateMembers(
-    data.first_name,
-    data.last_name,
-    data.parish
-  );
+  let dupes: DuplicateMatch[];
+  try {
+    dupes = await findDuplicateMembers(
+      data.first_name,
+      data.last_name,
+      data.parish
+    );
+  } catch (cause) {
+    return {
+      status: "error",
+      error: cause instanceof Error
+        ? `Registration was not saved. ${cause.message}`
+        : "Registration was not saved because duplicate validation is unavailable.",
+    };
+  }
 
   if (dupes.length > 0) {
     // Park in pending-merge queue. Do not create the member.
@@ -480,12 +488,7 @@ export async function stageBatchRecords(
   // --- Fetch all existing members once ---
   // Paginate explicitly so duplicate detection is not limited to Supabase's
   // default 1,000 returned rows.
-  let allMembers: Member[] = [];
-  try {
-    allMembers = await fetchAllMembers();
-  } catch {
-    allMembers = [];
-  }
+  const allMembers = await fetchAllMembers();
 
   const dbMembers = allMembers.map((m) => ({
     member: m,
