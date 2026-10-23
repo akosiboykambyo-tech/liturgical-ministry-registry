@@ -13,7 +13,8 @@ function loadTs(name) {
   m.filename = filename;
   m.paths = module.paths;
   m.require = (request) => request === "./registration-matching"
-    ? loadTs("registration-matching.ts") : require(request);
+    ? loadTs("registration-matching.ts") : request === "./registration-intake-validation"
+    ? loadTs("registration-intake-validation.ts") : require(request);
   m._compile(js,filename);
   return m.exports;
 }
