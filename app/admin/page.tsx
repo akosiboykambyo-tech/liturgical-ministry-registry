@@ -90,7 +90,7 @@ export default function AdminLoginPage() {
         </aside>
 
         <section className="flex min-w-0 flex-col px-6 pb-12 pt-5 sm:px-12 lg:px-12 lg:pt-9">
-          <Link href="/" className="inline-flex w-fit items-center gap-1.5 text-[14px] font-semibold text-[#0B5C5A] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0B5C5A]">
+          <Link href="/" className="inline-flex w-fit items-center gap-1.5 text-[12px] font-semibold text-[#0B5C5A] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0B5C5A]">
             <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> Back to the public site
           </Link>
           <div className="flex flex-1 items-center justify-center py-8 lg:py-10">
