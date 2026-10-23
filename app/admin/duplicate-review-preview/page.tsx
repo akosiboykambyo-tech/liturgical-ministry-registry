@@ -56,6 +56,7 @@ const statusClass = {
 
 export default function DuplicateReviewPreviewPage() {
   const [cases, setCases] = useState<ReviewQueueCase[]>(seed);
+  const [demoView, setDemoView] = useState<"normal" | "loading" | "empty" | "error">("normal");
   const [status, setStatus] = useState<"all" | ReviewQueueCase["status"]>("open");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string>("DEMO-001");
@@ -64,11 +65,11 @@ export default function DuplicateReviewPreviewPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   const counts = useMemo(() => summarizeReviewQueue(cases), [cases]);
-  const visible = useMemo(() => filterReviewQueue(cases, status, search), [cases, status, search]);
+  const visible = useMemo(() => filterReviewQueue(demoView === "empty" ? [] : cases, status, search), [cases, status, search, demoView]);
   const active = cases.find((item) => item.id === selected) ?? null;
 
   function review() {
-    if (!active) return;
+    if (demoView !== "normal" || !active) return;
     const result = previewQueueDecision(active, decision, notes, new Date().toISOString());
     if (!result.ok) {
       setMessage(result.error);
@@ -94,6 +95,16 @@ export default function DuplicateReviewPreviewPage() {
         This page does not read or write Supabase.
       </div>
 
+      <div className="flex flex-wrap items-center gap-2" aria-label="Preview display scenarios">
+        <span className="text-[14px] font-semibold text-[#5F4A4F]">Test display:</span>
+        {(["normal", "loading", "empty", "error"] as const).map((mode) => (
+          <button key={mode} type="button" aria-pressed={demoView === mode}
+            onClick={() => { setDemoView(mode); setMessage(null); }}
+            className={demoView === mode ? "min-h-10 border border-[#890022] bg-[#890022] px-3 text-[14px] font-semibold capitalize text-white" : "min-h-10 border border-[#D7CACC] bg-white px-3 text-[14px] font-medium capitalize text-[#3A0010]"}>
+            {mode}
+          </button>
+        ))}
+      </div>
       <section aria-label="Queue summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           ["Open", counts.open],
@@ -113,7 +124,7 @@ export default function DuplicateReviewPreviewPage() {
           <div className="border-b border-[#E6DADC] p-5">
             <div className="flex items-center justify-between gap-3">
               <h2 id="cases-heading" className={ebGaramond.className + " text-[32px] leading-tight"}>Cases</h2>
-              <button onClick={() => { setCases(seed); setSelected("DEMO-001"); setStatus("open"); setSearch(""); setNotes(""); setMessage(null); }} type="button" className="inline-flex min-h-11 items-center gap-2 border border-[#E6DADC] px-3 text-[14px] text-[#890022] hover:bg-[#FBF9F9]"><RotateCcw size={16} /> Reset demo</button>
+              <button onClick={() => { setDemoView("normal"); setCases(seed); setSelected("DEMO-001"); setStatus("open"); setSearch(""); setNotes(""); setMessage(null); }} type="button" className="inline-flex min-h-11 items-center gap-2 border border-[#E6DADC] px-3 text-[14px] text-[#890022] hover:bg-[#FBF9F9]"><RotateCcw size={16} /> Reset demo</button>
             </div>
             <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filter cases by status">
               {(["open", "resolved", "dismissed", "all"] as const).map((item) => (
@@ -126,7 +137,14 @@ export default function DuplicateReviewPreviewPage() {
               <input id="queue-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Case ID, ministry, parish or sample UID" className="min-h-11 w-full border border-[#D7CACC] bg-white py-2 pl-10 pr-3 text-[14px] outline-offset-2 focus-visible:outline-[#890022]" />
             </div>
           </div>
-          <div className="divide-y divide-[#E6DADC]">
+          <div className="divide-y divide-[#E6DADC]" aria-live="polite">
+            {demoView === "loading" && <p role="status" className="p-6 text-[15px]">Loading cases… simulated, no network request.</p>}
+            {demoView === "error" && <div role="alert" className="border-l-4 border-[#970E24] bg-[#F8EDF0] p-6 text-[15px]">
+              <p><strong>Could not load cases.</strong> Simulated error; nothing was changed.</p>
+              <button type="button" onClick={() => setDemoView("normal")} className="mt-3 min-h-11 border border-[#890022] px-4 font-semibold text-[#890022]">Retry demo</button>
+            </div>}
+            {demoView === "empty" && <p role="status" className="p-6 text-[15px]">No review cases in this simulated queue.</p>}
+            {demoView === "normal" && <>
             {visible.length === 0 && <p className="p-5 text-[15px] text-[#5F4A4F]">No cases match this view.</p>}
             {visible.map((item) => (
               <button key={item.id} type="button" onClick={() => { setSelected(item.id); setDecision("use_existing"); setNotes(""); setMessage(null); }} aria-pressed={selected === item.id} className={"flex w-full items-start justify-between gap-3 p-5 text-left hover:bg-[#FBF9F9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#890022] " + (selected === item.id ? "bg-[#F8EDF0]" : "")}>
@@ -141,6 +159,7 @@ export default function DuplicateReviewPreviewPage() {
                 </span>
               </button>
             ))}
+            </>}
           </div>
         </section>
 
@@ -149,7 +168,7 @@ export default function DuplicateReviewPreviewPage() {
             <ShieldAlert size={22} className="text-[#890022]" />
             <h2 id="review-heading" className={ebGaramond.className + " text-[32px] leading-tight"}>Review Details</h2>
           </div>
-          {!active ? <p className="mt-4 text-[15px]">Select a case to review.</p> : (
+          {demoView !== "normal" ? <p className="mt-4 text-[15px]">Actions are disabled in the simulated {demoView} state.</p> : !active ? <p className="mt-4 text-[15px]">Select a case to review.</p> : (
             <>
               <p className="mt-4 text-[14px] font-semibold text-[#5F4A4F]">{active.id} · {active.status.toUpperCase()}</p>
               <dl className="mt-3 space-y-3 text-[15px]">
@@ -176,6 +195,11 @@ export default function DuplicateReviewPreviewPage() {
                 <p className="text-[15px] font-semibold text-[#0B5C5A]">Decision preview recorded</p>
                 <p className="mt-2 text-[14px] leading-6 text-[#5F4A4F]">{active.resolution?.notes}</p>
                 <p className="mt-2 text-[14px] text-[#5F4A4F]">Planned action: {active.resolution?.plan.kind.replaceAll("_", " ")}</p>
+                <div className="mt-4 border-t border-[#E6DADC] pt-3 text-[14px]">
+                  <p><strong>Decision:</strong> {decisions.find((item) => item.value === active.resolution?.decision)?.label}</p>
+                  <p className="mt-2"><strong>Reviewed:</strong> {active.resolution?.reviewedAt ? new Date(active.resolution.reviewedAt).toLocaleString() : "Not recorded"}</p>
+                  <p className="mt-2 text-[#7A4E00]">History preview only — not saved to the registry.</p>
+                </div>
               </div>}
               {message && <p role="status" className="mt-4 border-l-4 border-[#890022] bg-[#F8EDF0] p-3 text-[14px] leading-6">{message}</p>}
             </>
