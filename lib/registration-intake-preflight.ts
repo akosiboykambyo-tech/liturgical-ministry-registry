@@ -1,4 +1,5 @@
 import { classifyIdentityMatch, type IdentityDetails, type IdentityMatchKind } from "./registration-matching";
+import { validateRegistrationIntake } from "./registration-intake-validation";
 
 /**
  * Offline-only CSV intake preflight. Never creates a member or UID.
@@ -22,11 +23,13 @@ export function preflightBatchIntake(rows: readonly IntakeRow[]): IntakePrefligh
   const invalid: IntakeProblem[] = [];
   const validIndices: number[] = [];
   rows.forEach((row, index) => {
-    const reason = !row.first_name?.trim() || !row.last_name?.trim() ||
-      !row.parish?.trim() || !row.ministry?.trim()
-      ? "First name, last name, parish and ministry are required."
-      : null;
-    if (reason) invalid.push({ row: index + 1, reason });
+    const check = validateRegistrationIntake({
+      first_name: row.first_name,
+      last_name: row.last_name,
+      parish: row.parish,
+      ministries: [row.ministry],
+    });
+    if (!check.valid) invalid.push({ row: index + 1, reason: check.errors.join(" ") });
     else validIndices.push(index);
   });
 
