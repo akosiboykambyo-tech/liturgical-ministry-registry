@@ -107,6 +107,8 @@
   }
 
   html {
+    /* Reserve consistent width for classic vertical scrollbars to prevent page shifts. */
+    scrollbar-gutter: stable;
     scroll-behavior: smooth;
     scroll-padding-top: 1.5rem;
   }
