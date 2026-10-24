@@ -80,6 +80,7 @@ export async function POST(request: Request) {
       p_year: input.service_year,
       p_request: input.requestKey,
     });
+    if (error?.code === "23505") return reply(409, "Request key was previously used for different registration details.");
     if (error) return reply(503, "Atomic registration transaction unavailable.");
     const result = normalizeAtomicRegistrationResponse(data);
     return NextResponse.json({ ok: true, ...result }, {
