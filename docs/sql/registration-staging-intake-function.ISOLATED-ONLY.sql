@@ -37,7 +37,7 @@ BEGIN
   IF p_request IS NULL OR v_first IS NULL OR v_last IS NULL OR v_parish IS NULL
      OR length(v_first) NOT BETWEEN 1 AND 160 OR length(v_last) NOT BETWEEN 1 AND 160
      OR length(v_parish) NOT BETWEEN 1 AND 200
-     OR p_year NOT BETWEEN 1000 AND 9999
+     OR p_year IS NULL OR p_year NOT BETWEEN 1000 AND 9999
      OR p_ministries IS NULL OR cardinality(p_ministries) NOT BETWEEN 1 AND 6 THEN
     RAISE EXCEPTION 'Invalid registration request' USING ERRCODE = '22023';
   END IF;
