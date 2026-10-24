@@ -5,7 +5,7 @@ export type RegistrationAuthClient = {
   auth: { getUser: (jwt: string) => Promise<{ data: { user: { id: string } | null }; error: unknown }> };
 };
 export type RegistrationRoleClient = {
-  rpc: (name: "registration_is_admin") => Promise<{ data: boolean | null; error: unknown }>;
+  rpc: (name: "registration_is_admin") => PromiseLike<{ data: boolean | null; error: unknown }>;
 };
 
 /**
