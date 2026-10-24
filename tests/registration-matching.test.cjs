@@ -59,3 +59,24 @@ test("short names require an exact match", () => {
 test("missing identity fields cannot be considered safe matches", () => {
   assert.equal(classifyIdentityMatch(person("", "Reyes"), person("Maria", "Reyes")), null);
 });
+
+test("identical short first name still allows a fuzzy surname match", () => {
+  assert.equal(
+    classifyIdentityMatch(person("Ana", "Fitzgerald"), person("Ana", "Fitzgeralt")),
+    "similar_name"
+  );
+});
+
+test("identical short surname still allows a fuzzy first-name match", () => {
+  assert.equal(
+    classifyIdentityMatch(person("Fitzgerald", "Ana"), person("Fitzgeralt", "Ana")),
+    "similar_name"
+  );
+});
+
+test("different short first names are not fuzzy matched even when surnames resemble", () => {
+  assert.equal(
+    classifyIdentityMatch(person("Ana", "Fitzgerald"), person("Ann", "Fitzgeralt")),
+    null
+  );
+});
