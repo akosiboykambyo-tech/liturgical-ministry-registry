@@ -23,7 +23,7 @@ DECLARE
   v_member uuid;
   v_review uuid;
 BEGIN
-  -- Every invocation must have a real JWT, not a simulated SQL session.
+  -- Production HTTP validates bearer JWTs; raw staging SQL with simulated\n  -- claims is a transaction test only, not evidence of HTTP authentication.
   IF v_actor IS NULL THEN
     RAISE EXCEPTION 'Missing authenticated context' USING ERRCODE = '42501';
   END IF;
@@ -77,6 +77,17 @@ BEGIN
     END IF;
     RETURN jsonb_build_object('status','replayed','outcome',v_prior.outcome,
       'memberId',v_prior.member_id,'reviewId',v_prior.review_id);
+  END IF;
+
+  -- Fail closed rather than silently overlooking an existing name which
+  -- fuzzystrmatch cannot compare (the extension has a 255-byte input limit).
+  -- A future Unicode-safe matcher must replace this emergency guard.
+  IF EXISTS (
+    SELECT 1 FROM public.members m
+    WHERE octet_length(m.first_name) > 255 OR octet_length(m.last_name) > 255
+  ) THEN
+    RAISE EXCEPTION 'Registry matching requires manual reconciliation'
+      USING ERRCODE = '55000';
   END IF;
 
   -- Mirror JS: exact equality bypasses fuzzy short-name and digit safeguards
