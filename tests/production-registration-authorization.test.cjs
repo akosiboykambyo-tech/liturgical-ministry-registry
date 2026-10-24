@@ -1,0 +1,14 @@
+const assert=require("node:assert/strict");
+const {test}=require("node:test");
+const fs=require("node:fs");const path=require("node:path");const Module=require("node:module");const ts=require("typescript");
+const filename=path.resolve(__dirname,"../lib/production-registration-authorization.ts");
+const m=new Module(filename,module);m.filename=filename;
+m._compile(ts.transpileModule(fs.readFileSync(filename,"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,filename);
+const authorize=m.exports.authorizeRegistryRegistration;
+const ready={enabled:"true",verifiedUserId:"11111111-1111-4111-8111-111111111111",activeAdminFromTrustedDatabase:true,migrationReady:true};
+test("off unless explicitly enabled",()=>assert.equal(authorize({...ready,enabled:undefined}).reason,"disabled"));
+test("rejects missing verified identity",()=>assert.equal(authorize({...ready,verifiedUserId:null}).reason,"unauthenticated"));
+test("rejects malformed identity",()=>assert.equal(authorize({...ready,verifiedUserId:"visitor"}).reason,"unauthenticated"));
+test("authenticated non-admin rejected",()=>assert.equal(authorize({...ready,activeAdminFromTrustedDatabase:false}).reason,"forbidden"));
+test("migration unready rejects authorization",()=>assert.equal(authorize({...ready,migrationReady:false}).reason,"schema_unready"));
+test("trusted verified admin with migration can proceed",()=>assert.deepEqual(authorize(ready),{authorized:true}));
