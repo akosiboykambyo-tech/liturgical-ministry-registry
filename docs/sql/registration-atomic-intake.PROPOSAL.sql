@@ -79,7 +79,7 @@ BEGIN
      OR length(v_first) NOT BETWEEN 1 AND 100 OR length(v_last) NOT BETWEEN 1 AND 100
      OR length(v_parish) NOT BETWEEN 1 AND 255
      OR octet_length(v_first) > 255 OR octet_length(v_last) > 255
-     OR p_year NOT BETWEEN 1000 AND 9999
+     OR p_year IS NULL OR p_year NOT BETWEEN 1000 AND 9999
      OR p_ministries IS NULL OR cardinality(p_ministries) NOT BETWEEN 1 AND 6 THEN
     RAISE EXCEPTION 'Invalid registration request' USING ERRCODE = '22023';
   END IF;
@@ -116,6 +116,17 @@ BEGIN
     END IF;
     RETURN jsonb_build_object('status','replayed','outcome',v_prior.outcome,
       'memberId',v_prior.member_id,'reviewId',v_prior.review_id);
+  END IF;
+
+  -- Fail closed rather than silently overlooking an existing name which
+  -- fuzzystrmatch cannot compare (the extension has a 255-byte input limit).
+  -- A future Unicode-safe matcher must replace this emergency guard.
+  IF EXISTS (
+    SELECT 1 FROM public.members m
+    WHERE octet_length(m.first_name) > 255 OR octet_length(m.last_name) > 255
+  ) THEN
+    RAISE EXCEPTION 'Registry matching requires manual reconciliation'
+      USING ERRCODE = '55000';
   END IF;
 
   -- Mirror JS: exact equality bypasses fuzzy short-name and digit safeguards
