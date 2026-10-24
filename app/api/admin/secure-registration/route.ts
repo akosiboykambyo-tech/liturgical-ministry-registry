@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   catch { return reply(503, "Secure registration unavailable."); }
   if (projectHost !== testProject + ".supabase.co" ||
       process.env.SECURE_REGISTRATION_TEST_PROJECT !== testProject ||
-      process.env.SECURE_REGISTRATION_ATOMIC_RPC !== "atomic_registration_v2")
+      process.env.SECURE_REGISTRATION_ATOMIC_RPC !== "atomic_registration_v3")
     return reply(503, "Atomic registration has not been approved for this environment.");
 
   let input;
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     global: { headers: { Authorization: "Bearer " + match[1] } },
   });
   try {
-    const { data, error } = await caller.rpc("atomic_registration_v2", {
+    const { data, error } = await caller.rpc("atomic_registration_v3", {
       p_first: input.first_name,
       p_last: input.last_name,
       p_parish: input.parish,
@@ -83,10 +83,6 @@ export async function POST(request: Request) {
     if (error?.code === "23505") return reply(409, "Request key was previously used for different registration details.");
     if (error) return reply(503, "Atomic registration transaction unavailable.");
     const result = normalizeAtomicRegistrationResponse(data);
-    // A review response from the test RPC is not persisted. Do not claim
-    // intake was accepted or verified until a durable review case exists.
-    if (result.status === "review")
-      return reply(503, "Potential duplicate detected. Persistent review intake is not yet available.");
     return NextResponse.json({ ok: true, ...result }, {
       status: result.status === "created" ? 201 : 200,
       headers: { "Cache-Control": "no-store" },
