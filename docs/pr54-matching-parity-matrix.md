@@ -27,7 +27,7 @@ No standalone `Lector` ministry is allowed. SQL must validate against those cano
 |---|---|
 | Juan Dela Cruz / Juan Dela Cruz, same parish | review: exact |
 | Juan Dela Cruz / Juan Dela Cruz, different parish | review: different parish |
-| Juhn Dela Cruz / Juan Dela Cruz | review if both name similarities >= .8 |
+| Juhn Dela Cruz / Juan Dela Cruz | no match (first-name similarity 0.75) |
 | Ana Cruz / Anne Cruz | not a fuzzy match (3-character Ana) |
 | Test12 Person / Test13 Person | not a fuzzy match (distinct number) |
 | Different names / different names | create |
@@ -37,4 +37,4 @@ No standalone `Lector` ministry is allowed. SQL must validate against those cano
 
 ## Before enabling
 
-Run a SQL/JS parity harness over varied strings, whitespace, Unicode, numeric suffixes, single/double names, and two-ministry fixtures. Inspect and confirm deployed triggers, RLS, actual SQL types and constraints. No production data access or mutation has occurred during this update.
+Run a SQL/JS parity harness over varied strings, whitespace, Unicode, numeric suffixes, single/double names, and two-ministry fixtures. Inspect and confirm deployed triggers, RLS, actual SQL types and constraints. Isolated test database was inspected using read-only queries on 2026-10-24; no database records were modified.
