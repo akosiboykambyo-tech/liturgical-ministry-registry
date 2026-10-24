@@ -33,3 +33,10 @@ Production project: `zlvofcwnpdzfdnipvbbd` (Ministry-Database). Inspected via ca
 7. Audit whether every new member is created with `Pending Verification` and NULL validity dates; one-year validity must start only on later verification/renewal.
 
 **Do not merge this PR as authorization to deploy registration or enable feature flags.** No live application wiring is changed.
+
+
+## Validation update (after initial inspection)
+
+See `docs/pr55-production-faithful-rollback-evidence-2026-10-24.md`. Production-function/constraint-overlay rollback tests now PASS for UID format, three production audit events, two pending ministry assignments, duplicate review + event, idempotency replay, injected rollback and unauthorized denial. Common whitespace normalization was corrected in SQL, and 12 read-only SQL/JS parity fixtures pass. Four-byte Unicode names now fail closed until parity is resolved.
+
+**Concurrency remains unproven:** database connector SQL requests appeared serialized, so the `FOR SHARE` grant/revocation race cannot be certified from the attempted test. No actual multi-session contention test has passed. Production still lacks `fuzzystrmatch`. The original NO-GO decision remains in force.
