@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     });
     if (result.error) {
       if (result.error.code === "23505") return reject(409, "Idempotency conflict");
-      if (result.error.code === "42501") return reject(403, "Staging transaction: permission denied");
+      if (result.error.code === "42501") {\n        const reason = /Registration not authorized/i.test(result.error.message || "")\n          ? "database-admin-check"\n          : /permission denied for schema/i.test(result.error.message || "")\n          ? "schema-access"\n          : /permission denied for (table|relation)/i.test(result.error.message || "")\n          ? "table-access"\n          : "database-permission";\n        return reject(403, "Staging transaction denied: " + reason);\n      }
       return reject(503, "Database registration unavailable");
     }
     return NextResponse.json({ ok: true, ...result.data }, {
