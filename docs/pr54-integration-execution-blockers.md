@@ -1,0 +1,3 @@
+# PR #54 integration status
+
+Authenticated staging HTTP, concurrency, and revocation remain UNVERIFIED. Do not merge or enable production. The isolated staging administrator allowlist was last verified empty, and authenticated EXECUTE on registration_intake_v1 was last verified revoked. Existing PR #53 fixtures must remain for controlled cleanup. Before activation: grant the verified test account in isolated staging, grant authenticated RPC execution while relying on the database-side admin check, run invalid-token and authorized tests, then revoke the test grant and confirm refusal. Verify audit and review disposition independently and cross-check production schema read-only. No production change is authorized.
