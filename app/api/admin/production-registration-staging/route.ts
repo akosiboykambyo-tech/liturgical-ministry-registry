@@ -47,6 +47,8 @@ export async function POST(request: Request) {
       !Array.isArray(ministries) || !ministries.every(x => typeof x === "string") ||
       !Number.isInteger(service_year) ||
       first_name.trim().length < 1 || first_name.trim().length > 100 ||
+      Buffer.byteLength(first_name.trim(), "utf8") > 255 ||
+      Buffer.byteLength(last_name.trim(), "utf8") > 255 ||
       last_name.trim().length < 1 || last_name.trim().length > 100 ||
       parish.trim().length < 1 || parish.trim().length > 255 ||
       service_year < 1000 || service_year > 9999 ||
@@ -59,6 +61,8 @@ export async function POST(request: Request) {
     });
     if (result.error) {
       if (result.error.code === "23505") return reject(409, "Registration conflict; no record created");
+      if (result.error.code === "55000")
+        return reject(503, "Registration matching unavailable; contact administrator");
       if (result.error.code === "22023" || result.error.code === "22001")
         return reject(400, "Invalid registration input");
       if (result.error.code === "42501") {
