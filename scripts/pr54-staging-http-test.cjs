@@ -37,7 +37,23 @@ async function run() {
  const race={...payload,requestKey:randomUUID(),first_name:"PRA"+suffix,last_name:"Race"+suffix};
  const raced=await Promise.all([post(race),post({...race,requestKey:randomUUID()})]);
  assert.deepEqual(raced.map(x=>x.json.status).sort(),["created","review"],JSON.stringify(raced));
- console.log("PASS: invalid token, replay, idempotency conflict, duplicate review, distinct-key race");
+ const reviewUrl=base+"/api/admin/production-registration-staging/review";
+ async function resolve(token,action,note) {
+  const res=await fetch(reviewUrl,{method:"POST",
+    headers:{"content-type":"application/json",authorization:"Bearer "+token},
+    body:JSON.stringify({reviewId:duplicate.json.reviewId,action,note})});
+  const raw=await res.text();
+  let data;try {data=JSON.parse(raw);} catch {throw new Error("Review endpoint non-JSON HTTP "+res.status);}
+  return {http:res.status,data};
+ }
+ const invalidReview=await resolve("not.a.valid.token","dismissed","Synthetic review decision");
+ assert.equal(invalidReview.http,401,JSON.stringify(invalidReview));
+ const resolved=await resolve(jwt,"dismissed","Synthetic duplicate already represented by the existing member");
+ assert.equal(resolved.http,200,JSON.stringify(resolved));
+ assert.equal(resolved.data.status,"dismissed");
+ const again=await resolve(jwt,"dismissed","Second disposition must fail");
+ assert.equal(again.http,409,JSON.stringify(again));
+ console.log("PASS: invalid token, replay, idempotency conflict, duplicate review, distinct-key race, audited review resolution");
  console.log("Synthetic fixture label:",suffix);
 }
 run().catch(e=>{console.error("FAIL:",e.message);process.exitCode=1;});
