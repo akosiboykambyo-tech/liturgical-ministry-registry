@@ -33,7 +33,7 @@ export function parseSecureRegistrationRequest(body: unknown): SecureIntakeReque
 
 export function normalizeAtomicRegistrationResponse(data: unknown):
   | { status: "created" | "replayed"; memberId: string }
-  | { status: "review"; candidates: number } {
+  | { status: "review"; reviewId: string } {
   if (!data || typeof data !== "object" || Array.isArray(data))
     throw new Error("Unexpected registration operation response.");
   const value = data as Record<string, unknown>;
@@ -41,8 +41,8 @@ export function normalizeAtomicRegistrationResponse(data: unknown):
       typeof value.member_id === "string" &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.member_id))
     return { status: value.status, memberId: value.member_id };
-  if (value.status === "review" && typeof value.candidates === "number" &&
-      Number.isInteger(value.candidates) && value.candidates > 0)
-    return { status: "review", candidates: value.candidates };
+  if (value.status === "review" && typeof value.review_id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.review_id))
+    return { status: "review", reviewId: value.review_id };
   throw new Error("Unexpected registration operation response.");
 }
