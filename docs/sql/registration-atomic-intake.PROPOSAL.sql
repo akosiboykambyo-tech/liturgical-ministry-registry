@@ -82,6 +82,10 @@ BEGIN
      OR length(btrim(regexp_replace(v_last, '[[:space:]]+', ' ', 'g'))) = 0
      OR length(btrim(regexp_replace(v_parish, '[[:space:]]+', ' ', 'g'))) = 0
      OR octet_length(v_first) > 255 OR octet_length(v_last) > 255
+     OR EXISTS (SELECT 1 FROM pg_catalog.generate_series(1, pg_catalog.length(v_first)) AS cp(i)
+                WHERE pg_catalog.octet_length(pg_catalog.substr(v_first, cp.i, 1)) = 4)
+     OR EXISTS (SELECT 1 FROM pg_catalog.generate_series(1, pg_catalog.length(v_last)) AS cp(i)
+                WHERE pg_catalog.octet_length(pg_catalog.substr(v_last, cp.i, 1)) = 4)
      OR p_year IS NULL OR p_year NOT BETWEEN 1000 AND 9999
      OR p_ministries IS NULL OR cardinality(p_ministries) NOT BETWEEN 1 AND 6 THEN
     RAISE EXCEPTION 'Invalid registration request' USING ERRCODE = '22023';
@@ -121,12 +125,20 @@ BEGIN
       'memberId',v_prior.member_id,'reviewId',v_prior.review_id);
   END IF;
 
+  -- Four-byte UTF-8 code points (supplementary Unicode) have different
+  -- Levenshtein denominators in SQL code points vs JS UTF-16 units.
+  -- Fail closed rather than silently missing a duplicate. Reconsider this
+  -- guard only after cross-language parity is explicitly certified.
   -- Fail closed rather than silently overlooking an existing name which
   -- fuzzystrmatch cannot compare (the extension has a 255-byte input limit).
   -- A future Unicode-safe matcher must replace this emergency guard.
   IF EXISTS (
     SELECT 1 FROM public.members m
     WHERE octet_length(m.first_name) > 255 OR octet_length(m.last_name) > 255
+       OR EXISTS (SELECT 1 FROM pg_catalog.generate_series(1, pg_catalog.length(m.first_name)) AS cp(i)
+                  WHERE pg_catalog.octet_length(pg_catalog.substr(m.first_name, cp.i, 1)) = 4)
+       OR EXISTS (SELECT 1 FROM pg_catalog.generate_series(1, pg_catalog.length(m.last_name)) AS cp(i)
+                  WHERE pg_catalog.octet_length(pg_catalog.substr(m.last_name, cp.i, 1)) = 4)
   ) THEN
     RAISE EXCEPTION 'Registry matching requires manual reconciliation'
       USING ERRCODE = '55000';
