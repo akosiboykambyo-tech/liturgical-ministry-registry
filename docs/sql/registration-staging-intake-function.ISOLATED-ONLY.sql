@@ -24,7 +24,7 @@ DECLARE
   v_review uuid;
 BEGIN
   -- Every invocation must have a real JWT, not a simulated SQL session.
-  IF current_setting('request.jwt.claim.sub', true) IS NULL THEN
+  IF v_actor IS NULL THEN
     RAISE EXCEPTION 'Missing authenticated context' USING ERRCODE = '42501';
   END IF;
   -- Mandatory database-side authorization, independent of HTTP preflight.
