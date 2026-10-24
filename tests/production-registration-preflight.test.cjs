@@ -4,14 +4,13 @@ const fs = require("node:fs");
 const path = require("node:path");
 const Module = require("node:module");
 const ts = require("typescript");
-function loadTs(rel) {
-  const file = path.resolve(__dirname, "..", rel);
-  const instance = new Module(file, module);
-  instance.filename = file;
-  instance._compile(ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }}).outputText, file);
-  return instance.exports;
-}
-const { preflightRegistrationAdministrator: check } = loadTs("lib/production-registration-preflight.ts");
+Module._extensions[".ts"] = (mod, filename) => {
+  const compiled = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+  }).outputText;
+  mod._compile(compiled, filename);
+};
+const { preflightRegistrationAdministrator: check } = require(path.resolve(__dirname, "../lib/production-registration-preflight.ts"));
 const id = "11111111-1111-4111-8111-111111111111";
 const token = "test-bearer-token";
 const auth = (user=id, error=null) => ({ auth: { getUser: async jwt => { assert.equal(jwt, token); return { data: { user: user ? { id: user } : null }, error }; } } });
