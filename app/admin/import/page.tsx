@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeApprovedMinistries } from "@/lib/registration-ministry-validation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import Papa from "papaparse";
@@ -285,6 +286,12 @@ export default function CsvImportPage() {
           const rawParish = (r.parish ?? "").trim();
           const parish = canonicalParish(rawParish) ?? "";
           const ministry = (r.ministry ?? "").trim();
+          const ministryParts = ministry.split(/[;,/]+/).map((part) => part.trim()).filter(Boolean);
+          const approvedMinistries = normalizeApprovedMinistries(ministryParts);
+          if (!approvedMinistries.valid) {
+            skipped.push(`${firstName || "?"} ${lastName || "?"} (invalid ministry: ${approvedMinistries.unknown.join(", ") || "missing"})`);
+            continue;
+          }
           if (!firstName || !lastName || !rawParish || !ministry) {
             skipped.push(`${firstName || "?"} ${lastName || "?"}`.trim());
             continue;
@@ -302,7 +309,7 @@ export default function CsvImportPage() {
             );
             continue;
           }
-          valid.push({ first_name: firstName, last_name: lastName, parish, ministry });
+          valid.push({ first_name: firstName, last_name: lastName, parish, ministry: approvedMinistries.ministries.join("; ") });
         }
         setRows(valid);
         if (skipped.length > 0) {

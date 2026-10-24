@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useRouter } from "next/navigation";
 import { importSingleMember } from "@/lib/duplicate-check";
+import { validateRegistrationIntake } from "@/lib/registration-intake-validation";
+import { normalizeApprovedMinistries } from "@/lib/registration-ministry-validation";
 import { PARISHES } from "@/lib/constants";
 import { MinistryMultiSelect } from "@/components/ministry-multi-select";
 import { Member } from "@/lib/types";
@@ -29,6 +34,7 @@ export default function AddMemberPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [dupeMatch, setDupeMatch] = useState<Member | null>(null);
   const [useCustomParish, setUseCustomParish] = useState(false);
+  const [parishOpen, setParishOpen] = useState(false);
 
   const resolvedParish = useCustomParish ? customParish.trim() : parish;
 
@@ -38,26 +44,30 @@ export default function AddMemberPage() {
     setSuccess(null);
     setDupeMatch(null);
 
-    if (!firstName.trim() || !lastName.trim() || !resolvedParish.trim()) {
-      setError("First name, last name, and parish are required.");
+    const validated = validateRegistrationIntake({
+      first_name: firstName, last_name: lastName,
+      parish: resolvedParish, ministries,
+    });
+    if (!validated.valid) {
+      setError(validated.errors.join(" "));
       return;
     }
-
+    const approved = normalizeApprovedMinistries(validated.normalized.ministries);
+    if (!approved.valid) {
+      setError("Select only approved COWL-DOK ministries.");
+      return;
+    }
     if (!Number.isInteger(serviceYear) || serviceYear < 2000 || serviceYear > 2100) {
       setError("Please select a valid service year.");
-      return;
-    }
-    if (ministries.length === 0) {
-      setError("Please select at least one ministry.");
       return;
     }
 
     setSubmitting(true);
     const result = await importSingleMember({
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      parish: resolvedParish.trim(),
-      ministries,
+      first_name: validated.normalized.first_name,
+      last_name: validated.normalized.last_name,
+      parish: validated.normalized.parish,
+      ministries: approved.ministries,
       service_year: serviceYear,
       notes: notes.trim() || null,
     });
@@ -147,10 +157,30 @@ export default function AddMemberPage() {
                   {useCustomParish ? (
                     <input id="customParish" value={customParish} onChange={e => setCustomParish(e.target.value)} required placeholder="Type parish name..." className="min-w-0 flex-1 rounded-none border border-[#DCCFD2] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#890022]" />
                   ) : (
-                    <select id="parish" value={parish} onChange={e => setParish(e.target.value)} required className="min-w-0 flex-1 rounded-none border border-[#DCCFD2] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#890022]">
-                      <option value="">Select a parish...</option>
-                      {PARISHES.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
+                    <Popover open={parishOpen} onOpenChange={setParishOpen}>
+                      <PopoverTrigger asChild>
+                        <button type="button" id="parish" role="combobox" aria-expanded={parishOpen} aria-label="Parish or mission station" className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 border border-[#DCCFD2] bg-white px-3 py-2 text-left text-[14px] text-[#1E1114] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#890022]">
+                          <span className={parish ? "truncate" : "truncate text-[#5F4A4F]"}>{parish || "Search and select a parish..."}</span>
+                          <ChevronsUpDown className="h-4 w-4 shrink-0 text-[#5F4A4F]" aria-hidden="true" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-[min(90vw,430px)] rounded-none border-[#DCCFD2] p-0">
+                        <Command>
+                          <CommandInput placeholder="Type a parish or mission station..." className="text-[14px]" />
+                          <CommandList className="max-h-[260px]">
+                            <CommandEmpty>No matching parish. Use Custom to enter another.</CommandEmpty>
+                            <CommandGroup>
+                              {[...PARISHES].sort((a,b) => a.localeCompare(b)).map(p => (
+                                <CommandItem key={p} value={p} onSelect={() => { setParish(p); setParishOpen(false); }} className="cursor-pointer gap-2 py-2 text-[14px]">
+                                  <Check className={parish === p ? "h-4 w-4 shrink-0 text-[#0B5C5A]" : "h-4 w-4 shrink-0 opacity-0"} aria-hidden="true" />
+                                  <span className="whitespace-normal">{p}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   )}
                   <button type="button" onClick={() => {setUseCustomParish(!useCustomParish); if(useCustomParish) setCustomParish('');}} className="shrink-0 border border-[#DCCFD2] bg-white px-3 py-2 text-[12px] font-medium text-[#760020] hover:bg-[#FBF4F5]">{useCustomParish ? 'Use list' : 'Custom'}</button>
                 </div>

@@ -19,6 +19,7 @@ const NAV_GROUPS = [
     { href: "/admin/members/add", label: "Add Member", icon: UserPlus },
     { href: "/admin/verify", label: "Quick-Scan Matrix", icon: ShieldCheck },
     { href: "/admin/import", label: "Bulk Registration Import", icon: Upload },
+    { href: "/admin/duplicate-review-preview", label: "Duplicate Queue Preview", icon: ClipboardList },
     { href: "/admin/renewal-batches", label: "Renewal Batches", icon: ClipboardList },
     { href: "/admin/renewal-reviews", label: "Renewal Review Queue", icon: ShieldCheck },
   ] },

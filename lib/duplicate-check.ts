@@ -1,6 +1,7 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MINISTRIES, shortMinistry } from "@/lib/constants";
 import type { Member, MemberMinistry } from "@/lib/types";
+import { areNamesSimilar, similarityRatio, classifyIdentityMatch } from "@/lib/registration-matching";
 
 
 const MEMBER_PAGE_SIZE = 1000;
@@ -104,75 +105,6 @@ export interface DuplicateMatch {
 }
 
 /**
- * Calculate Levenshtein distance between two strings.
- * Used for fuzzy name matching to catch misspellings.
- */
-function levenshteinDistance(a: string, b: string): number {
-  const matrix: number[][] = [];
-  const aLower = a.toLowerCase();
-  const bLower = b.toLowerCase();
-
-  for (let i = 0; i <= aLower.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= bLower.length; j++) {
-    matrix[0][j] = j;
-  }
-
-  for (let i = 1; i <= aLower.length; i++) {
-    for (let j = 1; j <= bLower.length; j++) {
-      if (aLower[i - 1] === bLower[j - 1]) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-
-  return matrix[aLower.length][bLower.length];
-}
-
-/**
- * Calculate similarity ratio between two strings (0-1).
- * Higher values indicate more similar strings.
- */
-function similarityRatio(a: string, b: string): number {
-  if (!a || !b) return 0;
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return 1;
-  const distance = levenshteinDistance(a, b);
-  return 1 - distance / maxLen;
-}
-
-/**
- * Check if two names are similar enough to be potential duplicates.
- * Threshold: 80% similarity for names with 4+ chars, exact for shorter.
- */
-function areNamesSimilar(name1: string, name2: string): boolean {
-  const n1 = name1.toLowerCase().trim();
-  const n2 = name2.toLowerCase().trim();
-
-  if (n1 === n2) return true;
-
-  // Numeric suffixes are meaningful identity data. For example,
-  // "Subject 3" and "Subject 4" (or "Juan II" and "Juan III" when written
-  // numerically) should not be treated as misspellings of each other.
-  const digits1 = n1.match(/\d+/g)?.join("|") ?? "";
-  const digits2 = n2.match(/\d+/g)?.join("|") ?? "";
-  if (digits1 !== digits2 && (digits1 || digits2)) return false;
-
-  // For short names (3 chars or less), require exact match
-  if (n1.length <= 3 || n2.length <= 3) return false;
-
-  // For longer names, allow fuzzy matching with 80% similarity threshold
-  return similarityRatio(n1, n2) >= 0.8;
-}
-
-/**
  * Cross-Ministry Duplicate Detection (Interception Layer).
  *
  * Detection rules:
@@ -248,7 +180,6 @@ export async function findDuplicateMembers(
 
   // 3. Similar names (fuzzy matching) - fetch all and filter client-side
   // This catches misspellings like "Juan" vs "Juhn", "Dela Cruz" vs "Dela Crz"
-  // A failed full-registry lookup cannot mean "no duplicates". Fail closed.
   const allMembers = await fetchAllMembers();
 
   if (allMembers.length > 0) {
@@ -256,11 +187,13 @@ export async function findDuplicateMembers(
       // Skip if already in matches
       if (matches.some((x) => x.existing.id === m.id)) continue;
 
-      const firstSimilar = areNamesSimilar(trimmedFirst, m.first_name);
-      const lastSimilar = areNamesSimilar(trimmedLast, m.last_name);
+      const identityMatch = classifyIdentityMatch(
+        { first_name: trimmedFirst, last_name: trimmedLast, parish: trimmedParish },
+        m
+      );
 
-      // Both first AND last name must be similar to be flagged
-      if (firstSimilar && lastSimilar) {
+      // Exact/parish matches were already collected above.
+      if (identityMatch === "similar_name") {
         const avgSimilarity =
           (similarityRatio(trimmedFirst, m.first_name) +
             similarityRatio(trimmedLast, m.last_name)) /

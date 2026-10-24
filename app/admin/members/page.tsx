@@ -61,6 +61,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelectCombobox } from "@/components/multi-select-combobox";
 import { ebGaramond } from "@/app/fonts";
+import { memberSearchExpression } from "@/lib/member-search";
 
 const PAGE_SIZE = 20;
 
@@ -189,11 +190,9 @@ export default function MembersListPage() {
       .select(selectClause, { count: "exact" });
 
     // Apply search filter (server-side, case-insensitive)
-    const searchTrimmed = search.trim();
-    if (searchTrimmed) {
-      query = query.or(
-        `first_name.ilike.%${searchTrimmed}%,last_name.ilike.%${searchTrimmed}%,parish.ilike.%${searchTrimmed}%,uid.ilike.%${searchTrimmed}%`
-      );
+    const searchClause = memberSearchExpression(search);
+    if (searchClause) {
+      query = query.or(searchClause);
     }
 
     // Apply parish filter (member matches ANY selected parish)
@@ -317,12 +316,10 @@ export default function MembersListPage() {
 
       let query = supabase.from("members").select(selectClause);
 
-      const searchTrimmed = search.trim();
-      if (searchTrimmed) {
-        query = query.or(
-          `first_name.ilike.%${searchTrimmed}%,last_name.ilike.%${searchTrimmed}%,parish.ilike.%${searchTrimmed}%,uid.ilike.%${searchTrimmed}%`
-        );
-      }
+      const searchClause = memberSearchExpression(search);
+    if (searchClause) {
+      query = query.or(searchClause);
+    }
 
       if (filters.parish.length > 0) {
         query = query.in("parish", filters.parish);
