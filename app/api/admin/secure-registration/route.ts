@@ -83,6 +83,10 @@ export async function POST(request: Request) {
     if (error?.code === "23505") return reply(409, "Request key was previously used for different registration details.");
     if (error) return reply(503, "Atomic registration transaction unavailable.");
     const result = normalizeAtomicRegistrationResponse(data);
+    // A review response from the test RPC is not persisted. Do not claim
+    // intake was accepted or verified until a durable review case exists.
+    if (result.status === "review")
+      return reply(503, "Potential duplicate detected. Persistent review intake is not yet available.");
     return NextResponse.json({ ok: true, ...result }, {
       status: result.status === "created" ? 201 : 200,
       headers: { "Cache-Control": "no-store" },
