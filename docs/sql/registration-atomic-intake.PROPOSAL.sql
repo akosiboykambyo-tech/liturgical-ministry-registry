@@ -78,6 +78,9 @@ BEGIN
   IF p_request IS NULL OR v_first IS NULL OR v_last IS NULL OR v_parish IS NULL
      OR length(v_first) NOT BETWEEN 1 AND 100 OR length(v_last) NOT BETWEEN 1 AND 100
      OR length(v_parish) NOT BETWEEN 1 AND 255
+     OR length(btrim(regexp_replace(v_first, '[[:space:]]+', ' ', 'g'))) = 0
+     OR length(btrim(regexp_replace(v_last, '[[:space:]]+', ' ', 'g'))) = 0
+     OR length(btrim(regexp_replace(v_parish, '[[:space:]]+', ' ', 'g'))) = 0
      OR octet_length(v_first) > 255 OR octet_length(v_last) > 255
      OR p_year IS NULL OR p_year NOT BETWEEN 1000 AND 9999
      OR p_ministries IS NULL OR cardinality(p_ministries) NOT BETWEEN 1 AND 6 THEN
@@ -134,12 +137,12 @@ BEGIN
   -- Both parts must match. SQL/JS Unicode and UTF-16 parity remain open.
   SELECT m.id INTO v_match FROM public.members m
   CROSS JOIN LATERAL (SELECT
-    lower(regexp_replace(btrim(m.first_name), '[[:space:]]+', ' ', 'g')) AS mf,
-    lower(regexp_replace(btrim(m.last_name), '[[:space:]]+', ' ', 'g')) AS ml
+    lower(btrim(regexp_replace(m.first_name, '[[:space:]]+', ' ', 'g'))) AS mf,
+    lower(btrim(regexp_replace(m.last_name, '[[:space:]]+', ' ', 'g'))) AS ml
   ) AS normalized
   CROSS JOIN LATERAL (SELECT
-    lower(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')) AS vf,
-    lower(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')) AS vl
+    lower(btrim(regexp_replace(v_first, '[[:space:]]+', ' ', 'g'))) AS vf,
+    lower(btrim(regexp_replace(v_last, '[[:space:]]+', ' ', 'g'))) AS vl
   ) AS incoming
   WHERE btrim(m.parish) <> ''
     AND (
