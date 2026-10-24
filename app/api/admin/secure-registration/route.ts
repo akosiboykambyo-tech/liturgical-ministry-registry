@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   catch { return reply(503, "Secure registration unavailable."); }
   if (projectHost !== testProject + ".supabase.co" ||
       process.env.SECURE_REGISTRATION_TEST_PROJECT !== testProject ||
-      process.env.SECURE_REGISTRATION_ATOMIC_RPC !== "atomic_registration_probe")
+      process.env.SECURE_REGISTRATION_ATOMIC_RPC !== "atomic_registration_v2")
     return reply(503, "Atomic registration has not been approved for this environment.");
 
   let input;
@@ -64,10 +64,6 @@ export async function POST(request: Request) {
     return reply(400, "Invalid registration information.");
   }
 
-  // The test prototype accepts one ministry; never silently drop assignments.
-  if (input.ministries.length !== 1)
-    return reply(503, "Multi-ministry atomic registration not yet implemented.");
-
   // Uses the actor's verified access token, not a service-role secret.
   // PostgreSQL itself must authorize the actor and perform the full
   // duplicate check and insert atomically. RPC errors fail closed.
@@ -76,11 +72,12 @@ export async function POST(request: Request) {
     global: { headers: { Authorization: "Bearer " + match[1] } },
   });
   try {
-    const { data, error } = await caller.rpc("atomic_registration_probe", {
+    const { data, error } = await caller.rpc("atomic_registration_v2", {
       p_first: input.first_name,
       p_last: input.last_name,
       p_parish: input.parish,
-      p_ministry: input.ministries[0],
+      p_ministries: input.ministries,
+      p_year: input.service_year,
       p_request: input.requestKey,
     });
     if (error) return reply(503, "Atomic registration transaction unavailable.");
