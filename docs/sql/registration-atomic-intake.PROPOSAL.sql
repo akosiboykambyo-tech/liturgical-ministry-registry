@@ -63,15 +63,21 @@ DECLARE
   v_review uuid;
 BEGIN
   -- Mandatory database-side authorization, independent of HTTP preflight.
-  IF v_actor IS NULL OR NOT EXISTS (
-    SELECT 1 FROM registry_private.registration_administrators a
-    WHERE a.user_id = v_actor AND a.active AND a.revoked_at IS NULL
-  ) THEN
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'Registration not authorized' USING ERRCODE = '42501';
+  END IF;
+  -- Lock the ACTIVE administrator row until COMMIT/ROLLBACK. A concurrent
+  -- revocation UPDATE must wait; if revocation commits first, this fails.
+  -- The HTTP preflight alone cannot prevent an authorization race.
+  PERFORM 1 FROM registry_private.registration_administrators a
+  WHERE a.user_id = v_actor AND a.active = true AND a.revoked_at IS NULL
+  FOR SHARE;
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'Registration not authorized' USING ERRCODE = '42501';
   END IF;
   IF p_request IS NULL OR v_first IS NULL OR v_last IS NULL OR v_parish IS NULL
-     OR length(v_first) NOT BETWEEN 1 AND 160 OR length(v_last) NOT BETWEEN 1 AND 160
-     OR length(v_parish) NOT BETWEEN 1 AND 200
+     OR length(v_first) NOT BETWEEN 1 AND 100 OR length(v_last) NOT BETWEEN 1 AND 100
+     OR length(v_parish) NOT BETWEEN 1 AND 255
      OR p_year NOT BETWEEN 1000 AND 9999
      OR p_ministries IS NULL OR cardinality(p_ministries) NOT BETWEEN 1 AND 6 THEN
     RAISE EXCEPTION 'Invalid registration request' USING ERRCODE = '22023';
