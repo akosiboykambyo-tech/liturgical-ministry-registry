@@ -80,3 +80,16 @@ test("different short first names are not fuzzy matched even when surnames resem
     null
   );
 });
+
+test("registration matching trims tabs and line breaks around names", () => {
+  assert.equal(
+    classifyIdentityMatch(person("\tAna\n", "Dela\tCruz"), person("Ana", "Dela Cruz")),
+    "exact"
+  );
+});
+
+test("emoji codepoints remain a known JavaScript UTF-16 matching edge case", () => {
+  // PostgreSQL levenshtein currently counts code points; JavaScript counts
+  // UTF-16 units. This fixture must be reconciled before production activation.
+  assert.equal(areNamesSimilar("😀abc", "😄abc"), true);
+});
