@@ -63,7 +63,15 @@ async function main() {
   assert.match(review.data.reviewId,/^[0-9a-f-]{36}$/i);
   const secondReview = await post({ ...base, requestKey: randomUUID() });
   assert.equal(secondReview.data.status,"review",JSON.stringify(secondReview));
-  console.log("PASS: invalid token, parallel idempotent writes, conflicting payload, duplicate review");
+  // Different idempotency keys for the same new identity are the distinct race.
+  const distinctName = { ...base, first_name: "Race" + reference.slice(0, 8), last_name: "Parallel" + reference.slice(9, 13) };
+  const [r1, r2] = await Promise.all([
+    post({ ...distinctName, requestKey: randomUUID() }),
+    post({ ...distinctName, requestKey: randomUUID() }),
+  ]);
+  assert.deepEqual([r1.data.status, r2.data.status].sort(), ["created", "review"], JSON.stringify([r1, r2]));
+  assert.match((r1.data.reviewId || r2.data.reviewId), /^[0-9a-f-]{36}$/i);
+  console.log("PASS: invalid token, same-key replay, different-key race, conflict, duplicate review");
   console.log("IMPORTANT: synthetic test members and review cases were written to ISOLATED TEST database.");
   console.log("Test reference:", reference);
 }
