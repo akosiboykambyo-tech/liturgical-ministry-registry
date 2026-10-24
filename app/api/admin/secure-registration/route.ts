@@ -64,6 +64,10 @@ export async function POST(request: Request) {
     return reply(400, "Invalid registration information.");
   }
 
+  // The test prototype accepts one ministry; never silently drop assignments.
+  if (input.ministries.length !== 1)
+    return reply(503, "Multi-ministry atomic registration not yet implemented.");
+
   // Uses the actor's verified access token, not a service-role secret.
   // PostgreSQL itself must authorize the actor and perform the full
   // duplicate check and insert atomically. RPC errors fail closed.
