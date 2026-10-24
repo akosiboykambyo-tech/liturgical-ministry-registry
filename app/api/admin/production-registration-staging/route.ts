@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     process.env.PRODUCTION_REGISTRATION_STAGING_ENABLED,
     process.env.PRODUCTION_REGISTRATION_STAGING_SCHEMA_READY === "true");
   if (!access.authorized) return reject(access.reason === "unauthenticated" ? 401 :
-    access.reason === "forbidden" ? 403 : 503, "Registration unavailable");
+    access.reason === "forbidden" ? 403 : 503, "Staging preflight: " + access.reason);
   let payload: Record<string, unknown>;
   try {
     const body = await request.text();
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     });
     if (result.error) {
       if (result.error.code === "23505") return reject(409, "Idempotency conflict");
-      if (result.error.code === "42501") return reject(403, "Forbidden");
+      if (result.error.code === "42501") return reject(403, "Staging transaction: permission denied");
       return reject(503, "Database registration unavailable");
     }
     return NextResponse.json({ ok: true, ...result.data }, {
