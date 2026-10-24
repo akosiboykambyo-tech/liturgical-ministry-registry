@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   if (typeof requestKey !== "string" || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(requestKey) ||
       typeof first_name !== "string" || typeof last_name !== "string" || typeof parish !== "string" ||
       !Array.isArray(ministries) || !ministries.every(x => typeof x === "string") ||
-      !Number.isInteger(service_year) ||
+      typeof service_year !== "number" || !Number.isInteger(service_year) ||
       first_name.trim().length < 1 || first_name.trim().length > 100 ||
       Buffer.byteLength(first_name.trim(), "utf8") > 255 ||
       Buffer.byteLength(last_name.trim(), "utf8") > 255 ||
