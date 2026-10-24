@@ -29,6 +29,11 @@ if (!["postgres:", "postgresql:"].includes(parsedUrl.protocol) ||
   console.error("REFUSED: only the exact isolated staging direct DB host is accepted.");
   process.exit(2);
 }
+const sslModeInUrl = parsedUrl.searchParams.get("sslmode");
+if (sslModeInUrl && !["require", "verify-ca", "verify-full"].includes(sslModeInUrl)) {
+  console.error("REFUSED: staging connection must use encrypted PostgreSQL TLS.");
+  process.exit(2);
+}
 if (!parsedUrl.username || !parsedUrl.password) {
   console.error("REFUSED: staging DB credentials are missing.");
   process.exit(2);
