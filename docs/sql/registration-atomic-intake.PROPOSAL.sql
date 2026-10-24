@@ -78,6 +78,7 @@ BEGIN
   IF p_request IS NULL OR v_first IS NULL OR v_last IS NULL OR v_parish IS NULL
      OR length(v_first) NOT BETWEEN 1 AND 100 OR length(v_last) NOT BETWEEN 1 AND 100
      OR length(v_parish) NOT BETWEEN 1 AND 255
+     OR octet_length(v_first) > 255 OR octet_length(v_last) > 255
      OR p_year NOT BETWEEN 1000 AND 9999
      OR p_ministries IS NULL OR cardinality(p_ministries) NOT BETWEEN 1 AND 6 THEN
     RAISE EXCEPTION 'Invalid registration request' USING ERRCODE = '22023';
@@ -117,34 +118,41 @@ BEGIN
       'memberId',v_prior.member_id,'reviewId',v_prior.review_id);
   END IF;
 
-  -- Mirror registration-matching.ts: normalize case and whitespace;
-  -- exact full-name across parishes or two >=0.8 Levenshtein similarities.
-  -- Numeric suffixes must match and <=3-char non-exact names do not fuzzy-match.
-  -- SQL/JS Unicode case mapping and UTF-16 length remain staging parity risks.
+  -- Mirror JS: exact equality bypasses fuzzy short-name and digit safeguards
+  -- for that component; the *other* name component may still match fuzzily.
+  -- Both parts must match. SQL/JS Unicode and UTF-16 parity remain open.
   SELECT m.id INTO v_match FROM public.members m
   CROSS JOIN LATERAL (SELECT
     lower(regexp_replace(btrim(m.first_name), '[[:space:]]+', ' ', 'g')) AS mf,
     lower(regexp_replace(btrim(m.last_name), '[[:space:]]+', ' ', 'g')) AS ml
   ) AS normalized
+  CROSS JOIN LATERAL (SELECT
+    lower(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')) AS vf,
+    lower(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')) AS vl
+  ) AS incoming
   WHERE btrim(m.parish) <> ''
     AND (
-      (normalized.mf = lower(regexp_replace(v_first, '[[:space:]]+', ' ', 'g'))
-        AND normalized.ml = lower(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')))
+      normalized.mf = incoming.vf
       OR (
-        length(normalized.mf) > 3
-        AND length(normalized.ml) > 3
-        AND length(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')) > 3
-        AND length(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')) > 3
+        length(normalized.mf) > 3 AND length(incoming.vf) > 3
         AND btrim(regexp_replace(normalized.mf, '[^0-9]+', '|', 'g'), '|') =
-            btrim(regexp_replace(lower(v_first), '[^0-9]+', '|', 'g'), '|')
+            btrim(regexp_replace(incoming.vf, '[^0-9]+', '|', 'g'), '|')
+        AND octet_length(normalized.mf) <= 255
+        AND octet_length(incoming.vf) <= 255
+        AND (1 - extensions.levenshtein(normalized.mf, incoming.vf)::numeric /
+          greatest(length(normalized.mf), length(incoming.vf))) >= 0.8
+      )
+    )
+    AND (
+      normalized.ml = incoming.vl
+      OR (
+        length(normalized.ml) > 3 AND length(incoming.vl) > 3
         AND btrim(regexp_replace(normalized.ml, '[^0-9]+', '|', 'g'), '|') =
-            btrim(regexp_replace(lower(v_last), '[^0-9]+', '|', 'g'), '|')
-        AND (1 - extensions.levenshtein(normalized.mf,
-          lower(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')))::numeric /
-          greatest(length(normalized.mf),length(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')))) >= 0.8
-        AND (1 - extensions.levenshtein(normalized.ml,
-          lower(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')))::numeric /
-          greatest(length(normalized.ml),length(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')))) >= 0.8
+            btrim(regexp_replace(incoming.vl, '[^0-9]+', '|', 'g'), '|')
+        AND octet_length(normalized.ml) <= 255
+        AND octet_length(incoming.vl) <= 255
+        AND (1 - extensions.levenshtein(normalized.ml, incoming.vl)::numeric /
+          greatest(length(normalized.ml), length(incoming.vl))) >= 0.8
       )
     )
   ORDER BY m.created_at, m.id LIMIT 1;
