@@ -9,7 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:registration": "node --test tests/registration-matching.test.cjs tests/duplicate-review-plan.test.cjs tests/duplicate-review-queue.test.cjs tests/registration-intake-preflight.test.cjs tests/registration-intake-validation.test.cjs tests/registration-ministry-validation.test.cjs tests/registration-review-draft.test.cjs tests/recommendation-letter-check.test.cjs tests/registration-validity.test.cjs",
-    "test:secure-registration": "node --test tests/secure-registration-gate.test.cjs tests/secure-registration-decision.test.cjs"
+    "test:secure-registration": "node --test tests/secure-registration-gate.test.cjs tests/secure-registration-decision.test.cjs tests/secure-registration-contract.test.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
