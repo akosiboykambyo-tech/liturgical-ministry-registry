@@ -16,7 +16,9 @@ export async function POST(request: Request) {
     return reject(503, "Staging registration disabled");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key || new URL(url).hostname !== TEST_HOST ||
+  let host = "";
+  try { host = url ? new URL(url).hostname : ""; } catch { /* deny invalid URL */ }
+  if (!url || !key || host !== TEST_HOST ||
       process.env.PRODUCTION_REGISTRATION_STAGING_PROJECT !== "rtptybxugjhvpfjvcvgw")
     return reject(503, "Wrong staging environment");
   const match = /^Bearer (\S+)$/i.exec(request.headers.get("authorization") || "");
