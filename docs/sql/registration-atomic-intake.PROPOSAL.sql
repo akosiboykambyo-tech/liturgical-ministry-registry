@@ -127,18 +127,18 @@ BEGIN
       OR (
         length(normalized.mf) > 3
         AND length(normalized.ml) > 3
-        AND length(v_first) > 3
-        AND length(v_last) > 3
-        AND regexp_replace(normalized.mf, '[^0-9]+', '|', 'g') =
-            regexp_replace(lower(v_first), '[^0-9]+', '|', 'g')
-        AND regexp_replace(normalized.ml, '[^0-9]+', '|', 'g') =
-            regexp_replace(lower(v_last), '[^0-9]+', '|', 'g')
+        AND length(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')) > 3
+        AND length(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')) > 3
+        AND btrim(regexp_replace(normalized.mf, '[^0-9]+', '|', 'g'), '|') =
+            btrim(regexp_replace(lower(v_first), '[^0-9]+', '|', 'g'), '|')
+        AND btrim(regexp_replace(normalized.ml, '[^0-9]+', '|', 'g'), '|') =
+            btrim(regexp_replace(lower(v_last), '[^0-9]+', '|', 'g'), '|')
         AND (1 - extensions.levenshtein(normalized.mf,
           lower(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')))::numeric /
-          greatest(length(normalized.mf),length(v_first))) >= 0.8
+          greatest(length(normalized.mf),length(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')))) >= 0.8
         AND (1 - extensions.levenshtein(normalized.ml,
           lower(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')))::numeric /
-          greatest(length(normalized.ml),length(v_last))) >= 0.8
+          greatest(length(normalized.ml),length(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')))) >= 0.8
       )
     )
   ORDER BY m.created_at, m.id LIMIT 1;
