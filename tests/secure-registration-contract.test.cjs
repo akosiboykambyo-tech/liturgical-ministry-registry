@@ -25,5 +25,5 @@ test("rejects invalid source",()=>assert.throws(()=>parse({...base,source:{kind:
 test("rejects incorrect request shape",()=>assert.throws(()=>parse(null)));
 test("accepts valid atomic create result",()=>assert.deepEqual(normalize({status:"created",member_id:"22222222-2222-4222-8222-222222222222"}),{status:"created",memberId:"22222222-2222-4222-8222-222222222222"}));
 test("rejects RPC success without verified member UUID",()=>assert.throws(()=>normalize({status:"created",member_id:"not-uuid"})));
-test("accepts explicit review without creating member",()=>assert.deepEqual(normalize({status:"review",candidates:2}),{status:"review",candidates:2}));
-test("rejects malformed review count",()=>assert.throws(()=>normalize({status:"review",candidates:0})));
+test("accepts explicit review without creating member",()=>assert.deepEqual(normalize({status:"review",review_id:"33333333-3333-4333-8333-333333333333"}),{status:"review",reviewId:"33333333-3333-4333-8333-333333333333"}));
+test("rejects malformed review count",()=>assert.throws(()=>normalize({status:"review",review_id:"invalid"})));
