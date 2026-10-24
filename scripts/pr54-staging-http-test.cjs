@@ -11,7 +11,15 @@ if(process.env.PR54_ALLOW_TEST_WRITES!=="I_ACCEPT_TEST_DATABASE_WRITES"||
 const url=base+"/api/admin/production-registration-staging";
 async function post(payload,token=jwt) {
  const res=await fetch(url,{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+token},body:JSON.stringify(payload)});
- return {http:res.status,json:await res.json()};
+ const raw=await res.text();
+ let json;
+ try {json=JSON.parse(raw);} catch {
+   throw new Error("Non-JSON response: HTTP "+res.status+
+     " content-type="+(res.headers.get("content-type")||"unknown")+
+     " path="+new URL(res.url).pathname+
+     " body="+raw.slice(0,180).replace(/\\s+/g," "));
+ }
+ return {http:res.status,json};
 }
 async function run() {
  const suffix=randomUUID().replace(/-/g,"").slice(0,10);
