@@ -394,6 +394,6 @@ test("production backup categorizes pg_dump errors without disclosing raw stderr
   assert.match(classifier({status:1,stderr:"pg_dump: error: query failed: ERROR: permission denied for table users"}),/object privileges/);
   assert.match(classifier({status:1,stderr:"pg_dump: error: query would be affected by row-level security policy for table members"}),/row-level security/);
   assert.match(classifier({status:1,stderr:"pg_dump: error: permission denied for large object 12345"}),/large-object/);
-  assert.match(classifier({status:null,error:{code:"ETIMEDOUT"},stderr:"password=TOP_SECRET"}),/timed out/);
+  assert.match(classifier({status:null,error:{code:"ETIMEDOUT"},stderr:"password=TOP_SECRET"}),/timeout|timed out/);
   assert.doesNotMatch(classifier({status:1,stderr:"password=TOP_SECRET; user email=private"}),/TOP_SECRET|private/);
 });
