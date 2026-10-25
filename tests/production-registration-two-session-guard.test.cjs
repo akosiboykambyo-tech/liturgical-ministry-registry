@@ -69,3 +69,54 @@ test("refuses unexpected libpq URL options on the isolated staging host", () => 
     PR55_STAGING_DATABASE_URL: fakeStaging + "?sslmode=require&host=outside.example.org"
   });
 });
+
+const fakeSessionPooler = "postgresql://postgres.rtptybxugjhvpfjvcvgw:synthetic-not-a-password@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
+function configurationAccepted(url,expectedMode) {
+  const child = spawnSync(process.execPath, [script, "--validate-config"], {
+    env: {
+      PATH: process.env.PATH || "",
+      SystemRoot: process.env.SystemRoot || "",
+      PR55_ALLOW_TWO_SESSION_TEST: optIn,
+      PR55_STAGING_DATABASE_URL: url
+    },
+    encoding: "utf8", timeout: 5000
+  });
+  assert.equal(child.status, 0, "Valid staging mode must pass offline validation");
+  assert.match(child.stdout, new RegExp("isolated staging " + expectedMode + " connection configuration accepted"));
+  assert.match(child.stdout, /NO connection made/);
+  assert.doesNotMatch(child.stdout + child.stderr, /synthetic-not-a-password/);
+}
+
+test("accepts the exact isolated staging project's session-pooler tenant without opening a connection", () => {
+  configurationAccepted(fakeSessionPooler, "SESSION POOLER");
+});
+
+test("accepts the isolated staging direct endpoint without opening a connection", () => {
+  configurationAccepted(fakeStaging + "?sslmode=require", "DIRECT");
+});
+
+test("rejects session-pooler transaction mode on port 6543", () => {
+  refused({ PR55_ALLOW_TWO_SESSION_TEST: optIn,
+    PR55_STAGING_DATABASE_URL: fakeSessionPooler.replace(":5432/", ":6543/")
+  });
+});
+
+test("rejects production tenant on a valid session-pooler hostname", () => {
+  refused({ PR55_ALLOW_TWO_SESSION_TEST: optIn,
+    PR55_STAGING_DATABASE_URL: fakeSessionPooler.replace(
+      "postgres.rtptybxugjhvpfjvcvgw:", "postgres.zlvofcwnpdzfdnipvbbd:")
+  });
+});
+
+test("rejects wrong-region session-pooler hostname", () => {
+  refused({ PR55_ALLOW_TWO_SESSION_TEST: optIn,
+    PR55_STAGING_DATABASE_URL: fakeSessionPooler.replace(
+      "ap-northeast-1", "ap-southeast-2")
+  });
+});
+
+test("rejects disabled TLS on session pooler", () => {
+  refused({ PR55_ALLOW_TWO_SESSION_TEST: optIn,
+    PR55_STAGING_DATABASE_URL: fakeSessionPooler.replace("sslmode=require", "sslmode=disable")
+  });
+});
