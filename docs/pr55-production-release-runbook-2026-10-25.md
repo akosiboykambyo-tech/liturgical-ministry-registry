@@ -64,6 +64,26 @@ psql "host=db.rtptybxugjhvpfjvcvgw.supabase.co port=5432 dbname=postgres user=po
 
 Do not paste the password, full connection URL, or raw error text if it includes credentials into PR comments or support requests. The non-secret error category, SQLSTATE and named stage are sufficient for the next diagnostic step.
 
+## 2026-10-25 IPv4-only local network: use the staging Session pooler
+
+The operator's Windows environment reported `WARNING: Name resolution ... failed` and `TcpTestSucceeded = False` for `db.rtptybxugjhvpfjvcvgw.supabase.co:5432`; seven offline guard tests passed. The direct hostname could not be resolved. Per Supabase's official connection guide, direct connections ordinarily use IPv6, whereas the shared **Session pooler** exposes IPv4 on port **5432** and supports session-scoped state.
+
+The staging-only harness now accepts **either**:
+- Direct: `db.rtptybxugjhvpfjvcvgw.supabase.co:5432`, user `postgres`; or
+- Shared Session pooler: official **Ministry-Registry-Test** `aws-[INDEX]-ap-northeast-1.pooler.supabase.com:5432` hostname, user `postgres.rtptybxugjhvpfjvcvgw`.
+
+Hostnames must be copied from the test project's **Connect → Session pooler** page. Don't infer an index from the AWS region, and **never** use port `6543` (transaction pooling cannot guarantee persistent database sessions). The harness rejects other hosts, wrong region, wrong tenant, unexpected query options, TLS downgrade or missing explicit opt-in. The script's `--validate-config` argument validates without making a connection or running SQL. Do not share database connection strings or passwords.
+
+Safe operator flow:
+1. `git pull --ff-only origin fix/production-registration-compatibility`; run `node --test .\tests\production-registration-two-session-guard.test.cjs`.
+2. Open the isolated [Ministry-Registry-Test](https://supabase.com/dashboard/project/rtptybxugjhvpfjvcvgw) project → **Connect** → **Session pooler**. Copy *only the pooler hostname* for the initial network check.
+3. Run `Test-NetConnection <YOUR-TEST-POOLER-HOST> -Port 5432` in PowerShell. Stop if the connection still fails.
+4. Construct `PR55_STAGING_DATABASE_URL` locally with the **test** pooler username, test DB password encoded for a URI, pooler host, `/postgres` and `?sslmode=require`; do not paste it into chat.
+5. Set `PR55_ALLOW_TWO_SESSION_TEST=I_ACCEPT_ISOLATED_STAGING_ROLLBACK_TESTS`; use `node scripts/pr55-staging-two-session-test.cjs --validate-config`, then run without `--validate-config` only when configuration and network checks pass.
+6. Report only the sanitized stage and exit category, or the green PASS markers; clear password and environment variables afterward.
+
+This is still **NOT a passed two-session test** until the operator runs the updated harness successfully. Supabase source: https://supabase.com/docs/guides/database/connecting-to-postgres
+
 ## Migration source, review and operator signoff
 
 - `docs/sql/registration-production-disabled.RELEASE-CANDIDATE.sql` is **deliberately non-executable**: the first `DO` block aborts every run. Removing that guard must require a separately reviewed and authorized versioned Supabase migration. Do not copy-paste it into production.
