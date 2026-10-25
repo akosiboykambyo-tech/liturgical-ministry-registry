@@ -1,6 +1,6 @@
 /**
  * PR #55: independent PostgreSQL-backend staging race harness.
- * Run only with private direct-connection credentials for the isolated TEST project.
+ * Run only with private direct or IPv4 Session-pooler credentials for the isolated TEST project.
  * Two independent psql processes are used; all SQL changes are rolled back.
  * No administrator UUID/password/JWT is logged or persisted.
  */
@@ -11,7 +11,11 @@ const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const STAGING_HOST = "db.rtptybxugjhvpfjvcvgw.supabase.co";
+const STAGING_REF = "rtptybxugjhvpfjvcvgw";
+const STAGING_DIRECT_HOST = "db." + STAGING_REF + ".supabase.co";
+// Region confirmed from this exact TEST project. Supabase's shared pooler
+// index varies; copy the complete host from the TEST project's Connect page.
+const STAGING_SESSION_POOLER_HOST = /^aws-[0-9]+-ap-northeast-1\.pooler\.supabase\.com$/;
 const dbUrl = process.env.PR55_STAGING_DATABASE_URL || "";
 const optIn = "I_ACCEPT_ISOLATED_STAGING_ROLLBACK_TESTS";
 if (process.env.PR55_ALLOW_TWO_SESSION_TEST !== optIn) {
@@ -23,10 +27,12 @@ try { parsedUrl = new URL(dbUrl); } catch {
   console.error("REFUSED: missing/invalid isolated staging DB connection URL.");
   process.exit(2);
 }
+const isDirect = parsedUrl.hostname === STAGING_DIRECT_HOST;
+const isSessionPooler = STAGING_SESSION_POOLER_HOST.test(parsedUrl.hostname);
 if (!["postgres:", "postgresql:"].includes(parsedUrl.protocol) ||
-    parsedUrl.hostname !== STAGING_HOST ||
-    parsedUrl.port && parsedUrl.port !== "5432") {
-  console.error("REFUSED: only the exact isolated staging direct DB host is accepted.");
+    !(isDirect || isSessionPooler) ||
+    (parsedUrl.port && parsedUrl.port !== "5432")) {
+  console.error("REFUSED: only isolated staging direct or IPv4 Session-pooler port 5432 is accepted.");
   process.exit(2);
 }
 const sslModeInUrl = parsedUrl.searchParams.get("sslmode");
@@ -38,8 +44,9 @@ if (!parsedUrl.username || !parsedUrl.password) {
   console.error("REFUSED: staging DB credentials are missing.");
   process.exit(2);
 }
-if (parsedUrl.username !== "postgres" || parsedUrl.pathname !== "/postgres") {
-  console.error("REFUSED: staging direct connection must use postgres user and database.");
+const expectedUsername = isSessionPooler ? "postgres." + STAGING_REF : "postgres";
+if (parsedUrl.username !== expectedUsername || parsedUrl.pathname !== "/postgres") {
+  console.error("REFUSED: staging connection username/project or database is incorrect.");
   process.exit(2);
 }
 let dbPassword;
@@ -51,6 +58,12 @@ catch {
 if (!dbPassword || [...parsedUrl.searchParams.keys()].some(k => k !== "sslmode")) {
   console.error("REFUSED: invalid password or unexpected staging connection options.");
   process.exit(2);
+}
+if (process.argv.includes("--validate-config")) {
+  console.log("PASS: isolated staging " +
+    (isSessionPooler ? "SESSION POOLER" : "DIRECT") +
+    " connection configuration accepted; NO connection made");
+  process.exit(0);
 }
 const sqlSource = fs.readFileSync(
   path.join(__dirname, "../docs/sql/registration-staging-intake-function.ISOLATED-ONLY.sql"),
@@ -86,10 +99,10 @@ class SqlSession {
         env: {
           PATH: process.env.Path || process.env.PATH || "",
           SystemRoot: process.env.SystemRoot || "",
-          PGHOST: STAGING_HOST,
+          PGHOST: parsedUrl.hostname,
           PGPORT: "5432",
           PGDATABASE: "postgres",
-          PGUSER: "postgres",
+          PGUSER: expectedUsername,
           PGPASSWORD: dbPassword,
           PGSSLMODE: "require",
           PGCONNECT_TIMEOUT: "10",
