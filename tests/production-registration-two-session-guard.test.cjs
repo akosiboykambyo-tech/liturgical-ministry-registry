@@ -224,3 +224,33 @@ test("candidate JWT HTTP rehearsal requires forced rollback and cleanup",()=>{
   assert.match(content,/--cleanup-only/);
   assert.match(content,/DROP FUNCTION IF EXISTS/);
 });
+
+test("candidate HTTP rehearsal rejects a half-configured non-admin identity",()=>{
+  const child=candidateGuard(["--validate-config"],{
+    PR55_ALLOW_CANDIDATE_HTTP_PROBE:candidateOptIn,
+    PR55_STAGING_DATABASE_URL:fakeCandidateUrl,
+    PR55_STAGING_PUBLISHABLE_KEY:"sb_publishable_SYNTHETIC_OFFLINE_ONLY",
+    PR55_STAGING_AUTH_EMAIL:"admin@example.invalid",
+    PR55_STAGING_AUTH_PASSWORD:"synthetic-not-a-password",
+    PR55_STAGING_NONADMIN_AUTH_EMAIL:"unprivileged@example.invalid"
+  },2);
+  assert.match(child.stderr,/non-admin Auth email and password are required/);
+});
+test("candidate HTTP rehearsal supports an independently configured staging non-admin identity",()=>{
+  const child=candidateGuard(["--validate-config"],{
+    PR55_ALLOW_CANDIDATE_HTTP_PROBE:candidateOptIn,
+    PR55_STAGING_DATABASE_URL:fakeCandidateUrl,
+    PR55_STAGING_PUBLISHABLE_KEY:"sb_publishable_SYNTHETIC_OFFLINE_ONLY",
+    PR55_STAGING_AUTH_EMAIL:"admin@example.invalid",
+    PR55_STAGING_AUTH_PASSWORD:"synthetic-not-a-password",
+    PR55_STAGING_NONADMIN_AUTH_EMAIL:"unprivileged@example.invalid",
+    PR55_STAGING_NONADMIN_AUTH_PASSWORD:"synthetic-not-a-password"
+  },0);
+  assert.match(child.stdout,/no connection made/);
+});
+test("candidate non-admin HTTP gate verifies separate JWT, false admin status and SQLSTATE 42501",()=>{
+  const source=require("node:fs").readFileSync(candidateHttpScript,"utf8");
+  assert.match(source,/assert\.notEqual\(id\.data\?\.id,identity\.data\?\.id/);
+  assert.match(source,/assert\.equal\(grant\.data,false/);
+  assert.match(source,/assert\.equal\(denied\.data\?\.code,"42501"/);
+});
