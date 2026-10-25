@@ -345,7 +345,116 @@ async function main() {
     console.log("PASS: candidate RPC blocked by simultaneous uncommitted grant revocation");
     console.log("PASS: RPC create/replay after revoked transaction rolled back");
     console.log("PASS: no persistent member/administrator changes; both transactions rolled back");
-    console.log("LIMIT: committed revocation and authenticated HTTP races still require separate QA");
+    console.log("LIMIT: authenticated HTTP/JWT races still require separate QA");
+    if (process.argv.includes("--committed-probe")) {
+      // The durable revocation is performed ONLY on a disposable shadow grant
+      // table. Never toggle an actual staging administrator or auth user.
+      // The function body is identical to the candidate except the single
+      // grant table identifier. No production/real admin grant is changed.
+      const probeTable = "registry_private.pr55_admin_probe_" + suffix;
+      const probeActor = randomBytes(16).toString("hex").replace(
+        /^(........)(....)(....)(....)(............)$/, "$1-$2-$3-$4-$5");
+      const grantSource = "registry_private.registration_administrators";
+      const occurrences = functionDefinition.split(grantSource).length - 1;
+      assert.equal(occurrences, 1, "Candidate grant table must occur exactly once");
+      const candidateWithShadowGrant = functionDefinition.replace(
+        grantSource, probeTable);
+      let probeCreated = false;
+      let probeBOpen = false;
+      let probeAOpen = false;
+      try {
+        await a.command([
+          "BEGIN;",
+          "CREATE TABLE " + probeTable + " (user_id uuid PRIMARY KEY,",
+          " active boolean NOT NULL, revoked_at timestamptz);",
+          "INSERT INTO " + probeTable + "(user_id,active,revoked_at)",
+          " VALUES (" + quote(probeActor) + "::uuid,true,NULL);",
+          "COMMIT;"
+        ].join("\n"), "PROBE_TABLE_CREATED");
+        probeCreated = true;
+        await b.command([
+          "BEGIN;",
+          "SET LOCAL statement_timeout='12000ms';",
+          candidateWithShadowGrant,
+          "SELECT set_config('request.jwt.claim.sub'," +
+            quote(probeActor) + ",true);"
+        ].join("\n"), "COMMIT_CANDIDATE_READY");
+        probeBOpen = true;
+        await a.command([
+          "BEGIN;",
+          "UPDATE " + probeTable + " SET active=false,",
+          " revoked_at=clock_timestamp()",
+          " WHERE user_id=" + quote(probeActor) + "::uuid AND active;",
+          "DO $test$ BEGIN IF NOT FOUND THEN NULL; END IF; END $test$;"
+        ].join("\n"), "PROBE_REVOCATION_HELD");
+        probeAOpen = true;
+
+        // Catch rejection immediately to avoid an unhandled Promise rejection
+        // while A is checking the actual PostgreSQL wait edge.
+        const attempt = b.command([
+          "DO $probe$",
+          "DECLARE denied boolean := false;",
+          "BEGIN",
+          " BEGIN",
+          "  PERFORM public.registration_intake_v1(gen_random_uuid(),",
+          "    " + quote("PR55COMMIT" + suffix) + "," + quote("Denied") +
+            "," + quote("Isolated PR55 Test") + ",",
+          "    ARRAY['Mother Butler Guild'],2026);",
+          " EXCEPTION WHEN insufficient_privilege THEN denied := true; END;",
+          " IF NOT denied THEN",
+          "  RAISE EXCEPTION 'Committed revocation failed to deny intake';",
+          " END IF;",
+          "END $probe$;"
+        ].join("\n"), "COMMITTED_REVOKE_DENIED").then(
+          lines => ({lines}), error => ({error}));
+
+        // The B backend must actually be waiting on A's grant-row lock.
+        // Poll through the independent A connection; no sleeps in the B
+        // backend that could accidentally simulate the blocking condition.
+        let observedWaiting = false;
+        const bPid = Number(getPid(pidBLines));
+        for (let attemptNumber = 0; attemptNumber < 8; attemptNumber++) {
+          const lines = await a.command(
+            "SELECT cardinality(pg_catalog.pg_blocking_pids(" + bPid +
+            "))::integer; SELECT pg_sleep(0.12);",
+            "PROBE_LOCK_WAIT_" + attemptNumber);
+          if (lines.some(x => /^\d+$/.test(x) && Number(x) >= 1)) {
+            observedWaiting = true;
+            break;
+          }
+        }
+        assert.ok(observedWaiting,
+          "Could not independently observe candidate blocked on grant lock");
+
+        await a.command("COMMIT;", "PROBE_REVOCATION_COMMITTED");
+        probeAOpen = false;
+        const bResult = await attempt;
+        if (bResult.error) throw bResult.error;
+        await b.command("ROLLBACK;", "PROBE_B_ROLLBACK");
+        probeBOpen = false;
+        console.log("PASS: disposable staging grant revocation COMMITTED while candidate was waiting");
+        console.log("PASS: candidate denied intake with SQLSTATE 42501 after committed revocation");
+      } finally {
+        if (probeAOpen) {
+          try { await a.command("ROLLBACK;", "PROBE_EMERGENCY_A"); } catch {}
+        }
+        if (probeBOpen) {
+          try { await b.command("ROLLBACK;", "PROBE_EMERGENCY_B"); } catch {}
+        }
+        // Only the disposable grant table is persisted, briefly. Ensure
+        // cleanup also occurs on a failed assertion before printing PASS.
+        if (probeCreated) {
+          try {
+            await a.command("DROP TABLE IF EXISTS " + probeTable + ";",
+              "PROBE_TABLE_DROPPED");
+            console.log("CHECK: disposable committed-revocation table removed");
+          } catch (dropError) {
+            throw new Error("Staging disposable grant cleanup failed; inspect " +
+              "registry_private tables before rerunning. " + dropError.message);
+          }
+        }
+      }
+    }
   } finally {
     // Disconnecting a PostgreSQL backend also rolls back an open transaction.
     if (aOpen) { try { await a.command("ROLLBACK;", "EMERGENCY_A"); } catch {} }
