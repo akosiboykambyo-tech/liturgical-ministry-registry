@@ -136,3 +136,15 @@ psql -X -W -d "host=aws-0-ap-northeast-1.pooler.supabase.com port=5432 dbname=po
 - 12/12 ordinary SQL-vs-JS name fixtures passed. Incoming or existing four-byte UTF-8 names are guarded fail-closed.
 - The two-session harness is committed and syntax checked, **but not yet run**: current connected Supabase SQL invocation behaves serially, and this environment has no authenticated staging direct PostgreSQL session/password or `psql` client.
 - No production migrations, grants, RLS policies, member records or application release settings were changed.
+
+
+## 2026-10-25 staging Session-pooler password verification update
+
+The operator ran password-prompted **read-only** `psql -X -W` against the correct staging-only Session pooler `aws-0-ap-northeast-1.pooler.supabase.com:5432`, specifying `user=postgres.rtptybxugjhvpfjvcvgw`. It failed with `FATAL: password authentication failed for user "postgres"`. This confirms the failure independently of the Node harness and does **not** imply the configured tenant username is wrong: pooler/upstream errors can name the underlying `postgres` role.
+
+Read-only Supabase project logs in the last 24 hours: **three** matching `supavisor_logs` password-authentication failures with `ClientHandler`/`Exchange error` and `auth_query`. No `Validation secrets changed` event was found in that window. The evidence confirms an authentication failure inside the shared pooler path, but **cannot distinguish** an incorrect database password from a managed Supavisor/upstream credential problem.
+
+Before any new test, verify `Connect → Session pooler` project-scoped username/host and the **Ministry-Registry-Test database password** (not the Supabase web dashboard login). If that password is unknown, a staging-only password reset via Database Settings may be necessary, but first identify dependent staging services; do not rotate production credentials. After any rotation, attempt **one** read-only login. If it still fails with verified new credentials, stop resetting and raise a Supabase support ticket with the project ref, approximate timestamps, region, sanitized error `28P01` and pooler logs. A matching known Supavisor-side report exists; see https://github.com/supabase/supabase/issues/43261 and https://supabase.com/docs/guides/troubleshooting/how-do-i-reset-my-supabase-database-password-oTs5sB.
+
+No live concurrency assertion has passed; no production activity occurred.
+
