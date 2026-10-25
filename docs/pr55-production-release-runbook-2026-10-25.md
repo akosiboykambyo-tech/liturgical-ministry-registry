@@ -1,3 +1,22 @@
+## 2026-10-25 staging real HTTP/JWT verification — partial PASS; Auth login blocked
+
+Operator ran `scripts/pr55-staging-http-jwt-smoke.cjs` against the fixed isolated staging origin with its publishable key. Results:
+
+```text
+PASS: isolated staging HTTP/JWT configuration accepted; NO requests made
+PASS: anonymous registration RPC denied by HTTP status 401
+PASS: invalid bearer JWT denied by HTTP status 401
+FAIL: Real staging Auth sign-in failed; HTTP 400 (details redacted)
+```
+
+**Read-only independent root cause:** The supplied login email matches the **only** staging Auth user; it has a confirmed email, password hash and email identity, and is not banned. Staging `auth_logs` recorded `POST /token` HTTP 400 with `error_code=invalid_credentials`. The session did not reach the authenticated admin self-check or candidate registration RPC. No data mutations or production operations resulted.
+
+**Resolution:** The operator must use the *staging Auth user's actual password*, which is distinct from both the Supabase dashboard account password and the PostgreSQL database password. If unknown, perform a **staging Auth-user password recovery/reset** through a supported authenticated admin/recovery flow. Do not rotate Postgres credentials, request secrets or create production users. The publishable key is a client key, **not** a service-role/secret key. Do not repeat password sign-in failures or disclose any credentials.
+
+The smoke script now maps only specifically allowlisted Auth error codes to redacted, actionable diagnostics. After the staging Auth user password is confirmed/recovered, rerun the script and preserve anonymized PASS/FAIL evidence. Even if it passes, remember it exercises the **older installed staging RPC**, not the latest transaction-local candidate, and is only a prerequisite for latest-candidate HTTP integration tests.
+
+---
+
 ## Verified staging gate — 2026-10-25: COMMITTED grant revocation PASS
 
 **Operator-reported live PostgreSQL result: PASS**, following the original rollback-only race test and 18/18 offline safety checks:
