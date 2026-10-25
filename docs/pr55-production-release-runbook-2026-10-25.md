@@ -1,3 +1,25 @@
+## 2026-10-25 — real staging Auth/JWT HTTP smoke PASSED (installed RPC)
+
+**Operator ran** `scripts/pr55-staging-http-jwt-smoke.cjs` with the isolated staging publishable key and verified staging Auth credentials. Output:
+
+```text
+PASS: isolated staging HTTP/JWT configuration accepted; NO requests made
+PASS: anonymous registration RPC denied by HTTP status 401
+PASS: invalid bearer JWT denied by HTTP status 401
+PASS: real staging Auth issued JWT
+PASS: real bearer JWT verified by staging Auth
+PASS: real JWT maps to active staging registration administrator
+PASS: authenticated RPC reaches server-side validation; invalid request rejected without writes
+LIMIT: candidate function is transaction-local in race tests; HTTP checks currently installed staging RPC
+LIMIT: no non-admin JWT, committed revocation via HTTP, or valid-write registration tested
+```
+
+**Independent read-only staging verification after this successful run:** member count 1,008; member-ministry assignment count 12; 8 intake requests; 4 reviews; one active staging administrator; no persisted synthetic PR55 test members or disposable probe tables. Real staging login is no longer blocked: the previous `invalid_credentials` result was a credential-entry issue now resolved. Historical notes further down the runbook describe earlier failed attempts, not current test status.
+
+**Scope and release decision:** Real JWT issued and recognized, current *installed staging* registration RPC rejects invalid payloads without registering members. This does **not** certify latest PR55 candidate HTTP/JWT integration because its `FOR SHARE` version has only been installed transaction-locally during PostgreSQL race tests. No non-admin Auth user, production migration, production backup/restore, or final Add Member/CSV integration is certified. Keep release decision NO-GO until those gates are verified. Production untouched.
+
+---
+
 ## 2026-10-25 staging real HTTP/JWT verification — partial PASS; Auth login blocked
 
 Operator ran `scripts/pr55-staging-http-jwt-smoke.cjs` against the fixed isolated staging origin with its publishable key. Results:
