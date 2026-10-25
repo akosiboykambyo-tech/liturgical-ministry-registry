@@ -1,3 +1,42 @@
+## 2026-10-25 — next gate: real-JWT HTTP rehearsal of latest PR55 candidate (prepared, not yet live HTTP tested)
+
+New staging-only script: `scripts/pr55-staging-candidate-http-rehearsal.cjs`. This does **not** replace `public.registration_intake_v1` in staging. It creates a separately named `public.registration_pr55_http_candidate` clone of the exact candidate body plus `public.registration_pr55_http_probe` wrapper in an atomic transaction. It revokes `PUBLIC`/`anon`/`authenticated` direct EXECUTE on the clone and grants `authenticated` access only to the wrapper. The wrapper calls the candidate twice (create and replay) and intentionally raises/catches a sentinel error to roll back **all** inner writes before returning a sanitized JSON status. An unauthorized user cannot use the clone directly. The script tests anon/JWT denial, real staging Auth JWT, administrator recognition, payload validation, authenticated direct clone denial, and rollback-only happy path through HTTP; after the test it automatically drops both temporary functions and notifies PostgREST to reload. It checks the synthetic member is not persisted.
+
+**Executed preliminary safety checks:** candidate clone and wrapper compiled with explicit staging-only privileges inside a transaction that ended in `ROLLBACK`. A separate rollback-only SQL exercise actually called the wrapper twice, observed `created` then `replayed`, and verified no synthetic member remained inside the transaction; that entire transaction also rolled back. Independent read-only stage state afterwards: 1,008 members, 12 ministry assignments, 8 intake requests, 4 reviews, zero `PR55HTTP%` synthetic members and zero leftover rehearsal RPC definitions. **These are not yet evidence of authenticated HTTP execution of the latest candidate.**
+
+**Caution:** during the live rehearsal the temporary wrapper is exposed for staging authenticated users. The code restricts normal writes by forced rollback and only the clone can perform registration checks. If the local process is forcibly killed before its `finally` cleanup, manually invoke `--cleanup-only` against the same staging DB connection using the same opt-in. Never leave a failed cleanup unresolved.
+
+### Operator command (PowerShell; local secrets only)
+
+```powershell
+git pull --ff-only origin fix/production-registration-compatibility
+node --test .\tests\production-registration-two-session-guard.test.cjs
+$database = Get-Credential -UserName "postgres.rtptybxugjhvpfjvcvgw" -Message "STAGING PostgreSQL password"
+$authEmail = Read-Host "STAGING Auth user's email"
+$auth = Get-Credential -UserName $authEmail -Message "STAGING Auth user's password (not DB password)"
+try {
+    $dbPassword = $database.GetNetworkCredential().Password
+    $env:PR55_STAGING_DATABASE_URL = "postgresql://postgres.rtptybxugjhvpfjvcvgw:$([uri]::EscapeDataString($dbPassword))@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require"
+    $env:PR55_STAGING_PUBLISHABLE_KEY = Read-Host "STAGING sb_publishable_ key"
+    $env:PR55_STAGING_AUTH_EMAIL = $authEmail
+    $env:PR55_STAGING_AUTH_PASSWORD = $auth.GetNetworkCredential().Password
+    $env:PR55_ALLOW_CANDIDATE_HTTP_PROBE = "I_ACCEPT_ISOLATED_STAGING_TEMPORARY_RPCS"
+    node .\scripts\pr55-staging-candidate-http-rehearsal.cjs --validate-config
+    if ($LASTEXITCODE -ne 0) { throw "Staging rehearsal configuration rejected" }
+    node .\scripts\pr55-staging-candidate-http-rehearsal.cjs
+    if ($LASTEXITCODE -ne 0) { throw "Candidate HTTP rehearsal did not pass; check cleanup output" }
+} finally {
+    Remove-Item Env:\PR55_STAGING_DATABASE_URL,Env:\PR55_STAGING_PUBLISHABLE_KEY,Env:\PR55_STAGING_AUTH_EMAIL,Env:\PR55_STAGING_AUTH_PASSWORD,Env:\PR55_ALLOW_CANDIDATE_HTTP_PROBE -ErrorAction SilentlyContinue
+    Remove-Variable database,auth,authEmail,dbPassword -ErrorAction SilentlyContinue
+}
+```
+
+The two database and Auth passwords differ. The publishable key is not a `service_role` or secret key. Never share credentials, bearer tokens, complete credential URLs, personal emails, or raw Auth responses in chat or PR comments. If `ALERT: temp RPC cleanup failed` appears, **stop** and run the documented cleanup-only path with the staging database password, then verify no temporary functions remain.
+
+**GO gates still outstanding after this HTTP rehearsal:** one real non-admin JWT negative authorization test; production-specific installed migration and privilege review; backup/restore rehearsal and recovery plan; rollout of frontend Add Member/CSV behind a gate; monitoring with rollback proof. This PR remains draft until release criteria are met.
+
+---
+
 ## 2026-10-25 — real staging Auth/JWT HTTP smoke PASSED (installed RPC)
 
 **Operator ran** `scripts/pr55-staging-http-jwt-smoke.cjs` with the isolated staging publishable key and verified staging Auth credentials. Output:
