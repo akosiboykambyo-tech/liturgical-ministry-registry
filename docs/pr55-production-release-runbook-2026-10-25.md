@@ -1,3 +1,28 @@
+## 2026-10-25 — REAL HTTP/JWT rehearsal of PR55 candidate: PASS
+
+The operator successfully ran `scripts/pr55-staging-candidate-http-rehearsal.cjs` through isolated staging with actual staging Auth credentials, publishable API key, and project-scoped PostgreSQL Session-pooler credentials. The script printed:
+
+```text
+PASS: isolated staging RPC rehearsal configuration accepted; no connection made
+CHECK: temporary candidate and rollback-only RPC wrapper installed
+PASS: anonymous caller denied
+PASS: invalid JWT denied
+PASS: real staging Auth JWT and administrator permission
+PASS: candidate rejected invalid authenticated registration
+PASS: candidate direct RPC access denied to authenticated
+PASS: candidate created/replayed via real authenticated HTTP under forced rollback
+PASS: candidate HTTP rehearsal left no member data
+CHECK: temporary candidate RPCs removed
+```
+
+**Scope:** The updated PR55 candidate function executed over real Supabase Auth/PostgREST HTTP inside a separately named `public.registration_pr55_http_candidate` clone and a `public.registration_pr55_http_probe` wrapper. The wrapper intentionally rolls back the inner create and idempotent replay before returning success. The existing installed staging `registration_intake_v1` was not replaced. This closes the **real-JWT/latest-candidate HTTP rehearsal** gate but is not production migration evidence.
+
+**Independent post-run check:** staging table metadata reports `public.members` **1,008** rows, `public.member_ministries` **12** rows, `registry_private.registration_intake_requests` **8** rows, `registry_private.registration_intake_reviews` **4** rows, and `registry_private.registration_administrators` **1** row; unchanged from baseline. The operator's script reported no persisted synthetic member and successful removal of both temporary functions. Independently querying the function catalog for leftover RPC definitions was not available during this verification; perform that catalog read-only check before a production GO decision.
+
+**Still outstanding / NO-GO for production activation:** a genuine **non-admin Auth/JWT negative test** (isolated staging currently has only one Auth user, which is an active administrator), approved **versioned production migration and least-privilege review** including grant/EXECUTE expectations, database **backup/restore** rehearsal and rollback readiness, and separately gated Add Member/CSV application integration with production monitoring. The migration remains deliberately guarded and non-executable. No production DDL or deployment was performed.
+
+---
+
 ## 2026-10-25 — next gate: real-JWT HTTP rehearsal of latest PR55 candidate (prepared, not yet live HTTP tested)
 
 New staging-only script: `scripts/pr55-staging-candidate-http-rehearsal.cjs`. This does **not** replace `public.registration_intake_v1` in staging. It creates a separately named `public.registration_pr55_http_candidate` clone of the exact candidate body plus `public.registration_pr55_http_probe` wrapper in an atomic transaction. It revokes `PUBLIC`/`anon`/`authenticated` direct EXECUTE on the clone and grants `authenticated` access only to the wrapper. The wrapper calls the candidate twice (create and replay) and intentionally raises/catches a sentinel error to roll back **all** inner writes before returning a sanitized JSON status. An unauthorized user cannot use the clone directly. The script tests anon/JWT denial, real staging Auth JWT, administrator recognition, payload validation, authenticated direct clone denial, and rollback-only happy path through HTTP; after the test it automatically drops both temporary functions and notifies PostgREST to reload. It checks the synthetic member is not persisted.
