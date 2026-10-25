@@ -65,6 +65,12 @@ if (process.argv.includes("--validate-config")) {
     " connection configuration accepted; NO connection made");
   process.exit(0);
 }
+if (process.argv.includes("--committed-probe") &&
+    process.env.PR55_ALLOW_COMMITTED_PROBE !==
+      "I_ACCEPT_DISPOSABLE_STAGING_SCHEMA_WRITES") {
+  console.error("REFUSED: committed probe requires explicit disposable-staging-schema opt-in.");
+  process.exit(2);
+}
 const sqlSource = fs.readFileSync(
   path.join(__dirname, "../docs/sql/registration-staging-intake-function.ISOLATED-ONLY.sql"),
   "utf8"
@@ -382,10 +388,13 @@ async function main() {
         probeBOpen = true;
         await a.command([
           "BEGIN;",
-          "UPDATE " + probeTable + " SET active=false,",
+          "DO $hold$ DECLARE n integer; BEGIN",
+          " UPDATE " + probeTable + " SET active=false,",
           " revoked_at=clock_timestamp()",
           " WHERE user_id=" + quote(probeActor) + "::uuid AND active;",
-          "DO $test$ BEGIN IF NOT FOUND THEN NULL; END IF; END $test$;"
+          " GET DIAGNOSTICS n = ROW_COUNT;",
+          " IF n <> 1 THEN RAISE EXCEPTION 'Shadow grant revoke mismatch'; END IF;",
+          "END $hold$;"
         ].join("\n"), "PROBE_REVOCATION_HELD");
         probeAOpen = true;
 
