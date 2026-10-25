@@ -254,3 +254,28 @@ test("candidate non-admin HTTP gate verifies separate JWT, false admin status an
   assert.match(source,/assert\.equal\(grant\.data,false/);
   assert.match(source,/assert\.equal\(denied\.data\?\.code,"42501"/);
 });
+
+test("candidate read-only connection check requires the same explicit staging-only opt-in",()=>{
+  const child=candidateGuard(["--connection-check"],{
+    PR55_STAGING_DATABASE_URL:fakeCandidateUrl
+  },2);
+  assert.match(child.stderr,/REFUSED:/);
+});
+test("candidate read-only connection check rejects production database project",()=>{
+  const child=candidateGuard(["--connection-check"],{
+    PR55_ALLOW_CANDIDATE_HTTP_PROBE:candidateOptIn,
+    PR55_STAGING_DATABASE_URL:
+      "postgresql://postgres.zlvofcwnpdzfdnipvbbd:synthetic-not-a-password@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require"
+  },2);
+  assert.match(child.stderr,/REFUSED:/);
+});
+test("candidate SQL stage uses bounded connection, lock and statement timeouts",()=>{
+  const source=require("node:fs").readFileSync(candidateHttpScript,"utf8");
+  assert.match(source,/PGCONNECT_TIMEOUT:"10"/);
+  assert.match(source,/timeout:45000/);
+  assert.match(source,/SET LOCAL statement_timeout='20000ms'/);
+  assert.match(source,/SET LOCAL lock_timeout='5s'/);
+  assert.match(source,/installAttempted=true/);
+  assert.match(source,/if\(installAttempted\)/);
+  assert.match(source,/DROP FUNCTION IF EXISTS/);
+});
