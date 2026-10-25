@@ -12,6 +12,38 @@ const {spawnSync}=require("node:child_process");
 const {randomUUID,randomBytes}=require("node:crypto");
 const fs=require("node:fs");
 const path=require("node:path");
+// Windows operator machine uses PostgreSQL 18. PATH is a fallback only.
+// Node's spawnSync can return status:null + error.code:"ENOENT" when
+// executable lookup fails, which is NOT a database/network timeout.
+const KNOWN_WINDOWS_PSQL="C:\\Program Files\\PostgreSQL\\18\\bin\\psql.exe";
+const PSQL_BIN=process.platform==="win32"&&fs.existsSync(KNOWN_WINDOWS_PSQL)
+  ? KNOWN_WINDOWS_PSQL : "psql";
+const allowedSpawnErrors=new Set(["ENOENT","EACCES","EPERM","ETIMEDOUT",
+  "ENOMEM","EAGAIN","ENOBUFS","EIO"]);
+function classifySpawnResult(result) {
+  const code=result.error?.code;
+  if(code==="ENOENT")return "psql executable not found; check PostgreSQL 18 bin installation or PATH";
+  if(code==="EACCES"||code==="EPERM")return "OS blocked launching psql (permissions/security software)";
+  if(code==="ETIMEDOUT")return "local psql process timed out";
+  if(code&&allowedSpawnErrors.has(code))return "local psql process launch failed ("+code+")";
+  if(result.signal)return "local psql was terminated by signal (name redacted)";
+  if(code)return "local psql process failed (unclassified spawn error)";
+  return null;
+}
+if(process.argv.includes("--check-psql")){
+  // Purely local executable check. No credentials, DB URL, JWT or network.
+  const check=spawnSync(PSQL_BIN,["--version"],{
+    encoding:"utf8",timeout:5000,windowsHide:true,
+    env:process.env
+  });
+  if(check.error||check.status!==0){
+    console.error("FAIL: "+(classifySpawnResult(check)||
+      "psql executable exited unsuccessfully")+"; no database connection attempted");
+    process.exit(1);
+  }
+  console.log("PASS: local psql executable launches; no database connection or changes");
+  process.exit(0);
+}
 const REF="rtptybxugjhvpfjvcvgw";
 const DBUSER="postgres."+REF;
 const ORIGIN="https://"+REF+".supabase.co";
@@ -58,9 +90,9 @@ if(process.argv.includes("--validate-config")){
   process.exit(0);
 }
 function psql(sql,step){
-  const proc=spawnSync("psql",["-X","-w","-q","-A","-t","-v",
+  const proc=spawnSync(PSQL_BIN,["-X","-w","-q","-A","-t","-v",
     "ON_ERROR_STOP=1","-v","VERBOSITY=sqlstate"],{
-    input:sql,encoding:"utf8",timeout:45000,
+    input:sql,encoding:"utf8",timeout:45000,windowsHide:true,
     env:{
       PATH:process.env.Path||process.env.PATH||"",
       SystemRoot:process.env.SystemRoot||"",
@@ -73,18 +105,17 @@ function psql(sql,step){
     const err=String(proc.stderr||"");
     // Do not print raw stderr; it can expose connection strings or data.
     const match=/(?:ERROR|FATAL):\s*([0-9A-Z]{5})(?:\s|$)/m.exec(err);
-    const reason=proc.error?.code==="ETIMEDOUT"
-      ? "local psql process exceeded 45s; connection or SQL stage unresolved"
-      : /password authentication failed/i.test(err)
-      ? "staging database password rejected"
-      : /could not translate host name|name or service not known/i.test(err)
-      ? "staging pooler DNS resolution failed"
-      : /connection timed out|timeout expired/i.test(err)
-      ? "staging pooler connection timed out"
-      : /connection refused|server closed the connection/i.test(err)
-      ? "staging pooler refused or closed connection"
-      : match ? "Postgres SQLSTATE "+match[1]
-      : "psql exit "+(proc.status===null?"unknown":proc.status);
+    const reason=classifySpawnResult(proc)
+      || (/password authentication failed/i.test(err)
+        ? "staging database password rejected"
+        : /could not translate host name|name or service not known/i.test(err)
+        ? "staging pooler DNS resolution failed"
+        : /connection timed out|timeout expired/i.test(err)
+        ? "staging pooler connection timed out"
+        : /connection refused|server closed the connection/i.test(err)
+        ? "staging pooler refused or closed connection"
+        : match ? "Postgres SQLSTATE "+match[1]
+        : "psql exit "+(proc.status===null?"unknown":proc.status));
     throw new Error(step+": "+reason+"; details redacted");
   }
   return proc.stdout.trim();
