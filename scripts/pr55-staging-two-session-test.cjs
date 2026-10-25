@@ -48,7 +48,7 @@ catch {
   console.error("REFUSED: invalid password encoding in local staging URL.");
   process.exit(2);
 }
-if (!dbPassword || parsedUrl.searchParams.keys().some(k => k !== "sslmode")) {
+if (!dbPassword || [...parsedUrl.searchParams.keys()].some(k => k !== "sslmode")) {
   console.error("REFUSED: invalid password or unexpected staging connection options.");
   process.exit(2);
 }
