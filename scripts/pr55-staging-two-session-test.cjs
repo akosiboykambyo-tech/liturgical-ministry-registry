@@ -38,6 +38,20 @@ if (!parsedUrl.username || !parsedUrl.password) {
   console.error("REFUSED: staging DB credentials are missing.");
   process.exit(2);
 }
+if (parsedUrl.username !== "postgres" || parsedUrl.pathname !== "/postgres") {
+  console.error("REFUSED: staging direct connection must use postgres user and database.");
+  process.exit(2);
+}
+let dbPassword;
+try { dbPassword = decodeURIComponent(parsedUrl.password); }
+catch {
+  console.error("REFUSED: invalid password encoding in local staging URL.");
+  process.exit(2);
+}
+if (!dbPassword || parsedUrl.searchParams.keys().some(k => k !== "sslmode")) {
+  console.error("REFUSED: invalid password or unexpected staging connection options.");
+  process.exit(2);
+}
 const sqlSource = fs.readFileSync(
   path.join(__dirname, "../docs/sql/registration-staging-intake-function.ISOLATED-ONLY.sql"),
   "utf8"
@@ -63,13 +77,20 @@ class SqlSession {
     this.buffer = "";
     this.closed = false;
     this.errors = "";
-    // Never place the credential-bearing database URL in command line arguments.
+    this.stage = "CONNECT";
+    // Use libpq's individual PG* settings: PGDATABASE must be a database name,
+    // not the credential-bearing connection URI. Never log the password.
     this.child = spawn("psql",
-      ["-X", "-q", "-A", "-t", "-P", "pager=off", "-v", "ON_ERROR_STOP=1"], {
+      ["-X", "-q", "-A", "-t", "-P", "pager=off",
+       "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=sqlstate"], {
         env: {
-          PATH: process.env.PATH || "",
+          PATH: process.env.Path || process.env.PATH || "",
           SystemRoot: process.env.SystemRoot || "",
-          PGDATABASE: dbUrl,
+          PGHOST: STAGING_HOST,
+          PGPORT: "5432",
+          PGDATABASE: "postgres",
+          PGUSER: "postgres",
+          PGPASSWORD: dbPassword,
           PGSSLMODE: "require",
           PGCONNECT_TIMEOUT: "10",
           PGAPPNAME: "pr55_two_session_" + label
@@ -92,30 +113,38 @@ class SqlSession {
       }
     });
     this.child.stderr.on("data", chunk => {
-      // Error details from PostgreSQL can include values. Never echo them.
-      this.errors += chunk.toString("utf8").slice(0, 1000);
+      // Some libpq errors can contain database URLs, account identifiers or
+      // quoted values. Keep stderr private and report only allowlisted causes.
+      this.errors = (this.errors + chunk.toString("utf8")).slice(-4000);
     });
-    this.child.on("error", () => this.abort("psql could not be started"));
-    this.child.on("exit", () => this.abort("psql session ended unexpectedly"));
+    this.child.on("error", () => this.abort("psql could not start", null, null));
+    this.child.on("exit", (code, signal) =>
+      this.abort("psql stopped", code, signal));
   }
-  abort(message) {
+  abort(message, exitCode, signal) {
     this.closed = true;
     if (this.pending) {
-      clearTimeout(this.pending.timeout);
-      this.pending.reject(new Error(this.label + ": " + message));
+      const pending = this.pending;
+      clearTimeout(pending.timeout);
+      const cause = categorizeFailure(this.errors, exitCode, signal);
+      pending.reject(new Error(
+        this.label + " [" + pending.stage + "]: " + message + "; " + cause
+      ));
       this.pending = null;
     }
   }
   command(sql, name) {
     if (this.closed || this.pending) return Promise.reject(new Error("Session unavailable: " + this.label));
     const token = "PR55_" + this.label + "_" + name;
+    this.stage = name;
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pending = null;
-        reject(new Error(this.label + ": command deadline exceeded"));
+        reject(new Error(this.label + " [" + name + "]: command deadline exceeded; " +
+          categorizeFailure(this.errors, null, null)));
         this.child.kill();
       }, 20000);
-      this.pending = { marker: token, lines: [], resolve, reject, timeout };
+      this.pending = { marker: token, stage: name, lines: [], resolve, reject, timeout };
       this.child.stdin.write(sql.trimEnd() + "\n\\echo " + token + "\n");
     });
   }
@@ -125,6 +154,33 @@ class SqlSession {
   }
 }
 function jobLine(job, line) { job.lines.push(line.trim()); }
+
+// Never print arbitrary PostgreSQL stderr or error arguments. Connection errors
+// may echo credentials, while statement messages may contain member fields.
+// Preserve safe SQLSTATE and fixed-category diagnostics only.
+function categorizeFailure(stderr, exitCode, signal) {
+  const data = String(stderr || "");
+  const sqlstate = /(?:ERROR|FATAL):\s*([0-9A-Z]{5})(?:\s|$)/m.exec(data);
+  if (sqlstate) return "SQLSTATE " + sqlstate[1] + " (inspect the named stage)";
+  if (/password authentication failed|invalid password/i.test(data))
+    return "database authentication failed: verify TEST database password";
+  if (/could not translate host name|name or service not known|no such host/i.test(data))
+    return "DNS resolution failed for the TEST database host";
+  if (/network is unreachable|no route to host|address family not supported|cannot assign requested address/i.test(data))
+    return "network unreachable (direct Supabase may require IPv6)";
+  if (/connection timed out|operation timed out|timeout expired/i.test(data))
+    return "connection timed out (check IPv6 support or firewall)";
+  if (/connection refused|server closed the connection|could not connect to server/i.test(data))
+    return "server refused or interrupted the connection";
+  if (/certificate|SSL error|TLS error|SSL SYSCALL/i.test(data))
+    return "TLS certificate/negotiation error";
+  if (exitCode === 3) return "PostgreSQL SQL statement error (details deliberately redacted)";
+  if (exitCode === 2) return "PostgreSQL connection interrupted";
+  if (exitCode === 1) return "psql failed to connect or exited abnormally";
+  return "exit=" + (Number.isInteger(exitCode) ? exitCode : "unknown") +
+    (signal ? " signal=" + String(signal).replace(/[^A-Z0-9]/g, "") : "");
+}
+
 function getPid(lines) {
   const pid = lines.find(x => /^\d+$/.test(x));
   if (!pid) throw new Error("Could not confirm distinct PostgreSQL backend PID");
@@ -142,6 +198,7 @@ async function main() {
     ]);
     assert.notEqual(getPid(pidALines), getPid(pidBLines),
       "Two genuinely independent PostgreSQL connections required");
+    console.log("PASS: two distinct PostgreSQL backend sessions connected");
     // Preflight never mutates anything. Abort on ambiguous admin grant state.
     await a.command([
       "DO $preflight$",
@@ -171,6 +228,7 @@ async function main() {
       "END $identity$;"
     ].join("\n"), "CANDIDATE_READY");
     bOpen = true;
+    console.log("CHECK: candidate function installed transaction-locally in session B");
 
     // In A, an uncommitted administrator revocation holds the row lock.
     await a.command([
@@ -186,6 +244,7 @@ async function main() {
       "END $hold$;"
     ].join("\n"), "REVOCATION_HELD");
     aOpen = true;
+    console.log("CHECK: session A holds an uncommitted staging grant revocation");
 
     // Under the old RPC, this could proceed using the previously committed
     // grant version. The PR55 candidate must WAIT and then hit lock_timeout.
@@ -206,6 +265,7 @@ async function main() {
     ].join("\n"), "LOCK_BLOCKING_PROVED");
 
     // Abort synthetic revocation: the administrator record is restored.
+    console.log("CHECK: candidate function blocked on the administrator grant lock");
     await a.command("ROLLBACK;", "REVOCATION_ROLLED_BACK");
     aOpen = false;
 
