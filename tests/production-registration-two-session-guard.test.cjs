@@ -279,3 +279,26 @@ test("candidate SQL stage uses bounded connection, lock and statement timeouts",
   assert.match(source,/if\(installAttempted\)/);
   assert.match(source,/DROP FUNCTION IF EXISTS/);
 });
+
+test("candidate local psql check never needs credentials or attempts database access",()=>{
+  const child=spawnSync(process.execPath,[candidateHttpScript,"--check-psql"],{
+    env:{
+      PATH:process.env.PATH||process.env.Path||"",
+      SystemRoot:process.env.SystemRoot||""
+    },encoding:"utf8",timeout:8000
+  });
+  assert.ok([0,1].includes(child.status),
+    "local executable check should return a controlled status");
+  const output=child.stdout+child.stderr;
+  assert.match(output,/psql executable/);
+  assert.match(output,/no database connection/);
+  assert.doesNotMatch(output,/password|postgresql:\/\//i);
+});
+test("candidate harness favors known PostgreSQL 18 Windows executable and diagnoses ENOENT",()=>{
+  const source=require("node:fs").readFileSync(candidateHttpScript,"utf8");
+  assert.match(source,/KNOWN_WINDOWS_PSQL/);
+  assert.match(source,/PSQL_BIN=process\.platform==="win32"/);
+  assert.match(source,/const proc=spawnSync\(PSQL_BIN,/);
+  assert.match(source,/code==="ENOENT"/);
+  assert.match(source,/classifySpawnResult\(proc\)/);
+});
