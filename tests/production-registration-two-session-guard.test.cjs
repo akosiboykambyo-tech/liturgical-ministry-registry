@@ -178,3 +178,49 @@ test("HTTP smoke validates staging-only publishable key without making requests"
   assert.match(child.stdout,/NO requests made/);
   assert.doesNotMatch(child.stdout + child.stderr,/synthetic-not-a-password/);
 });
+
+const candidateHttpScript = path.join(__dirname, "../scripts/pr55-staging-candidate-http-rehearsal.cjs");
+const candidateOptIn = "I_ACCEPT_ISOLATED_STAGING_TEMPORARY_RPCS";
+const fakeCandidateUrl = "postgresql://postgres.rtptybxugjhvpfjvcvgw:synthetic-not-a-password@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
+function candidateGuard(args,env,status) {
+  const child=spawnSync(process.execPath,[candidateHttpScript,...args],{
+    env:{PATH:process.env.PATH||"",SystemRoot:process.env.SystemRoot||"",...env},
+    encoding:"utf8",timeout:5000
+  });
+  assert.equal(child.status,status);
+  assert.doesNotMatch(child.stdout+child.stderr,/synthetic-not-a-password/);
+  return child;
+}
+test("candidate JWT rehearsal refuses missing explicit staging RPC opt-in",()=>{
+  const child=candidateGuard(["--validate-config"],{
+    PR55_STAGING_DATABASE_URL:fakeCandidateUrl
+  },2);
+  assert.match(child.stderr,/REFUSED:/);
+});
+test("candidate JWT rehearsal refuses production DB even when opted in",()=>{
+  const child=candidateGuard(["--validate-config"],{
+    PR55_ALLOW_CANDIDATE_HTTP_PROBE:candidateOptIn,
+    PR55_STAGING_DATABASE_URL:
+      "postgresql://postgres.zlvofcwnpdzfdnipvbbd:synthetic-not-a-password@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require"
+  },2);
+  assert.match(child.stderr,/REFUSED:/);
+});
+test("candidate JWT rehearsal validates isolated staging configuration offline",()=>{
+  const child=candidateGuard(["--validate-config"],{
+    PR55_ALLOW_CANDIDATE_HTTP_PROBE:candidateOptIn,
+    PR55_STAGING_DATABASE_URL:fakeCandidateUrl,
+    PR55_STAGING_PUBLISHABLE_KEY:"sb_publishable_SYNTHETIC_OFFLINE_ONLY",
+    PR55_STAGING_AUTH_EMAIL:"placeholder@example.invalid",
+    PR55_STAGING_AUTH_PASSWORD:"synthetic-not-a-password"
+  },0);
+  assert.match(child.stdout,/no connection made/);
+});
+test("candidate JWT HTTP rehearsal requires forced rollback and cleanup",()=>{
+  const content=require("node:fs").readFileSync(candidateHttpScript,"utf8");
+  assert.match(content,/PR55_ROLLBACK_SENTINEL/);
+  assert.match(content,/EXCEPTION WHEN raise_exception THEN/);
+  assert.match(content,/allWritesRolledBack/);
+  assert.match(content,/REVOKE ALL ON FUNCTION.*FROM PUBLIC,anon,authenticated/);
+  assert.match(content,/--cleanup-only/);
+  assert.match(content,/DROP FUNCTION IF EXISTS/);
+});
