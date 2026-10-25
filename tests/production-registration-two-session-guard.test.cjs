@@ -302,3 +302,56 @@ test("candidate harness favors known PostgreSQL 18 Windows executable and diagno
   assert.match(source,/code==="ENOENT"/);
   assert.match(source,/classifySpawnResult\(proc\)/);
 });
+
+const prodBackupScript=path.join(__dirname,"../scripts/pr55-production-readonly-backup.cjs");
+function backupOffline(env,status){
+  const child=spawnSync(process.execPath,[prodBackupScript,"--backup"],{
+    env:{PATH:process.env.PATH||"",SystemRoot:process.env.SystemRoot||"",...env},
+    encoding:"utf8",timeout:5000
+  });
+  assert.equal(child.status,status);
+  assert.doesNotMatch(child.stdout+child.stderr,/synthetic-not-a-password/);
+  return child;
+}
+test("production backup refuses missing explicit opt-in without attempting export",()=>{
+  const child=backupOffline({},2);
+  assert.match(child.stderr,/^REFUSED:/);
+});
+test("production backup refuses staging pooler and staging tenant even with opt-in",()=>{
+  const child=backupOffline({
+    PR55_ALLOW_PRODUCTION_BACKUP:"I_ACCEPT_READONLY_PRODUCTION_LOGICAL_BACKUP",
+    PR55_PRODUCTION_DATABASE_URL:
+      "postgresql://postgres.rtptybxugjhvpfjvcvgw:synthetic-not-a-password@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require"
+  },2);
+  assert.match(child.stderr,/^REFUSED:/);
+});
+test("production backup rejects wrong protocol/port/TLS before any export",()=>{
+  const child=backupOffline({
+    PR55_ALLOW_PRODUCTION_BACKUP:"I_ACCEPT_READONLY_PRODUCTION_LOGICAL_BACKUP",
+    PR55_PRODUCTION_DATABASE_URL:
+      "postgresql://postgres.zlvofcwnpdzfdnipvbbd:synthetic-not-a-password@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres?sslmode=disable"
+  },2);
+  assert.match(child.stderr,/^REFUSED:/);
+});
+test("production backup forces read-only exact production target and local confidential path",()=>{
+  const source=require("node:fs").readFileSync(prodBackupScript,"utf8");
+  assert.match(source,/const HOST="aws-0-ap-southeast-2\.pooler\.supabase\.com"/);
+  assert.match(source,/const REF="zlvofcwnpdzfdnipvbbd"/);
+  assert.match(source,/PGOPTIONS:"-c default_transaction_read_only=on"/);
+  assert.match(source,/--format=custom/);
+  assert.match(source,/--no-password/);
+  assert.match(source,/archiveDir=path\.join\(os\.homedir\(\)/);
+  assert.match(source,/createHash\("sha256"\)/);
+  assert.match(source,/TABLE DATA auth users/);
+  assert.match(source,/TABLE DATA storage objects/);
+  assert.match(source,/restore NOT proven/);
+});
+test("production backup local tool preflight does not require a DB URL",()=>{
+  const child=spawnSync(process.execPath,[prodBackupScript,"--check-tools"],{
+    env:{PATH:process.env.PATH||"",SystemRoot:process.env.SystemRoot||""},
+    encoding:"utf8",timeout:5000
+  });
+  assert.ok([0,1].includes(child.status));
+  assert.match(child.stdout+child.stderr,/pg_dump|PostgreSQL dump/i);
+  assert.doesNotMatch(child.stdout+child.stderr,/postgresql:\/\/|synthetic-not-a-password/);
+});
