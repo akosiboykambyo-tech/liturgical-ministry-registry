@@ -1,3 +1,50 @@
+## 2026-10-25 additional gating work: committed revocation and real HTTP/JWT
+
+**Do not declare either of these tests passed until the operator provides successful output.** These extra gates supplement, not replace, the two-session rollback test already passed.
+
+### Disposable committed-revocation probe — no real staging administrator toggled
+
+`scripts/pr55-staging-two-session-test.cjs --committed-probe` first reruns the existing two-session test. It then creates one short-lived, randomly named `registry_private.pr55_admin_probe_...` grant table in isolated staging only. The candidate function is transactionally replaced with a copy identical *except that its single administrator-grant table reference points to this disposable table*. Session A revokes that disposable grant and **COMMITS** while session B is demonstrably blocked; session B must receive `42501` upon the commit. Then the transactionally changed function is rolled back and the disposable table is dropped. The real `registry_private.registration_administrators` table is **never** altered. `--committed-probe` requires an additional `PR55_ALLOW_COMMITTED_PROBE=I_ACCEPT_DISPOSABLE_STAGING_SCHEMA_WRITES` opt-in in addition to the original staging test opt-in.
+
+**Operator PowerShell** (uses a credential dialog that already worked on this Windows machine):
+
+```powershell
+git pull --ff-only origin fix/production-registration-compatibility
+node --test .\tests\production-registration-two-session-guard.test.cjs
+
+$credential = Get-Credential -UserName "postgres.rtptybxugjhvpfjvcvgw" -Message "Ministry-Registry-Test DATABASE password"
+try {
+    $password = $credential.GetNetworkCredential().Password
+    $env:PR55_STAGING_DATABASE_URL = "postgresql://postgres.rtptybxugjhvpfjvcvgw:$([uri]::EscapeDataString($password))@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require"
+    $env:PR55_ALLOW_TWO_SESSION_TEST = "I_ACCEPT_ISOLATED_STAGING_ROLLBACK_TESTS"
+    $env:PR55_ALLOW_COMMITTED_PROBE = "I_ACCEPT_DISPOSABLE_STAGING_SCHEMA_WRITES"
+    node .\scripts\pr55-staging-two-session-test.cjs --validate-config
+    if ($LASTEXITCODE -ne 0) { throw "Staging config refused" }
+    node .\scripts\pr55-staging-two-session-test.cjs --committed-probe
+    if ($LASTEXITCODE -ne 0) { throw "Committed revocation staging regression failed" }
+}
+finally {
+    Remove-Item Env:\PR55_STAGING_DATABASE_URL,Env:\PR55_ALLOW_TWO_SESSION_TEST,Env:\PR55_ALLOW_COMMITTED_PROBE -ErrorAction SilentlyContinue
+    Remove-Variable credential,password -ErrorAction SilentlyContinue
+}
+```
+
+A crashed process may leave behind only the disposable `pr55_admin_probe_...` test table. Do not delete an object without verifying its exact origin. The script attempts cleanup in `finally` and reports cleanup failures.
+
+### Staging HTTP/JWT smoke (read-only or intentionally invalid input)
+
+`scripts/pr55-staging-http-jwt-smoke.cjs` uses the **fixed staging origin** and a `sb_publishable_` key. It signs in through Supabase Auth using an existing **staging Auth user email/password**, checks an anonymous RPC is denied, verifies an invalid JWT is denied, validates a real JWT using `/auth/v1/user`, calls `registration_is_admin` and attempts an **intentionally invalid** registration request that must return `22023` before any member writes. It refuses to run without `PR55_ALLOW_HTTP_TEST=I_ACCEPT_READONLY_STAGING_HTTP_JWT_TEST`. Never use the database password here: **Auth-user password and database password are unrelated**. The script never prints tokens or passwords, and has no valid-member-create path.
+
+Configure `PR55_STAGING_PUBLISHABLE_KEY` locally from the isolated test project's Connect or Settings → API keys page. Capture staging Auth user email and password using a credential dialog and populate `PR55_STAGING_AUTH_EMAIL` and `PR55_STAGING_AUTH_PASSWORD` only in the local terminal. Run `node scripts/pr55-staging-http-jwt-smoke.cjs --validate-config` first, followed by the command without the validation flag. Clear environment variables and credential objects immediately afterward. Do not paste keys, tokens, emails, passwords, full URLs with credentials, or auth errors into the PR or chat.
+
+The current live staging function is **older than the transaction-local candidate**. Passing an HTTP smoke test of that installed function proves network/JWT plumbing only; it does **not** prove the final candidate's HTTP behavior. A full GO also requires an explicitly scoped integration rehearsal of the latest function and route, a real unauthorized-user JWT, and production-specific backup/grant review. No automatic staging/prod activation is performed by these scripts.
+
+### Credential-free GitHub Actions
+
+`.github/workflows/pr55-registration-gates.yml` runs `npm ci --ignore-scripts`, registration tests, PR55 offline safety tests and `npm run typecheck` on a GitHub runner with read-only repository permissions and pinned action SHAs. It has **no** Supabase/Vercel credentials, cannot mutate staging or production, and is not evidence of HTTP or live database races.
+
+---
+
 ## Latest verified staging gate — 2026-10-25
 
 **PASS — actual two-session PostgreSQL race test on isolated `Ministry-Registry-Test`.** The operator ran `node scripts/pr55-staging-two-session-test.cjs` through the project's IPv4 **Session pooler** on port **5432**, with credentials captured using Windows `Get-Credential`. The harness printed:
