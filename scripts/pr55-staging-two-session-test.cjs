@@ -113,7 +113,10 @@ class SqlSession {
     // Node emits EPIPE asynchronously on the writable stream. Handle it
     // explicitly so we report the original authentication failure cleanly.
     this.child.stdin.on("error", () => {
-      this.abort("psql input stream closed", this.child.exitCode, this.child.signalCode);
+      // Swallow expected EPIPE after early process exit. The child "exit"
+      // handler reports the PostgreSQL cause once stderr has arrived.
+      // If the process is still alive, the command deadline is a safeguard.
+      this.inputClosed = true;
     });
     this.child.stdout.on("data", chunk => {
       this.buffer += chunk.toString("utf8");
