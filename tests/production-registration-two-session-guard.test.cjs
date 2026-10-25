@@ -120,3 +120,26 @@ test("rejects disabled TLS on session pooler", () => {
     PR55_STAGING_DATABASE_URL: fakeSessionPooler.replace("sslmode=require", "sslmode=disable")
   });
 });
+
+test("refuses committed-revocation probe without a second explicit staging-only opt-in", () => {
+  const child = spawnSync(process.execPath, [script, "--committed-probe"], {
+    env: {
+      PATH: process.env.PATH || "",
+      SystemRoot: process.env.SystemRoot || "",
+      PR55_ALLOW_TWO_SESSION_TEST: optIn,
+      PR55_STAGING_DATABASE_URL: fakeSessionPooler,
+    },
+    encoding: "utf8", timeout: 5000
+  });
+  assert.equal(child.status, 2);
+  assert.match(child.stderr, /REFUSED: committed probe requires explicit/);
+  assert.doesNotMatch(child.stderr, /synthetic-not-a-password/);
+});
+
+test("committed-revocation candidate is scoped to a disposable shadow admin table", () => {
+  const source = require("node:fs").readFileSync(script, "utf8");
+  assert.match(source, /const probeTable = "registry_private.pr55_admin_probe_" \+ suffix/);
+  assert.match(source, /candidateWithShadowGrant = functionDefinition.replace/);
+  assert.match(source, /PROBE_REVOCATION_COMMITTED/);
+  assert.match(source, /PROBE_TABLE_DROPPED/);
+});
