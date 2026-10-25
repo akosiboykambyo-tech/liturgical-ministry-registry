@@ -36,6 +36,34 @@ The script first validates that two different PostgreSQL backend PIDs are connec
 
 **This verifies the grant-lock conflict and recovery after an aborted revocation, NOT a committed revocation race or real authenticated HTTP.** Pending second-tier gates: two real JWT-authenticated HTTP requests with parallel different keys, authenticated admin revocation with a real commit, concurrent duplicate reviews, and final audit/idempotency counts. These should use isolated staging fixtures and an approved cleanup plan.
 
+## 2026-10-25 troubleshooting: session B exited
+
+An operator on Windows completed the original five no-network guard tests (5/5 pass), but the first real harness invocation ended `FAIL: B: psql session ended unexpectedly`. **No SQL concurrency assertion passed.** The initial script failed to surface the actual connection or SQL error. The operator cleared the credentials after the failed run.
+
+A follow-up script revision now:
+- Passes explicit `PGHOST`, `PGPORT`, `PGDATABASE=postgres`, `PGUSER=postgres`, `PGPASSWORD` (child-process environment only) and `PGSSLMODE=require` rather than placing a URL into `PGDATABASE`.
+- Attaches stage labels, exit categories and safe SQLSTATE diagnostics; arbitrary PostgreSQL stderr remains redacted because it may contain connection secrets or member fields.
+- Enforces exact staging host, `postgres` username/database, port 5432, TLS, and refuses arbitrary URL query options. Guard tests now cover those additional cases.
+- Leaves production untouched. Re-run the offline guard suite after pulling the latest PR branch.
+
+**Check connectivity first, without entering credentials:**
+
+```powershell
+git pull --ff-only origin fix/production-registration-compatibility
+node --test .\tests\production-registration-two-session-guard.test.cjs
+Test-NetConnection db.rtptybxugjhvpfjvcvgw.supabase.co -Port 5432 | Select-Object ComputerName,TcpTestSucceeded
+```
+
+Supabase's direct database endpoint is IPv6-only by default. A failed TCP test can reflect IPv6 support, local firewall or a service outage; it does **not** indicate a registration SQL failure. The official alternative for IPv4-only networks is the **Session pooler**, port **5432**, with username `postgres.rtptybxugjhvpfjvcvgw` and the exact pooler hostname from the isolated project's Connect dialog. The currently committed harness intentionally refuses pooler hosts until a separately reviewed staging-specific allowlist is added; never replace a staging URI with a production URI or use transaction mode at port 6543.
+
+If TCP succeeds, confirm a **read-only** password-prompted `psql` session before rerunning the harness:
+
+```powershell
+psql "host=db.rtptybxugjhvpfjvcvgw.supabase.co port=5432 dbname=postgres user=postgres sslmode=require connect_timeout=10" -W -X -q -t -A -c "SELECT current_database(), current_user;"
+```
+
+Do not paste the password, full connection URL, or raw error text if it includes credentials into PR comments or support requests. The non-secret error category, SQLSTATE and named stage are sufficient for the next diagnostic step.
+
 ## Migration source, review and operator signoff
 
 - `docs/sql/registration-production-disabled.RELEASE-CANDIDATE.sql` is **deliberately non-executable**: the first `DO` block aborts every run. Removing that guard must require a separately reviewed and authorized versioned Supabase migration. Do not copy-paste it into production.
