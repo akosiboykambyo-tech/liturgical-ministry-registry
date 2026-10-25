@@ -355,3 +355,45 @@ test("production backup local tool preflight does not require a DB URL",()=>{
   assert.match(child.stdout+child.stderr,/pg_dump|PostgreSQL dump/i);
   assert.doesNotMatch(child.stdout+child.stderr,/postgresql:\/\/|synthetic-not-a-password/);
 });
+
+test("production connection check refuses execution without explicit production-only opt-in",()=>{
+  const child=spawnSync(process.execPath,[prodBackupScript,"--connection-check"],{
+    env:{PATH:process.env.PATH||"",SystemRoot:process.env.SystemRoot||""},
+    encoding:"utf8",timeout:5000
+  });
+  assert.equal(child.status,2);
+  assert.match(child.stderr,/REFUSED:/);
+});
+test("production connection check blocks staging and non-TLS targets before psql starts",()=>{
+  const child=spawnSync(process.execPath,[prodBackupScript,"--connection-check"],{
+    env:{
+      PATH:process.env.PATH||"",SystemRoot:process.env.SystemRoot||"",
+      PR55_ALLOW_PRODUCTION_BACKUP:"I_ACCEPT_READONLY_PRODUCTION_LOGICAL_BACKUP",
+      PR55_PRODUCTION_DATABASE_URL:
+        "postgresql://postgres.rtptybxugjhvpfjvcvgw:synthetic-not-a-password@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=disable"
+    },encoding:"utf8",timeout:5000
+  });
+  assert.equal(child.status,2);
+  assert.match(child.stderr,/REFUSED:/);
+  assert.doesNotMatch(child.stderr,/synthetic-not-a-password/);
+});
+test("production connection diagnostic asserts read-only before any export",()=>{
+  const src=require("node:fs").readFileSync(prodBackupScript,"utf8");
+  assert.match(src,/process\.argv\.includes\("--connection-check"\)/);
+  assert.match(src,/current_setting\('transaction_read_only'\)/);
+  assert.match(src,/status!=="READONLY_OK"/);
+  assert.match(src,/--command/);
+  assert.match(src,/no backup or writes made/);
+});
+test("production backup categorizes pg_dump errors without disclosing raw stderr",()=>{
+  const src=require("node:fs").readFileSync(prodBackupScript,"utf8");
+  const match=src.match(/function classifyBackupFailure\(result\) \{[\s\S]*?\n\}/);
+  assert.ok(match,"expected bounded pure error classification helper");
+  const classifier=require("node:vm").runInNewContext("("+match[0]+")");
+  assert.match(classifier({status:1,stderr:"pg_dump: error: connection failed: FATAL: password authentication failed for user postgres.zlvofcwnpdzfdnipvbbd"}),/authentication rejected/);
+  assert.match(classifier({status:1,stderr:"pg_dump: error: query failed: ERROR: permission denied for table users"}),/object privileges/);
+  assert.match(classifier({status:1,stderr:"pg_dump: error: query would be affected by row-level security policy for table members"}),/row-level security/);
+  assert.match(classifier({status:1,stderr:"pg_dump: error: permission denied for large object 12345"}),/large-object/);
+  assert.match(classifier({status:null,error:{code:"ETIMEDOUT"},stderr:"password=TOP_SECRET"}),/timed out/);
+  assert.doesNotMatch(classifier({status:1,stderr:"password=TOP_SECRET; user email=private"}),/TOP_SECRET|private/);
+});
