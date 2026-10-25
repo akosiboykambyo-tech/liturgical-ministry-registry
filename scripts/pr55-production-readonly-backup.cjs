@@ -35,6 +35,12 @@ function classifyBackupFailure(result) {
     return "production database authentication rejected; verify PRODUCTION database password";
   if(/no pg_hba\.conf entry|SSL off|SSL is required/i.test(error))
     return "production network/TLS connection was rejected";
+  if(/tenant.*not found|user.*not found|no such tenant/i.test(error))
+    return "production Session pooler tenant/account rejected";
+  if(/unsupported startup parameter|invalid.*startup parameter|unrecognized configuration parameter|invalid value for parameter/i.test(error))
+    return "production pooler/database rejected a read-only startup parameter";
+  if(/too many clients|too many connections|remaining connection slots|pool.*exhausted/i.test(error))
+    return "production connection pool is exhausted";
   if(/could not translate host name|name or service not known|nodename nor servname/i.test(error))
     return "production pooler hostname could not be resolved";
   if(/connection timed out|timeout expired|server closed the connection|connection refused|could not connect to server/i.test(error))
