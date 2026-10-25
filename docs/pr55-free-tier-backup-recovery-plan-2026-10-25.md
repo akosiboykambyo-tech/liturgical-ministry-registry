@@ -1,3 +1,16 @@
+## Production logical dump attempt — 2026-10-25: FAILED; no backup certified
+
+Operator ran `scripts/pr55-production-readonly-backup.cjs --check-tools` (PASS: local dump/restore executables), then `--backup` with privately entered production database credential. The script printed `CHECK: exporting production Postgres logical data READ-ONLY`, followed by `FAIL: production read-only pg_dump: client exited unsuccessfully; details redacted`. The backup script deletes its `.partial` file on exception, and it did not report any completed archive, byte count, hash or catalog validation. **Do not consider this a usable backup.**
+
+Production independent read-only checks: project healthy; Postgres 17.6; `postgres` has `rolbypassrls=true`; zero PostgreSQL large objects. Consequently large-object access and RLS are less likely causes when exporting as `postgres`, but actual client failure is not established. No production schema changes.
+
+The script has now been updated with `--connection-check`. It runs only `psql` against the exact protected Sydney Session pooler, with `PGOPTIONS=-c default_transaction_read_only=on`, and verifies `transaction_read_only=on` via SELECT. The script safely classifies common client/database errors on `pg_dump` without copying raw stderr into the chat or terminal. Production host, role, TLS, file protections and explicit opt-in remain fixed.
+
+Next operator action: retry the read-only production `--connection-check` with *production PostgreSQL password* before attempting another dump. If it fails, stop and share only the redacted diagnostic. If it passes, rerun `--backup` once using the same protected environment and report only the sanitized PASS/FAIL, byte count and hash (not the archive or credentials). If backup still fails, diagnose that specific category and consider Supabase CLI's supported `db dump` export split; do not weaken backup scope or hide missing `auth`/`storage` objects. A restore rehearsal remains outstanding after a successful export.
+
+References: https://supabase.com/docs/guides/platform/backups and https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore
+
+---
 # PR55 — Free-tier production recovery plan (2026-10-25)
 
 **Status: BLOCKED pending real backup evidence and restoration rehearsal. No production changes authorized by this document.**
