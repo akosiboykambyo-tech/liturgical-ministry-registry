@@ -54,3 +54,18 @@ test("refuses passwordless test connections", () => {
       "postgresql://postgres@db.rtptybxugjhvpfjvcvgw.supabase.co:5432/postgres"
   });
 });
+
+test("refuses wrong database path even on the isolated staging host", () => {
+  refused({
+    PR55_ALLOW_TWO_SESSION_TEST: optIn,
+    PR55_STAGING_DATABASE_URL:
+      "postgresql://postgres:synthetic-not-a-password@db.rtptybxugjhvpfjvcvgw.supabase.co:5432/other_database"
+  });
+});
+
+test("refuses unexpected libpq URL options on the isolated staging host", () => {
+  refused({
+    PR55_ALLOW_TWO_SESSION_TEST: optIn,
+    PR55_STAGING_DATABASE_URL: fakeStaging + "?sslmode=require&host=outside.example.org"
+  });
+});
