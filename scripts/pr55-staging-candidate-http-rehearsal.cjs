@@ -28,6 +28,7 @@ if(hasNonAdmin&&(!nonAdminEmail.includes("@")||!nonAdminPassword)){
   process.exit(2);
 }
 const cleanup=process.argv.includes("--cleanup-only");
+const connectionCheck=process.argv.includes("--connection-check");
 if(process.env.PR55_ALLOW_CANDIDATE_HTTP_PROBE!==VALID_OPTIN){
   console.error("REFUSED: explicit isolated-staging temporary-RPC opt-in required.");
   process.exit(2);
@@ -48,7 +49,7 @@ let pgpass;
 try{pgpass=decodeURIComponent(u.password);}catch{
   console.error("REFUSED: invalid staging password encoding.");process.exit(2);
 }
-if(!pgpass||(!cleanup&&(!pubKey.startsWith("sb_publishable_")||
+if(!pgpass||(!cleanup&&!connectionCheck&&(!pubKey.startsWith("sb_publishable_")||
   !email.includes("@")||!authPassword))){
   console.error("REFUSED: staging credentials missing.");process.exit(2);
 }
@@ -71,7 +72,7 @@ function psql(sql,step){
   if(proc.status!==0){
     const err=String(proc.stderr||"");
     // Do not print raw stderr; it can expose connection strings or data.
-    const match=/(?:ERROR|FATAL):\\s*([0-9A-Z]{5})(?:\\s|$)/m.exec(err);
+    const match=/(?:ERROR|FATAL):\s*([0-9A-Z]{5})(?:\s|$)/m.exec(err);
     const reason=proc.error?.code==="ETIMEDOUT"
       ? "local psql process exceeded 45s; connection or SQL stage unresolved"
       : /password authentication failed/i.test(err)
@@ -88,11 +89,16 @@ function psql(sql,step){
   }
   return proc.stdout.trim();
 }
-if(process.argv.includes("--connection-check")){
-  const status=psql("SELECT 1;","read-only staging pooler connection check");
-  assert.equal(status,"1","unexpected read-only staging response");
-  console.log("PASS: staging PostgreSQL Session pooler reached with supplied database credentials; NO writes made");
-  process.exit(0);
+if(connectionCheck){
+  try{
+    const status=psql("SELECT 1;","read-only staging pooler connection check");
+    assert.equal(status,"1","unexpected read-only staging response");
+    console.log("PASS: staging PostgreSQL Session pooler reached with supplied database credentials; NO writes made");
+    process.exit(0);
+  }catch(error){
+    console.error("FAIL:",error.message||"read-only staging connection check failed");
+    process.exit(1);
+  }
 }
 const SIG="(uuid,text,text,text,text[],integer)";
 const FUN="public.registration_pr55_http_candidate"+SIG;
