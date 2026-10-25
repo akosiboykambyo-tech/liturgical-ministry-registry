@@ -378,6 +378,7 @@ async function main() {
           "COMMIT;"
         ].join("\n"), "PROBE_TABLE_CREATED");
         probeCreated = true;
+        probeBOpen = true;
         await b.command([
           "BEGIN;",
           "SET LOCAL statement_timeout='12000ms';",
@@ -385,7 +386,7 @@ async function main() {
           "SELECT set_config('request.jwt.claim.sub'," +
             quote(probeActor) + ",true);"
         ].join("\n"), "COMMIT_CANDIDATE_READY");
-        probeBOpen = true;
+        probeAOpen = true;
         await a.command([
           "BEGIN;",
           "DO $hold$ DECLARE n integer; BEGIN",
@@ -396,7 +397,6 @@ async function main() {
           " IF n <> 1 THEN RAISE EXCEPTION 'Shadow grant revoke mismatch'; END IF;",
           "END $hold$;"
         ].join("\n"), "PROBE_REVOCATION_HELD");
-        probeAOpen = true;
 
         // Catch rejection immediately to avoid an unhandled Promise rejection
         // while A is checking the actual PostgreSQL wait edge.
