@@ -84,6 +84,22 @@ Safe operator flow:
 
 This is still **NOT a passed two-session test** until the operator runs the updated harness successfully. Supabase source: https://supabase.com/docs/guides/database/connecting-to-postgres
 
+## 2026-10-25 staging Session-pooler authentication failure
+
+Operator verified 13/13 offline connection guards and `TcpTestSucceeded=True` for the **actual test project's** Session pooler host `aws-0-ap-northeast-1.pooler.supabase.com:5432`. The test `--validate-config` succeeded without connecting. The first attempt to start two real PostgreSQL sessions stopped at `B [PID]` with a **database authentication failure**, before transaction setup or lock assertions. Node subsequently emitted an unhandled `EPIPE` when the harness tried to write `ROLLBACK` to the already-ended child `psql` process.
+
+The harness now treats a failed-login closed `stdin` as an expected error, avoids writing to a stopped process, and preserves the existing redacted connection category. This is a script robustness fix, **not proof of successful login or a passed concurrency test**.
+
+Post-failure read-only staging snapshot: 1,008 members, 12 ministry assignments, 8 intake requests, 4 reviews, one active staging administrator, and zero members with `PR55LOCK%` synthetic names. No registration mutation occurred from this failed invocation.
+
+**Next operator action: use a password-prompted, read-only login independent of the harness**. In PowerShell, in the isolated test project only:
+
+```powershell
+psql -X -W -d "host=aws-0-ap-northeast-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.rtptybxugjhvpfjvcvgw sslmode=require connect_timeout=10" -c "SELECT current_database(), current_user;"
+```
+
+`-W` prompts for the **Ministry-Registry-Test project database password**; nothing secret is included in command-line arguments or posted to GitHub. If authentication fails, inspect the exact **Connect → Session pooler** host/user and confirm the project database password. Supabase database password is separate from the Dashboard account password. Do not rotate credentials without checking dependent staging clients; never reset the production project. Do not rerun the write-test harness until this read-only connection succeeds. SQLSTATE `28P01` corresponds to invalid password. Supabase references: https://supabase.com/docs/guides/database/connecting-to-postgres and https://supabase.com/docs/guides/troubleshooting/how-do-i-reset-my-supabase-database-password-oTs5sB.
+
 ## Migration source, review and operator signoff
 
 - `docs/sql/registration-production-disabled.RELEASE-CANDIDATE.sql` is **deliberately non-executable**: the first `DO` block aborts every run. Removing that guard must require a separately reviewed and authorized versioned Supabase migration. Do not copy-paste it into production.
