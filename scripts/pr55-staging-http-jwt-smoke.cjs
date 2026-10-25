@@ -56,8 +56,18 @@ async function main() {
   const login = await request("/auth/v1/token?grant_type=password", {
     body: {email,password}
   });
-  assert.equal(login.status,200,
-    "Real staging Auth sign-in failed; HTTP " + login.status + " (details redacted)");
+  if (login.status !== 200) {
+    const code = login.data?.code;
+    const reason = code === "invalid_credentials"
+      ? "invalid_credentials: verify or reset the STAGING AUTH USER password, not the dashboard/database password"
+      : code === "email_not_confirmed"
+      ? "email_not_confirmed: confirm the staging Auth user email"
+      : code === "over_request_rate_limit" || code === "over_email_send_rate_limit"
+      ? "rate_limited: stop login retries"
+      : "login rejected (details redacted)";
+    throw new Error("Real staging Auth sign-in failed; HTTP " +
+      login.status + "; " + reason);
+  }
   const jwt = login.data?.access_token;
   assert.equal(typeof jwt,"string","Staging Auth did not issue an access token");
   assert.ok(jwt.length > 50,"Issued Auth JWT is unexpectedly short");
