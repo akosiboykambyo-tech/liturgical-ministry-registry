@@ -143,3 +143,38 @@ test("committed-revocation candidate is scoped to a disposable shadow admin tabl
   assert.match(source, /PROBE_REVOCATION_COMMITTED/);
   assert.match(source, /PROBE_TABLE_DROPPED/);
 });
+
+const httpScript = path.join(__dirname, "../scripts/pr55-staging-http-jwt-smoke.cjs");
+test("HTTP smoke refuses absent staging-only opt-in", () => {
+  const child = spawnSync(process.execPath, [httpScript], {
+    env: { PATH: process.env.PATH || "", SystemRoot: process.env.SystemRoot || "" },
+    encoding:"utf8", timeout:5000
+  });
+  assert.equal(child.status,2);
+  assert.match(child.stderr,/^REFUSED:/);
+});
+test("HTTP smoke rejects missing publishable key without making a request", () => {
+  const child = spawnSync(process.execPath, [httpScript,"--validate-config"], {
+    env: { PATH:process.env.PATH || "", SystemRoot:process.env.SystemRoot || "",
+      PR55_ALLOW_HTTP_TEST:"I_ACCEPT_READONLY_STAGING_HTTP_JWT_TEST",
+      PR55_STAGING_AUTH_EMAIL:"placeholder@example.invalid",
+      PR55_STAGING_AUTH_PASSWORD:"synthetic-not-a-password"
+    }, encoding:"utf8",timeout:5000
+  });
+  assert.equal(child.status,2);
+  assert.match(child.stderr,/^REFUSED:/);
+  assert.doesNotMatch(child.stderr,/synthetic-not-a-password/);
+});
+test("HTTP smoke validates staging-only publishable key without making requests", () => {
+  const child = spawnSync(process.execPath, [httpScript,"--validate-config"], {
+    env: { PATH:process.env.PATH || "", SystemRoot:process.env.SystemRoot || "",
+      PR55_ALLOW_HTTP_TEST:"I_ACCEPT_READONLY_STAGING_HTTP_JWT_TEST",
+      PR55_STAGING_PUBLISHABLE_KEY:"sb_publishable_OFFLINE_FAKE_ONLY",
+      PR55_STAGING_AUTH_EMAIL:"placeholder@example.invalid",
+      PR55_STAGING_AUTH_PASSWORD:"synthetic-not-a-password"
+    },encoding:"utf8",timeout:5000
+  });
+  assert.equal(child.status,0);
+  assert.match(child.stdout,/NO requests made/);
+  assert.doesNotMatch(child.stdout + child.stderr,/synthetic-not-a-password/);
+});
