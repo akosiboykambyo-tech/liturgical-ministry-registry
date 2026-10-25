@@ -1,3 +1,30 @@
+## Verified staging gate — 2026-10-25: COMMITTED grant revocation PASS
+
+**Operator-reported live PostgreSQL result: PASS**, following the original rollback-only race test and 18/18 offline safety checks:
+
+```text
+PASS: two distinct PostgreSQL backend sessions connected
+PASS: candidate RPC blocked by simultaneous uncommitted grant revocation
+PASS: RPC create/replay after revoked transaction rolled back
+PASS: no persistent member/administrator changes; both transactions rolled back
+PASS: disposable staging grant revocation COMMITTED while candidate was waiting
+PASS: candidate denied intake with SQLSTATE 42501 after committed revocation
+CHECK: disposable committed-revocation table removed
+```
+
+**Independent read-only staging verification performed afterward** via Supabase:
+- `public.members`: **1,008**; `public.member_ministries`: **12**.
+- Private intake requests: **8**; reviews: **4**; active admins: **1**.
+- No persisted `PR55LOCK%` or `PR55COMMIT%` synthetic members.
+- No `registry_private.pr55_admin_probe_%` relations.
+- `public.registration_intake_v1` persisted definition has **no** disposable probe-table reference and **no** `FOR SHARE`; the function with the fixed grant lock existed only inside B's rolled-back transaction. The earlier staging RPC remains installed.
+
+**Interpretation:** The candidate's authorization check correctly denies an intake once a shadow grant revocation commits while the competing intake is blocked. This is a controlled regression of the actual candidate definition with its single grant-table reference redirected to a disposable table. It does **not** prove a committed change to the real administrator table (that user was intentionally protected), real authenticated HTTP, JWT revocation, or production application readiness.
+
+**Remaining gates:** run `scripts/pr55-staging-http-jwt-smoke.cjs` against real Supabase Auth with staging-only user credentials and publishable key; confirm current function's API authorization. Then rehearse latest candidate in an explicitly isolated environment, review/approve a versioned production migration and grants, verify backup+restore, and evaluate rollout / rollback safety. Keep production NO-GO until each required gate has evidence.
+
+---
+
 ## 2026-10-25 additional gating work: committed revocation and real HTTP/JWT
 
 **Do not declare either of these tests passed until the operator provides successful output.** These extra gates supplement, not replace, the two-session rollback test already passed.
