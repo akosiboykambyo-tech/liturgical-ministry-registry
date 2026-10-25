@@ -1,3 +1,17 @@
+## 2026-10-25 — non-admin JWT rehearsal interrupted before setup (database connection timeout)
+
+**Operator's result:** after `--validate-config` accepted the isolated staging config, the script failed with `install temporary isolated-staging RPCs: psql failed (details redacted; exit timeout)` during **initial PostgreSQL staging function installation**, before the second Auth user's JWT test. **Do not record this as a non-admin rejection or a successful authorization test.**
+
+**Post-failure staging inspection:** the temporary `registration_pr55_http_candidate` and `registration_pr55_http_probe` definitions are absent (zero in `pg_catalog.pg_proc`); `pg_stat_activity` reports zero blocked sessions. Staging has two confirmed password-based Auth accounts, but still just one active registration administrator grant. Historical matching errors in `postgres_logs` weren't found in the available window; reason for the transient 30-second `psql` timeout is not established. No production change was performed.
+
+**Harness improvements in the PR branch:** `scripts/pr55-staging-candidate-http-rehearsal.cjs --connection-check` now permits a **database-only** read-only `SELECT 1` against the exact isolated staging Session pooler (same explicit opt-in, no Auth credentials needed). It emits redacted failure categories instead of exposing raw PostgreSQL stderr. PostgreSQL subprocess deadline is now 45 seconds; connection timeout is 10 seconds and the installing SQL transaction has `lock_timeout='5s'` plus `statement_timeout='20000ms'`. A zero-temporary-functions preflight prevents installing when stale RPCs exist; cleanup is attempted even if the install subprocess fails ambiguously. Offline refusal and timeout guard tests were added.
+
+**Safe next diagnostic (read-only):** capture the **staging database** password with Windows `Get-Credential`, build `PR55_STAGING_DATABASE_URL` for `postgres.rtptybxugjhvpfjvcvgw` at `aws-0-ap-northeast-1.pooler.supabase.com:5432`, set `PR55_ALLOW_CANDIDATE_HTTP_PROBE=I_ACCEPT_ISOLATED_STAGING_TEMPORARY_RPCS`, then run `node scripts/pr55-staging-candidate-http-rehearsal.cjs --connection-check`. Clear environment variables in a `finally` block and **do not** proceed to temporary DDL if it fails. Once the independent connection preflight passes, rerun the two-JWT candidate rehearsal with both existing Auth credentials (without rotating passwords). If cleanup reports an ALERT, stop for a function-catalog inspection.
+
+No production GO yet: the genuine non-admin 403/42501 JWT test, production migration/grants, backup/restore proof and frontend release gate remain outstanding.
+
+---
+
 ## 2026-10-25 — REAL HTTP/JWT rehearsal of PR55 candidate: PASS
 
 The operator successfully ran `scripts/pr55-staging-candidate-http-rehearsal.cjs` through isolated staging with actual staging Auth credentials, publishable API key, and project-scoped PostgreSQL Session-pooler credentials. The script printed:
