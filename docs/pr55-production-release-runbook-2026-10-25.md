@@ -1,3 +1,29 @@
+## 2026-10-25 — FINAL STAGING TWO-IDENTITY HTTP/JWT AUTHORIZATION GATE: PASS
+
+The operator ran the latest `scripts/pr55-staging-candidate-http-rehearsal.cjs` against **isolated staging** using both a real administrator Auth identity and a distinct real Auth identity without registration-administrator grant. Operator output:
+
+```text
+PASS: isolated staging RPC rehearsal configuration accepted; no connection made
+CHECK: temporary candidate and rollback-only RPC wrapper installed
+PASS: anonymous caller denied
+PASS: invalid JWT denied
+PASS: real staging Auth JWT and administrator permission
+PASS: real second staging Auth JWT denied by latest candidate (SQLSTATE 42501)
+PASS: candidate rejected invalid authenticated registration
+PASS: candidate direct RPC access denied to authenticated
+PASS: candidate created/replayed via real authenticated HTTP under forced rollback
+PASS: candidate HTTP rehearsal left no member data
+CHECK: temporary candidate RPCs removed
+```
+
+**Independently verified immediately afterward (read-only staging):** `pg_catalog.pg_proc` has **zero** `registration_pr55_http_candidate`/`registration_pr55_http_probe` temporary functions; **zero** persisted `PR55HTTP%` synthetic members; exactly **one** active registration-administrator grant. Staging metadata continues to report **1,008** members, **12** member-ministry assignments, **8** private intake requests, **4** private intake reviews, and **2** Auth users. No persistent staging registration mutation from the rehearsal.
+
+**Gate decision: PASS.** This closes the genuine non-admin JWT negative authorization gate and confirms both authorized and unauthorized HTTP behavior of the latest PR55 *candidate* function with the create/replay path forced to roll back.
+
+**Production release remains NO-GO.** The candidate was installed under alternate names on staging, not installed in production. Separate release prerequisites: reviewed/versioned production migration and privilege grants, a production administrator grant provisioned only through approved secure procedure, verified backup and restore/rollback plan, Add Member/CSV feature integration gated and tested, monitoring and explicit authorization to deploy. Do not mistake this staging security PASS for permission to enable the production registration RPC.
+
+---
+
 ## 2026-10-25 — non-admin JWT rehearsal interrupted before setup (database connection timeout)
 
 **Operator's result:** after `--validate-config` accepted the isolated staging config, the script failed with `install temporary isolated-staging RPCs: psql failed (details redacted; exit timeout)` during **initial PostgreSQL staging function installation**, before the second Auth user's JWT test. **Do not record this as a non-admin rejection or a successful authorization test.**
