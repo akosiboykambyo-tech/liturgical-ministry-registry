@@ -1,3 +1,25 @@
+## Latest verified staging gate — 2026-10-25
+
+**PASS — actual two-session PostgreSQL race test on isolated `Ministry-Registry-Test`.** The operator ran `node scripts/pr55-staging-two-session-test.cjs` through the project's IPv4 **Session pooler** on port **5432**, with credentials captured using Windows `Get-Credential`. The harness printed:
+
+- `PASS: isolated staging SESSION POOLER connection configuration accepted; NO connection made` (offline preflight).
+- `PASS: two distinct PostgreSQL backend sessions connected`.
+- `CHECK: candidate function installed transaction-locally in session B`.
+- `CHECK: session A holds an uncommitted staging grant revocation`.
+- `CHECK: candidate function blocked on the administrator grant lock`.
+- `PASS: candidate RPC blocked by simultaneous uncommitted grant revocation`.
+- `PASS: RPC create/replay after revoked transaction rolled back`.
+- `PASS: no persistent member/administrator changes; both transactions rolled back`.
+- `LIMIT: committed revocation and authenticated HTTP races still require separate QA`.
+
+**Independent post-run staging snapshot via read-only Supabase inspection:** 1,008 members, 12 ministry assignments, 8 intake requests, 4 intake reviews, **one active staging administrator**, and **zero** `PR55LOCK%` synthetic members. These match the earlier baseline. This validates the rollback result independently of harness output.
+
+The earlier `password authentication failed` failures were **resolved** by capturing the staging database password through Windows `Get-Credential`, then successfully running the script. Supabase password resets/support are **not presently required** for this project. Previous troubleshooting notes later in this runbook are historical and superseded by this PASS record.
+
+**Residual NO-GO gates:** committed administrator revocation under overlapping sessions; genuine authenticated HTTP/JWT authorization tests; production migration/RLS/grant/privilege review; backup-and-restore rehearsal; safe deployment plan and separate Add Member/CSV activation. The tested staging function was only installed transaction-locally, not permanently deployed. Do not merge this draft PR or deploy its candidate SQL to production based on this result alone.
+
+---
+
 # PR #55 — Staging concurrency and controlled production-release runbook
 
 **Decision: NO-GO (draft only). Updated 2026-10-25.** This is not an authorization to run a production migration, enable feature flags, merge PR #55, or connect the current Add Member/CSV actions. All released registrations must remain disabled until the stated gates are passed.
