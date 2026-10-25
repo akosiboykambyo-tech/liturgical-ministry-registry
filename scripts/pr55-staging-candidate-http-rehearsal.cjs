@@ -20,6 +20,13 @@ const dbUrl=process.env.PR55_STAGING_DATABASE_URL||"";
 const pubKey=process.env.PR55_STAGING_PUBLISHABLE_KEY||"";
 const email=process.env.PR55_STAGING_AUTH_EMAIL||"";
 const authPassword=process.env.PR55_STAGING_AUTH_PASSWORD||"";
+const nonAdminEmail=process.env.PR55_STAGING_NONADMIN_AUTH_EMAIL||"";
+const nonAdminPassword=process.env.PR55_STAGING_NONADMIN_AUTH_PASSWORD||"";
+const hasNonAdmin=Boolean(nonAdminEmail||nonAdminPassword);
+if(hasNonAdmin&&(!nonAdminEmail.includes("@")||!nonAdminPassword)){
+  console.error("REFUSED: both staging non-admin Auth email and password are required.");
+  process.exit(2);
+}
 const cleanup=process.argv.includes("--cleanup-only");
 if(process.env.PR55_ALLOW_CANDIDATE_HTTP_PROBE!==VALID_OPTIN){
   console.error("REFUSED: explicit isolated-staging temporary-RPC opt-in required.");
@@ -178,6 +185,34 @@ async function main(){
     assert.equal(admin.status,200,"admin check HTTP failure");
     assert.equal(admin.data,true,"staging Auth user not approved administrator");
     console.log("PASS: real staging Auth JWT and administrator permission");
+    if(hasNonAdmin){
+      const login=await http("/auth/v1/token?grant_type=password",{
+        body:{email:nonAdminEmail,password:nonAdminPassword}});
+      assert.equal(login.status,200,
+        "non-admin staging Auth login failed; HTTP "+login.status);
+      const unprivilegedJwt=login.data?.access_token;
+      assert.ok(typeof unprivilegedJwt==="string"&&unprivilegedJwt.length>50,
+        "missing non-admin staging Auth JWT");
+      const id=await http("/auth/v1/user",{
+        method:"GET",jwt:unprivilegedJwt});
+      assert.equal(id.status,200,"non-admin staging Auth JWT was not verified");
+      assert.notEqual(id.data?.id,identity.data?.id,
+        "non-admin token belongs to the same staging administrator");
+      const grant=await http("/rest/v1/rpc/registration_is_admin",{
+        jwt:unprivilegedJwt});
+      assert.equal(grant.status,200,"non-admin status HTTP request failed");
+      assert.equal(grant.data,false,
+        "staging non-admin unexpectedly has registration administrator access");
+      const denied=await http("/rest/v1/rpc/registration_pr55_http_probe",{
+        jwt:unprivilegedJwt,body:args(name)});
+      assert.equal(denied.status,403,
+        "non-admin candidate registration must fail; HTTP "+denied.status);
+      assert.equal(denied.data?.code,"42501",
+        "non-admin must be denied by candidate's DB grant authorization check");
+      console.log("PASS: real second staging Auth JWT denied by latest candidate (SQLSTATE 42501)");
+    } else {
+      console.log("LIMIT: no independent staging non-admin Auth JWT supplied or tested");
+    }
     // PostgREST needs time to reload schema after temporary RPC creation.
     let invalid;
     for(let attempt=0;attempt<5;attempt++){
