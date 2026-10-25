@@ -109,6 +109,12 @@ class SqlSession {
           PGAPPNAME: "pr55_two_session_" + label
         }, stdio: ["pipe", "pipe", "pipe"]
       });
+    // A failed login may close stdin while the harness is still unwinding.
+    // Node emits EPIPE asynchronously on the writable stream. Handle it
+    // explicitly so we report the original authentication failure cleanly.
+    this.child.stdin.on("error", () => {
+      this.abort("psql input stream closed", this.child.exitCode, this.child.signalCode);
+    });
     this.child.stdout.on("data", chunk => {
       this.buffer += chunk.toString("utf8");
       const lines = this.buffer.split(/\r?\n/);
@@ -135,6 +141,7 @@ class SqlSession {
       this.abort("psql stopped", code, signal));
   }
   abort(message, exitCode, signal) {
+    if (this.closed) return;
     this.closed = true;
     if (this.pending) {
       const pending = this.pending;
@@ -158,12 +165,30 @@ class SqlSession {
         this.child.kill();
       }, 20000);
       this.pending = { marker: token, stage: name, lines: [], resolve, reject, timeout };
+      // If psql exits early, the writable-stream error listener above
+      // rejects the pending command without an unhandled EPIPE crash.
+      if (this.child.stdin.destroyed || this.child.stdin.writableEnded ||
+          this.child.exitCode !== null) {
+        this.abort("psql not available for input", this.child.exitCode,
+          this.child.signalCode);
+        return;
+      }
       this.child.stdin.write(sql.trimEnd() + "\n\\echo " + token + "\n");
     });
   }
   finish() {
-    if (!this.closed) this.child.stdin.write("ROLLBACK;\n\\q\n");
-    setTimeout(() => { if (!this.closed) this.child.kill(); }, 1200).unref();
+    // Failed authentication exits before BEGIN; never write to a dead pipe.
+    // An open transaction is rolled back by PostgreSQL on disconnect as well.
+    if (!this.closed && this.child.exitCode === null &&
+        !this.child.stdin.destroyed && !this.child.stdin.writableEnded) {
+      this.child.stdin.write("ROLLBACK;\n\\q\n", error => {
+        if (error) this.abort("psql input stream closed",
+          this.child.exitCode, this.child.signalCode);
+      });
+    }
+    setTimeout(() => {
+      if (!this.closed && this.child.exitCode === null) this.child.kill();
+    }, 1200).unref();
   }
 }
 function jobLine(job, line) { job.lines.push(line.trim()); }
