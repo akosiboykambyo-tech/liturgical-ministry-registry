@@ -59,7 +59,7 @@ if(process.argv.includes("--validate-config")){
 function psql(sql,step){
   const proc=spawnSync("psql",["-X","-w","-q","-A","-t","-v",
     "ON_ERROR_STOP=1","-v","VERBOSITY=sqlstate"],{
-    input:sql,encoding:"utf8",timeout:30000,
+    input:sql,encoding:"utf8",timeout:45000,
     env:{
       PATH:process.env.Path||process.env.PATH||"",
       SystemRoot:process.env.SystemRoot||"",
@@ -68,9 +68,31 @@ function psql(sql,step){
       PGCONNECT_TIMEOUT:"10",PGAPPNAME:"pr55_candidate_http_rehearsal"
     }
   });
-  if(proc.status!==0)throw new Error(step+": psql failed (details redacted; exit "+
-    (proc.status===null?"timeout":proc.status)+")");
+  if(proc.status!==0){
+    const err=String(proc.stderr||"");
+    // Do not print raw stderr; it can expose connection strings or data.
+    const match=/(?:ERROR|FATAL):\\s*([0-9A-Z]{5})(?:\\s|$)/m.exec(err);
+    const reason=proc.error?.code==="ETIMEDOUT"
+      ? "local psql process exceeded 45s; connection or SQL stage unresolved"
+      : /password authentication failed/i.test(err)
+      ? "staging database password rejected"
+      : /could not translate host name|name or service not known/i.test(err)
+      ? "staging pooler DNS resolution failed"
+      : /connection timed out|timeout expired/i.test(err)
+      ? "staging pooler connection timed out"
+      : /connection refused|server closed the connection/i.test(err)
+      ? "staging pooler refused or closed connection"
+      : match ? "Postgres SQLSTATE "+match[1]
+      : "psql exit "+(proc.status===null?"unknown":proc.status);
+    throw new Error(step+": "+reason+"; details redacted");
+  }
   return proc.stdout.trim();
+}
+if(process.argv.includes("--connection-check")){
+  const status=psql("SELECT 1;","read-only staging pooler connection check");
+  assert.equal(status,"1","unexpected read-only staging response");
+  console.log("PASS: staging PostgreSQL Session pooler reached with supplied database credentials; NO writes made");
+  process.exit(0);
 }
 const SIG="(uuid,text,text,text,text[],integer)";
 const FUN="public.registration_pr55_http_candidate"+SIG;
@@ -116,6 +138,7 @@ function install(){
   const sql=[
     "BEGIN;",
     "SET LOCAL lock_timeout='5s';",
+    "SET LOCAL statement_timeout='20000ms';",
     "DO $guard$ BEGIN",
     "IF current_user <> 'postgres' OR",
     " (SELECT count(*) FROM registry_private.registration_administrators WHERE active AND revoked_at IS NULL) <> 1",
@@ -158,7 +181,15 @@ async function main(){
   }
   const name="PR55HTTP"+randomBytes(7).toString("hex");
   let installed=false;
+  let installAttempted=false;
   try{
+    const empty=psql(
+      "SELECT count(*) FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace "+
+      "WHERE n.nspname='public' AND p.proname IN ('registration_pr55_http_candidate','registration_pr55_http_probe');",
+      "read-only temporary RPC preflight");
+    assert.equal(empty,"0",
+      "stale temporary PR55 RPC exists; do not install or drop another session's functions");
+    installAttempted=true;
     install();
     installed=true;
     console.log("CHECK: temporary candidate and rollback-only RPC wrapper installed");
@@ -242,9 +273,9 @@ async function main(){
     assert.equal(persisted,"0","synthetic candidate registration persisted");
     console.log("PASS: candidate HTTP rehearsal left no member data");
   }finally{
-    if(installed){
+    if(installAttempted){
       try{
-        psql(drop,"cleanup temporary RPCs");
+        psql(drop,"cleanup temporary RPCs after installation attempt");
         console.log("CHECK: temporary candidate RPCs removed");
       }catch{
         process.exitCode=1;
