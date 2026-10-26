@@ -339,7 +339,8 @@ test("production backup forces read-only exact production target and local confi
   assert.match(source,/PGHOST:url\.hostname/);
   assert.doesNotMatch(source,/const HOST="aws-0-/);
   assert.match(source,/const REF="zlvofcwnpdzfdnipvbbd"/);
-  assert.match(source,/PGOPTIONS:"-c default_transaction_read_only=on"/);
+  assert.match(source,/BEGIN TRANSACTION READ ONLY/);
+  assert.doesNotMatch(source,/PGOPTIONS:/);
   assert.match(source,/--format=custom/);
   assert.match(source,/--no-password/);
   assert.match(source,/archiveDir=path\.join\(os\.homedir\(\)/);
@@ -382,7 +383,9 @@ test("production connection check blocks staging and non-TLS targets before psql
 test("production connection diagnostic asserts read-only before any export",()=>{
   const src=require("node:fs").readFileSync(prodBackupScript,"utf8");
   assert.match(src,/process\.argv\.includes\("--connection-check"\)/);
+  assert.match(src,/BEGIN TRANSACTION READ ONLY/);
   assert.match(src,/current_setting\('transaction_read_only'\)/);
+  assert.match(src,/ROLLBACK;/);
   assert.match(src,/status!=="READONLY_OK"/);
   assert.match(src,/--command/);
   assert.match(src,/no backup or writes made/);
@@ -414,4 +417,14 @@ test("production backup guards keep hostname strictly within Sydney shared poole
   assert.match(src,/url\.username!==USER/);
   assert.match(src,/url\.searchParams\.get\("sslmode"\)!=="require"/);
   assert.match(src,/url\.port!=="5432"/);
+});
+
+test("production read-only backup uses pg_dump's transaction-scoped read-only mode instead of persistent pool defaults",()=>{
+  const src=require("node:fs").readFileSync(prodBackupScript,"utf8");
+  assert.match(src,/BEGIN TRANSACTION READ ONLY; SELECT CASE/);
+  assert.match(src,/ROLLBACK;/);
+  assert.match(src,/--command/);
+  assert.match(src,/PGHOST:url\.hostname/);
+  assert.match(src,/--format=custom/);
+  assert.doesNotMatch(src,/PGOPTIONS:|SET SESSION CHARACTERISTICS AS TRANSACTION|SET default_transaction_read_only/);
 });
