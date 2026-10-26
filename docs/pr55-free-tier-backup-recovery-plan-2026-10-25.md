@@ -1,3 +1,24 @@
+## 2026-10-27 — PRODUCTION LOGICAL BACKUP EXPORTED AND CATALOG CHECKED (OPERATOR PASS)
+
+The operator successfully ran `scripts/pr55-production-readonly-backup.cjs --connection-check` against the dashboard-confirmed production Sydney shared Session pooler, followed by `--backup` with the production database credentials. The script reported:
+
+```text
+PASS: production PostgreSQL Session pooler supports an explicit READ ONLY transaction; no backup or writes made
+CHECK: exporting production Postgres logical data READ-ONLY; no database writes permitted
+PASS: production logical archive created and catalog verified
+BYTES: 18156510
+SHA256: 1bcc80f8c672282649b82c552e6b366ce31f1772bb56e790d184cb5292d1a992
+LIMIT: restore NOT proven; uploaded Storage file bytes and global roles/config NOT saved
+```
+
+Private local backup filename (basename only): `cowl-dok-prod-2026-10-26T23-21-15-064Z-7e5251.backup`. Saved in operator's private `COWL-DOK-PRIVATE-BACKUPS` directory outside the Git worktree. This evidence is from the **operator's local output**; the archive bytes and SHA256 could not be independently inspected in this environment.
+
+**Gate:** production read-only database export, required catalog sections and file checksum **PASS (operator verified)**. The database is **not yet recoverable/certified**: archive encryption and a protected off-site duplicate; actual Storage bucket object bytes (not just `storage.objects` metadata); project role/configuration exports as appropriate; and an isolated, successful restore are still outstanding. The dump is plain-text-accessible in its current custom PostgreSQL format: immediately protect it, do not paste/upload it to GitHub or chat, and do not remove the original before a tested encrypted archive and off-site copy exist.
+
+**Production release remains NO-GO**. No production migration or registration permissions were applied.
+
+---
+
 ## 2026-10-27 — correct production pooler accepted; read-only-default preflight was overly strict
 
 The operator used the **production dashboard's actual** `aws-1-ap-southeast-2.pooler.supabase.com` Session pooler. The pooler accepted the tenant/account and reached a PostgreSQL session. The script then failed `production connection not in read-only mode` while querying `transaction_read_only` *outside* an explicit transaction. This only establishes that the connection's default transaction was not read-only; it does **not** establish that an explicit read-only transaction is unsupported. No dump was attempted and no production change was made.
