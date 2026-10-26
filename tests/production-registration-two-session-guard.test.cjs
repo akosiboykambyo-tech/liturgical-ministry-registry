@@ -428,3 +428,33 @@ test("production read-only backup uses pg_dump's transaction-scoped read-only mo
   assert.match(src,/--format=custom/);
   assert.doesNotMatch(src,/PGOPTIONS:|SET SESSION CHARACTERISTICS AS TRANSACTION|SET default_transaction_read_only/);
 });
+
+const protectLocalBackup=path.join(__dirname,"../scripts/pr55-protect-local-backup.cjs");
+test("backup encryption local AES-256-GCM synthetic self-test succeeds without secrets",()=>{
+  const child=spawnSync(process.execPath,[protectLocalBackup,"--self-test"],{
+    env:{PATH:process.env.PATH||"",SystemRoot:process.env.SystemRoot||""},
+    encoding:"utf8",timeout:15000
+  });
+  assert.equal(child.status,0,child.stderr);
+  assert.match(child.stdout,/PASS: AES-256-GCM encryption, decryption and tamper rejection/);
+  assert.match(child.stdout,/no files or network/);
+});
+test("backup encryption refuses without private path checksum and 20-character passphrase",()=>{
+  const child=spawnSync(process.execPath,[protectLocalBackup,"--encrypt"],{
+    env:{PATH:process.env.PATH||"",SystemRoot:process.env.SystemRoot||""},
+    encoding:"utf8",timeout:5000
+  });
+  assert.equal(child.status,2);
+  assert.match(child.stderr,/REFUSED/);
+});
+test("backup encryption must not overwrite or delete existing encrypted archive",()=>{
+  const s=require("node:fs").readFileSync(protectLocalBackup,"utf8");
+  assert.match(s,/fs\.openSync\(destination,"wx",0o600\)/);
+  assert.match(s,/if\(created\)\{try\{fs\.unlinkSync\(destination\)/);
+  assert.match(s,/destination=file\+"\.enc"/);
+  assert.match(s,/sha\(plain\)!==expected/);
+  assert.match(s,/createCipheriv\("aes-256-gcm"/);
+  assert.match(s,/createDecipheriv\("aes-256-gcm"/);
+  assert.match(s,/scryptSync/);
+  assert.doesNotMatch(s,/fetch\(|https:\/\//);
+});
