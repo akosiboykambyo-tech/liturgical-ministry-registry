@@ -1,3 +1,16 @@
+## 2026-10-27 — confirmed shared pooler tenant mismatch; invented aws-0 host retired
+
+Operator reported `FAIL: production read-only connection preflight: production Session pooler tenant/account rejected` before pg_dump was attempted. The original PR55 backup script had guessed the pooler hostname `aws-0-ap-southeast-2.pooler.supabase.com` by concatenating a cluster index and project region. Supabase explicitly documents that each region has multiple pooler clusters and the cluster index cannot be derived from region; `Tenant or user not found` ordinarily indicates wrong host or username, not wrong password. Previous `pg_dump` failure likely has the same cause, but remains unverified.
+
+**Fix committed:** the production-only logical export script now validates user-provided shared Session pooler hosts matching `aws-[INDEX]-ap-southeast-2.pooler.supabase.com`, checks TLS, port 5432, database postgres, username `postgres.zlvofcwnpdzfdnipvbbd`, explicit read-only production opt-in and `default_transaction_read_only=on`. It no longer inserts a guessed host. Unit tests cover multiple cluster indexes, wrong regions, lookalikes, staging target rejection and password redaction.
+
+**Required operator procedure:** Open production `Ministry-Database` in Supabase Dashboard; click Connect; select Session pooler. Copy ONLY the host between `@` and `:5432` (no password or URI) into a PowerShell `Read-Host` prompt. Use this exact host in the protected production database URI, separately supply the production DB password from Get-Credential, and run `--connection-check` first. If PASS, run `--backup` once with the same secure environment. Never paste the complete database URI or secret in chat, PR comments, issues, or screenshots.
+
+Official documentation: https://supabase.com/docs/guides/database/connecting-to-postgres and https://github.com/orgs/supabase/discussions/50190
+
+**Production GO remains blocked** until a verified archive exists, Storage files are backed up, and independent restore proof is recorded.
+
+---
 ## Production logical dump attempt — 2026-10-25: FAILED; no backup certified
 
 Operator ran `scripts/pr55-production-readonly-backup.cjs --check-tools` (PASS: local dump/restore executables), then `--backup` with privately entered production database credential. The script printed `CHECK: exporting production Postgres logical data READ-ONLY`, followed by `FAIL: production read-only pg_dump: client exited unsuccessfully; details redacted`. The backup script deletes its `.partial` file on exception, and it did not report any completed archive, byte count, hash or catalog validation. **Do not consider this a usable backup.**
