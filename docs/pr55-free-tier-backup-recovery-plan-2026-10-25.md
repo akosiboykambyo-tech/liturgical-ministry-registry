@@ -1,3 +1,17 @@
+## 2026-10-27 — local archive protection utility prepared (NOT YET EXECUTED ON REAL BACKUP)
+
+Added `scripts/pr55-protect-local-backup.cjs` to support private, offline encryption using Node.js built-in **AES-256-GCM with scrypt** (salted key derivation, authenticated tag), immediately followed by an in-memory authenticated-decryption and SHA-256 check. No database connectivity, cloud upload, server-side actions or shell-installed crypto package. It accepts only the operator's `COWL-DOK-PRIVATE-BACKUPS/cowl-dok-prod-*.backup` files, requires an independent **20+ character strong passphrase** and exact prior 64-digit archive SHA-256, writes `<name>.backup.enc` with exclusive-create semantics, and does **not** delete the original plain backup. `--verify` rechecks the encrypted file without writing decrypted member data back to disk. `--self-test` performs a synthetic in-memory tamper rejection check without real data.
+
+The real production archive to protect has basename `cowl-dok-prod-2026-10-26T23-21-15-064Z-7e5251.backup`, expected SHA256 `1bcc80f8c672282649b82c552e6b366ce31f1772bb56e790d184cb5292d1a992` and length 18,156,510 bytes. Those attributes were reported by the operator's export script; actual archive bytes have not been independently reviewed here.
+
+Operator must run `--self-test` locally, supply backup file/hash and passphrase through short-lived PowerShell environment variables, run `--encrypt`, then separately `--verify` with the *same* passphrase, clear variables in `finally`, and make a second encrypted off-site copy. Never print/share passphrase or commit/upload the real archive. Record the new encrypted file hash/size but not the passphrase.
+
+**Security note:** a user-memorized passphrase must be backed up securely outside the encrypted file. Losing it makes recovery impossible. Protect Windows folder ACLs, do not leave the original unencrypted file in a sync folder, and don't destroy plaintext until the encrypted archive plus off-site copy has been verified and the restore rehearsal is complete.
+
+The encryption and Storage backup gates are still **PENDING** until evidence from operator execution. Production activation remains NO-GO.
+
+---
+
 ## 2026-10-27 — PRODUCTION LOGICAL BACKUP EXPORTED AND CATALOG CHECKED (OPERATOR PASS)
 
 The operator successfully ran `scripts/pr55-production-readonly-backup.cjs --connection-check` against the dashboard-confirmed production Sydney shared Session pooler, followed by `--backup` with the production database credentials. The script reported:
