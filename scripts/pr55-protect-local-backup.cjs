@@ -85,9 +85,10 @@ try {
     const plain=fs.readFileSync(file);
     if(sha(plain)!==expected)throw new Error("plaintext backup SHA256 does not match operator export result");
     const sealed=encryptBytes(plain,passphrase);
-    let fd=null;
+    let fd=null,created=false;
     try{
       fd=fs.openSync(destination,"wx",0o600);
+      created=true;
       fs.writeFileSync(fd,sealed);
       fs.fsyncSync(fd);
       fs.closeSync(fd);fd=null;
@@ -95,7 +96,7 @@ try {
       if(sha(check)!==expected)throw new Error("encrypted backup verification mismatch");
     }catch(error){
       if(fd!==null){try{fs.closeSync(fd);}catch{}}
-      try{fs.unlinkSync(destination);}catch{}
+      if(created){try{fs.unlinkSync(destination);}catch{}}
       throw error;
     }
     console.log("PASS: local production backup encrypted AES-256-GCM and decrypted in memory for verification");
