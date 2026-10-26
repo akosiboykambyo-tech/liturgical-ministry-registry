@@ -335,7 +335,9 @@ test("production backup rejects wrong protocol/port/TLS before any export",()=>{
 });
 test("production backup forces read-only exact production target and local confidential path",()=>{
   const source=require("node:fs").readFileSync(prodBackupScript,"utf8");
-  assert.match(source,/const HOST="aws-0-ap-southeast-2\.pooler\.supabase\.com"/);
+  assert.match(source,/HOST_PATTERN=\/\^aws-/);
+  assert.match(source,/PGHOST:url\.hostname/);
+  assert.doesNotMatch(source,/const HOST="aws-0-/);
   assert.match(source,/const REF="zlvofcwnpdzfdnipvbbd"/);
   assert.match(source,/PGOPTIONS:"-c default_transaction_read_only=on"/);
   assert.match(source,/--format=custom/);
@@ -396,4 +398,20 @@ test("production backup categorizes pg_dump errors without disclosing raw stderr
   assert.match(classifier({status:1,stderr:"pg_dump: error: permission denied for large object 12345"}),/large-object/);
   assert.match(classifier({status:null,error:{code:"ETIMEDOUT"},stderr:"password=TOP_SECRET"}),/timeout|timed out/);
   assert.doesNotMatch(classifier({status:1,stderr:"password=TOP_SECRET; user email=private"}),/TOP_SECRET|private/);
+});
+
+test("production backup guards keep hostname strictly within Sydney shared pooler cluster domain",()=>{
+  const src=require("node:fs").readFileSync(prodBackupScript,"utf8");
+  const match=src.match(/const HOST_PATTERN=(\/\^aws-[^;]+);/);
+  assert.ok(match,"expected explicit host allowlist");
+  const re=require("node:vm").runInNewContext(match[1]);
+  assert.ok(re.test("aws-0-ap-southeast-2.pooler.supabase.com"));
+  assert.ok(re.test("aws-1-ap-southeast-2.pooler.supabase.com"));
+  assert.ok(re.test("aws-12-ap-southeast-2.pooler.supabase.com"));
+  assert.ok(!re.test("aws-0-ap-northeast-1.pooler.supabase.com"));
+  assert.ok(!re.test("aws-0-us-east-1.pooler.supabase.com"));
+  assert.ok(!re.test("aws-1-ap-southeast-2.pooler.supabase.com.evil.example"));
+  assert.match(src,/url\.username!==USER/);
+  assert.match(src,/url\.searchParams\.get\("sslmode"\)!=="require"/);
+  assert.match(src,/url\.port!=="5432"/);
 });
