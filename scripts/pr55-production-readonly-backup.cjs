@@ -10,7 +10,10 @@ const path=require("node:path");
 const {spawnSync}=require("node:child_process");
 const {randomBytes,createHash}=require("node:crypto");
 const REF="zlvofcwnpdzfdnipvbbd";
-const HOST="aws-0-ap-southeast-2.pooler.supabase.com";
+// The cluster index is assigned by Supabase and cannot be inferred from region.
+// User must copy the correct production Session pooler host from Connect.
+// Restrict to Sydney shared pooler endpoints; username pins production project.
+const HOST_PATTERN=/^aws-(?:0|[1-9][0-9]*)-ap-southeast-2\.pooler\.supabase\.com$/;
 const USER="postgres."+REF;
 const OPT_IN="I_ACCEPT_READONLY_PRODUCTION_LOGICAL_BACKUP";
 const archiveDir=path.join(os.homedir(),"COWL-DOK-PRIVATE-BACKUPS");
@@ -93,7 +96,7 @@ if(process.argv.includes("--check-tools")) {
     try {url=new URL(process.env.PR55_PRODUCTION_DATABASE_URL||"");}
     catch{console.error("REFUSED: production database URL missing");process.exitCode=2;return;}
     if(!["postgres:","postgresql:"].includes(url.protocol)||
-       url.hostname!==HOST||url.port!=="5432"||url.pathname!=="/postgres"||
+       !HOST_PATTERN.test(url.hostname)||url.port!=="5432"||url.pathname!=="/postgres"||
        url.username!==USER||!url.password||url.searchParams.get("sslmode")!=="require"||
        [...url.searchParams.keys()].some(x=>x!=="sslmode")){
       console.error("REFUSED: only exact production TLS Session pooler is allowed");
@@ -104,12 +107,13 @@ if(process.argv.includes("--check-tools")) {
       console.error("REFUSED: malformed production DB password encoding");process.exitCode=2;return;
     }
     if(!pw){console.error("REFUSED: empty database password");process.exitCode=2;return;}
+    console.log("CHECK: operator-supplied production Session pooler hostname matches Sydney allowlist");
     const env={
       PATH:process.env.Path||process.env.PATH||"",
       SystemRoot:process.env.SystemRoot||"",
       TEMP:process.env.TEMP||"",TMP:process.env.TMP||"",
       HOME:process.env.HOME||"",USERPROFILE:process.env.USERPROFILE||"",
-      PGHOST:HOST,PGPORT:"5432",PGDATABASE:"postgres",PGUSER:USER,
+      PGHOST:url.hostname,PGPORT:"5432",PGDATABASE:"postgres",PGUSER:USER,
       PGPASSWORD:pw,PGSSLMODE:"require",PGCONNECT_TIMEOUT:"10",
       PGAPPNAME:"pr55_readonly_production_logical_backup",
       PGOPTIONS:"-c default_transaction_read_only=on"
