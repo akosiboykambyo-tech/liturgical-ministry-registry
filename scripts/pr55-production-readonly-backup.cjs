@@ -116,17 +116,20 @@ if(process.argv.includes("--check-tools")) {
       PGHOST:url.hostname,PGPORT:"5432",PGDATABASE:"postgres",PGUSER:USER,
       PGPASSWORD:pw,PGSSLMODE:"require",PGCONNECT_TIMEOUT:"10",
       PGAPPNAME:"pr55_readonly_production_logical_backup",
-      PGOPTIONS:"-c default_transaction_read_only=on"
+      // pg_dump itself explicitly uses SET TRANSACTION ... READ ONLY.
+      // Avoid session-wide defaults through shared connection poolers.
     };
     if(process.argv.includes("--connection-check")) {
       try {
-        const status=run(psql,["-X","-w","-A","-t","-v","ON_ERROR_STOP=1",
-          "--command","SELECT CASE WHEN current_setting('transaction_read_only')='on' THEN 'READONLY_OK' ELSE 'WRITE_MODE' END;"],{
-          env,timeout:20000,stage:"production read-only connection preflight"
+        // Transaction-level guard: does not alter backend session defaults.
+        // pg_dump uses its own BEGIN + SET TRANSACTION ... READ ONLY.
+        const status=run(psql,["-X","-w","-q","-A","-t","-v","ON_ERROR_STOP=1",
+          "--command","BEGIN TRANSACTION READ ONLY; SELECT CASE WHEN current_setting('transaction_read_only')='on' THEN 'READONLY_OK' ELSE 'WRITE_MODE' END; ROLLBACK;"],{
+          env,timeout:20000,stage:"production explicit read-only transaction preflight"
         }).trim();
         if(status!=="READONLY_OK")
-          throw new Error("read-only connection preflight: production connection not in read-only mode");
-        console.log("PASS: production PostgreSQL Session pooler connection verified READ-ONLY; no backup or writes made");
+          throw new Error("read-only transaction preflight: database did not confirm an explicit read-only transaction");
+        console.log("PASS: production PostgreSQL Session pooler supports an explicit READ ONLY transaction; no backup or writes made");
       } catch(e) {
         console.error("FAIL:",e.message);
         process.exitCode=1;
