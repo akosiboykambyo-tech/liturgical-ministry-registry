@@ -83,7 +83,8 @@ interface Progress {
   phase: string;
 }
 
-type Tab = "import" | "renewal" | "history" | "pending";
+export type CsvImportTab = "import" | "renewal" | "history" | "pending";
+type Tab = CsvImportTab;
 
 type RenewalHistoryBatch = RecommendationRenewalBatch & {
   memberships: RecommendationRenewalMembership[];
@@ -181,7 +182,15 @@ function getDefaultNextRenewalDate(renewalDate: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-export default function CsvImportPage() {
+export default function CsvImportPage({
+  embedded = false,
+  workspaceTab,
+  onWorkspaceTabChange,
+}: {
+  embedded?: boolean;
+  workspaceTab?: CsvImportTab;
+  onWorkspaceTabChange?: (next: CsvImportTab) => void;
+} = {}) {
   const supabase = getSupabaseBrowserClient();
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>("");
@@ -193,14 +202,24 @@ export default function CsvImportPage() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("import");
-  // Backwards-compatible entry points while renewal processing is consolidated.
+  const [activeTab, setActiveTab] = useState<Tab>(workspaceTab ?? "import");
+  // Reuse the existing batch processor in the four-tab Verification workspace.
+  // Keeping the component mounted across tabs preserves staged duplicate reviews.
   useEffect(() => {
+    if (workspaceTab) {
+      setActiveTab(workspaceTab);
+      return;
+    }
     const requested = new URLSearchParams(window.location.search).get("tab");
     if (requested === "renewal" || requested === "history" || requested === "pending") {
       setActiveTab(requested);
     }
-  }, []);
+  }, [workspaceTab]);
+
+  const changeTab = (next: Tab) => {
+    setActiveTab(next);
+    onWorkspaceTabChange?.(next);
+  };
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -815,7 +834,7 @@ export default function CsvImportPage() {
     if (duplicates.length > 0) {
       setPendingMerges(duplicates);
       setCurrentIndex(0);
-      setActiveTab("pending");
+      changeTab("pending");
     }
   };
 
@@ -1088,6 +1107,8 @@ export default function CsvImportPage() {
 
   return (
     <div className="w-full space-y-5 pb-16 text-[#1E1114]">
+      {!embedded && (
+        <>
       <div>
         <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
           Bulk Registration Import &amp; Legacy Renewals
@@ -1102,7 +1123,7 @@ export default function CsvImportPage() {
       {/* Tab bar */}
       <div className="grid grid-cols-2 gap-0 border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-1 sm:flex sm:flex-wrap">
         <button
-          onClick={() => setActiveTab("import")}
+          onClick={() => changeTab("import")}
           className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "import"
               ? "bg-[#890022] text-white"
@@ -1118,7 +1139,7 @@ export default function CsvImportPage() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab("renewal")}
+          onClick={() => changeTab("renewal")}
           className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "renewal"
               ? "bg-[#890022] text-white"
@@ -1129,7 +1150,7 @@ export default function CsvImportPage() {
           Renewal Import
         </button>
         <button
-          onClick={() => setActiveTab("history")}
+          onClick={() => changeTab("history")}
           className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "history"
               ? "bg-[#890022] text-white"
@@ -1140,7 +1161,7 @@ export default function CsvImportPage() {
           Renewal History
         </button>
         <button
-          onClick={() => setActiveTab("pending")}
+          onClick={() => changeTab("pending")}
           className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "pending"
               ? "bg-[#890022] text-white"
@@ -1160,6 +1181,8 @@ export default function CsvImportPage() {
       {/* ============================================================ */}
       {/* IMPORT TAB */}
       {/* ============================================================ */}
+        </>
+      )}
       {activeTab === "import" && (
         <>
           {/* Idempotency warning */}
@@ -1253,7 +1276,7 @@ export default function CsvImportPage() {
                   </p>
                   {summary.duplicates > 0 && (
                     <button
-                      onClick={() => setActiveTab("pending")}
+                      onClick={() => changeTab("pending")}
                       className="mt-3 inline-flex items-center gap-1.5 rounded-none bg-[#890022] px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
                     >
                       <GitMerge className="h-3.5 w-3.5" />
