@@ -32,6 +32,7 @@ import {
 import { CertificateDesign } from "@/components/certificate-design";
 import { CertificateEditor } from "@/components/certificate-editor";
 import { ebGaramond } from "@/app/fonts";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 
 type TemplateRow = {
   key: string;
@@ -596,9 +597,9 @@ export default function CertificateManagerPage() {
     await loadSignatories();
   };
 
-  // Do not flash editing controls while screen/pointer capability is being checked.
+  // Keep the first paint centered while device capabilities are checked.
   if (isDesktop === null) {
-    return <div className="min-h-[60vh]" aria-label="Checking device compatibility" />;
+    return <CenteredAdminLoader label="Checking certificate editor compatibility…" />;
   }
 
   if (!isDesktop) {
@@ -628,11 +629,7 @@ export default function CertificateManagerPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-[#890022]" />
-      </div>
-    );
+    return <CenteredAdminLoader label="Loading certificate templates…" />;
   }
 
   return (
