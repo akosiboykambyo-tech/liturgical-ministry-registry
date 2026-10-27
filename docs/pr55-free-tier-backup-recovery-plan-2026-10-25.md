@@ -1,3 +1,25 @@
+## 2026-10-27 — WINDOWS RESTORE HOST CAPACITY AND WSL2 BLOCKER
+
+Operator ran **read-only Windows host prerequisites check**, with results:
+
+```text
+Installed RAM (GB): 7.8
+Hypervisor detected: True
+Free C: space (GB): 29.3
+Docker command: NOT INSTALLED
+WSL default version: 2
+WSL2 is unable to start since virtualization is not enabled on this machine.
+Please ensure the "Virtual Machine Platform" optional component is enabled and
+virtualization is turned on in your computer's firmware settings.
+Enable "Virtual Machine Platform" by running: wsl.exe --install --no-distribution
+```
+
+**Assessment:** The local machine is currently **not ready** for a Docker-compatible Supabase stack. `HypervisorPresent=True` does not independently prove that the Windows `VirtualMachinePlatform` feature and exposed firmware virtualization are available to WSL2. Docker Desktop's WSL 2 backend requires at least 8 GB installed RAM and virtualization prerequisites, while full Supabase self-hosted Docker docs list **40 GB SSD minimum**. Operator has nominal ~8 GB RAM and 29.3 GB free on system drive, so the full stack would have thin resource headroom (the 40 GB figure applies to self-hosted full stack, not necessarily a reduced isolated CLI-only rehearsal). Docs: https://docs.docker.com/desktop/setup/install/windows-install/ ; https://learn.microsoft.com/en-us/windows/wsl/troubleshooting ; https://supabase.com/docs/guides/self-hosting/docker ; https://supabase.com/docs/guides/local-development .
+
+**Next:** read-only inspect `Get-WindowsOptionalFeature -Online` for `VirtualMachinePlatform` and `Microsoft-Windows-Subsystem-Linux`, and `Win32_Processor.VirtualizationFirmwareEnabled` where meaningful. Do not automatically run `wsl --install`, enable Windows features, change firmware/BIOS, install Docker, delete backups, or move sensitive production backup files to an unapproved cloud host. Consider isolated *approved* compatible recovery environment only once security and hardware/disk concerns are resolved. Existing protected verified backups and USB copies stay intact. Database full restore rehearsal remains BLOCKED; PR55 DRAFT/UNMERGED, production NO-GO.
+
+---
+
 ## 2026-10-27 — COMPLETE EXTENSION INVENTORY + READ-ONLY PRODUCTION PG/Vault CHECK
 
 Operator inventoried all PostgreSQL EXTENSION entries directly from the original SHA256-verified production `pg_dump` archive's catalog with `pg_restore --list`. **Exactly four extension entries**:
