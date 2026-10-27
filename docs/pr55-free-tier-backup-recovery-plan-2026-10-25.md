@@ -1,3 +1,20 @@
+## 2026-10-27 — WSL2 ROOT BLOCKERS CONFIRMED; DOCKER RESTORE HOST DEFERRED
+
+Operator ran an **entirely read-only** inspection of Windows optional features and CPU virtualization indicators after WSL 2 reported that it could not start:
+
+```text
+VirtualMachinePlatform : Disabled
+Microsoft-Windows-Subsystem-Linux : Disabled
+Virtualization enabled in firmware: False
+Second-level address translation: False
+```
+
+**Confirmed**: Both Windows optional features needed by WSL 2 are currently **disabled**. CPU WMI flags reported `False` but should not alone be treated as conclusive proof of lack of CPU SLAT capability or BIOS virtualization; earlier `Win32_ComputerSystem.HypervisorPresent` was `True`, and CPU virtualization flags can be misleading under an active hypervisor. WSL 2 is currently nonfunctional, Docker is not installed. PC showed ~7.8 GiB reported memory and ~29.3 GiB free on system disk. Official docs: https://learn.microsoft.com/en-us/windows/wsl/faq ; https://docs.docker.com/desktop/setup/install/windows-install/ ; https://supabase.com/docs/guides/local-development/docker-and-native-runtimes .
+
+**Decision/recommendation:** Do not auto-enable either optional feature, change BIOS/UEFI, install Docker, modify boot configuration or move confidential backups to an unapproved host. The host's RAM and system-drive space offer limited headroom for a full isolated Supabase stack; prioritize existing release/security work and retain strict unpassed recovery gate. A future full-fidelity restore rehearsal should occur in an explicitly approved **isolated Supabase-compatible PostgreSQL 17 environment** with sufficient storage/memory and the required `supabase_vault` extension and roles, plus Auth and Storage restoration checks. The external environment must have agreed safeguards for encrypted member records, secret handling, loopback/private network isolation and test-environment deletion. Previous backup integrity and copies still PASS; **full database restore NOT certified**, no production/staging changes, PR55 DRAFT/UNMERGED and production release NO-GO.
+
+---
+
 ## 2026-10-27 — WINDOWS RESTORE HOST CAPACITY AND WSL2 BLOCKER
 
 Operator ran **read-only Windows host prerequisites check**, with results:
