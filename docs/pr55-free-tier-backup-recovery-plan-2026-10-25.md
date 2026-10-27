@@ -1,3 +1,21 @@
+## 2026-10-27 — PRODUCTION STORAGE READ-ONLY LISTING: PASS
+
+The operator successfully ran `npx --yes supabase@2.121.0 storage ls ss:///certificate-templates --recursive --experimental --project-ref zlvofcwnpdzfdnipvbbd` and the corresponding `member-documents` command. Both returned zero exit status with a short-lived `SUPABASE_ACCESS_TOKEN` in the operator's private PowerShell environment. Operator output:
+
+```text
+PASS: Certificate templates bucket accessible.
+Loading page: 1
+PASS: Private member documents bucket accessible.
+```
+
+The earlier listing attempt without `--experimental` was explicitly refused by the CLI, as documented; no production data was modified. Listing success shows authenticated bucket API access but **does not establish that all object bytes have been downloaded** or that `storage cp` is permitted under that token.
+
+Independent production `storage.objects` metadata baseline remains **35 public `certificate-templates` objects (36,838,287 bytes) and 119 private `member-documents` objects (256,939,642 bytes), total 154 (293,777,929 bytes)**.
+
+Next operator action: `storage cp --recursive --experimental --project-ref zlvofcwnpdzfdnipvbbd` **from each** `ss:///bucket` **to a dedicated private LOCAL destination**, never the reverse; no project link, update, delete or server-side SQL. Verify each local bucket count and aggregate byte lengths; collect a private file manifest with hashes and preserve relative paths if successful. Do not copy unencrypted Storage files to the USB device. Local download, encryption, second copy and isolated restore must be separately evidenced before production GO.
+
+---
+
 ## 2026-10-27 — ENCRYPTED FLASH-DRIVE BACKUP COPY: PASS (OPERATOR OUTPUT)
 
 The operator copied the authenticated encrypted production database archive to an attached USB flash drive mounted at `F:\` using PowerShell `Copy-Item` and independently verified SHA-256 with `Get-FileHash -Algorithm SHA256` after copying.
