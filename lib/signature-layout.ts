@@ -136,3 +136,60 @@ export async function trimmedSignaturePreview(url: string): Promise<string> {
     URL.revokeObjectURL(objectUrl);
   }
 }
+
+/** Per-signatory artwork positioning, independent of certificate placement. */
+export type SignatureComposition = { x: number; y: number; scale: number };
+export const SIGNATURE_LAYOUT_KEY_PREFIX = "certificate_signatory_layout_";
+export const DEFAULT_SIGNATURE_COMPOSITION: SignatureComposition = { x: 0, y: 0, scale: 1 };
+
+function constrain(value: unknown, min: number, max: number, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(min, Math.min(max, value)) : fallback;
+}
+export function normalizeSignatureComposition(value: unknown): SignatureComposition {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...DEFAULT_SIGNATURE_COMPOSITION };
+  }
+  const v = value as Partial<SignatureComposition>;
+  return { x: constrain(v.x, -0.45, 0.45, 0),
+    y: constrain(v.y, -0.45, 0.45, 0),
+    scale: constrain(v.scale, 0.4, 2.5, 1) };
+}
+
+/** Attaches layout settings to fetched signatories without altering their table. */
+export function attachSignatureCompositions<
+  T extends { id: string; signature_layout?: SignatureComposition }
+>(items: T[], rows: { key: string; value: unknown }[]): T[] {
+  const preset = new Map(rows
+    .filter((row) => row.key.startsWith(SIGNATURE_LAYOUT_KEY_PREFIX))
+    .map((row) => [row.key.slice(SIGNATURE_LAYOUT_KEY_PREFIX.length), normalizeSignatureComposition(row.value)]));
+  return items.map((item) => {
+    const layout = preset.get(item.id);
+    return layout ? { ...item, signature_layout: layout } : item;
+  });
+}
+
+/**
+ * Shared dimensions for admin mini-canvas, certificate canvas, and PDF export.
+ * X/Y are fractional shifts of the full signatory block's width/height.
+ * Scaling the ink leaves name/title positions unchanged.
+ */
+export function signatureInkPlacement(
+  blockWidth: number, blockHeight: number, nameSize: number, titleSize: number,
+  imageWidth: number, imageHeight: number, offset: number,
+  preset?: SignatureComposition | null
+) {
+  const position = normalizeSignatureComposition(preset);
+  const layout = signatoryLayout(blockHeight, nameSize, titleSize, offset);
+  const factor = Math.min(
+    Math.max(1, blockWidth - 16) / Math.max(1, imageWidth),
+    layout.signatureMaxHeight / Math.max(1, imageHeight)
+  );
+  const width = imageWidth * factor * position.scale;
+  const height = imageHeight * factor * position.scale;
+  return {
+    left: -width / 2 + position.x * blockWidth,
+    top: layout.signatureBottom - height + position.y * blockHeight,
+    width, height,
+  };
+}

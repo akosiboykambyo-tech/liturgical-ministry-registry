@@ -9,32 +9,13 @@ import {
 } from "lucide-react";
 import { DYNAMIC_SIGNATORY_SLOT, resolveCertificateSignatory } from "@/lib/certificate";
 import { FONT_OPTIONS } from "@/lib/constants";
-import { DEFAULT_SIGNATURE_OFFSET, effectiveSignatureOffset, signatoryLayout, trimmedSignaturePreview } from "@/lib/signature-layout";
+import { DEFAULT_SIGNATURE_OFFSET, effectiveSignatureOffset } from "@/lib/signature-layout";
+import { SignatoryArtwork } from "@/components/signatory-composition";
 import type {
   CertificateElement,
   CertificateTemplateSettings,
   Signatory,
 } from "@/lib/types";
-
-function SignaturePreviewImage({ url }: { url: string }) {
-  const [source, setSource] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    setSource(null);
-    void trimmedSignaturePreview(url)
-      .then((trimmed) => { if (!cancelled) setSource(trimmed); })
-      .catch(() => { if (!cancelled) setSource(url); });
-    return () => { cancelled = true; };
-  }, [url]);
-  return source ? (
-    <img
-      src={source}
-      alt=""
-      draggable={false}
-      style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center bottom" }}
-    />
-  ) : null;
-}
 
 type PreviewMember = {
   firstName: string;
@@ -542,58 +523,12 @@ export function CertificateEditor({
         );
       }
 
-      const nameSize = element.font_size ?? settings.signatory_font_size ?? 12;
-      const titleSize = settings.signatory_title_font_size ?? Math.max(8, nameSize - 2);
-      const layout = signatoryLayout(element.height, nameSize, titleSize, effectiveSignatureOffset(element));
-      const relative = (y: number) => element.height / 2 + y;
-      const centeredText: React.CSSProperties = {
-        position: "absolute", left: 8, right: 8, transform: "translateY(-50%)",
-        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        lineHeight: 1, textAlign: element.text_align || "center",
-      };
       return (
-        <div
-          key={element.id}
-          style={{ ...commonStyle, ...selectionStyle, textAlign: element.text_align || "center", overflow: "hidden" }}
+        <div key={element.id}
+          style={{ ...commonStyle, ...selectionStyle, overflow: "hidden" }}
           onPointerDown={(event) => handlePointerDown(event, element)}
-          onClick={(event) => {
-            event.stopPropagation();
-            setSelectedId(element.id);
-          }}
-        >
-          <div style={{
-            position: "absolute", left: 8, right: 8,
-            top: relative(layout.signatureTop), height: layout.signatureMaxHeight,
-            display: "flex", alignItems: "flex-end", justifyContent: "center",
-          }}>
-            {signatory.signature_url ? (
-              <SignaturePreviewImage url={signatory.signature_url} />
-            ) : (
-              <span style={{ fontSize: 10, color: "#71717a" }}>Signature</span>
-            )}
-          </div>
-          <div style={{
-            ...centeredText, top: relative(layout.nameY),
-            fontFamily: element.font_family || settings.signatory_font_family || "Georgia, serif",
-            fontSize: nameSize,
-            fontWeight: element.font_weight || settings.signatory_font_weight || "bold",
-            fontVariant: (element.text_case ?? settings.signatory_text_case) === "small-caps" ? "small-caps" : "normal",
-            textTransform: (element.text_case ?? settings.signatory_text_case) === "uppercase" ? "uppercase" : "none",
-            color: element.color || settings.signatory_font_color || "#0f172a",
-          }}>
-            {signatory.name}
-          </div>
-          <div style={{
-            ...centeredText, top: relative(layout.titleY),
-            fontFamily: settings.signatory_title_font_family || element.font_family || settings.signatory_font_family || "Georgia, serif",
-            fontSize: titleSize,
-            fontWeight: settings.signatory_title_font_weight || "normal",
-            fontVariant: settings.signatory_title_text_case === "small-caps" ? "small-caps" : "normal",
-            textTransform: settings.signatory_title_text_case === "uppercase" ? "uppercase" : "none",
-            color: settings.signatory_title_color || "#71717a",
-          }}>
-            {signatory.title}
-          </div>
+          onClick={(event) => { event.stopPropagation(); setSelectedId(element.id); }}>
+          <SignatoryArtwork signatory={signatory} element={element} settings={settings} />
         </div>
       );
     }

@@ -32,6 +32,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { attachSignatureCompositions, SIGNATURE_LAYOUT_KEY_PREFIX } from "@/lib/signature-layout";
 import {
   CertificateDesign,
   type CertificateDesignHandle,
@@ -185,12 +186,16 @@ export function MemberDetailDrawer({
 
     // Load certificate signatories using the same source as the
     // Certificate Template Manager.
-    const { data: signatoryRows } = await supabase
-      .from("signatories")
-      .select("*")
-      .order("sort_order");
+    const [signatoryResult, layoutResult] = await Promise.all([
+      supabase.from("signatories").select("*").order("sort_order"),
+      supabase.from("system_settings").select("key,value")
+        .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`),
+    ]);
 
-    setCertificateSignatories((signatoryRows as Signatory[]) ?? []);
+    setCertificateSignatories(attachSignatureCompositions(
+      (signatoryResult.data as Signatory[]) ?? [],
+      layoutResult.error ? [] : (layoutResult.data ?? [])
+    ));
 
     const { data: logs } = await supabase
       .from("audit_logs")

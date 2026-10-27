@@ -233,7 +233,16 @@ export interface CertificateTemplateSettings {
 export type SignatoryDisplayType = "static" | "dynamic";
 export type SignatoryAlignment = "left" | "center" | "right";
 
+export interface SignatureComposition {
+  /** Fractional artwork shifts inside a signatory block, and artwork scale. */
+  x: number;
+  y: number;
+  scale: number;
+}
+
 export interface Signatory {
+  /** Joined from system_settings at runtime; not a signatories table column. */
+  signature_layout?: SignatureComposition;
   id: string;
   name: string;
   title: string;

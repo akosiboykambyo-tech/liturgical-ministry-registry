@@ -33,7 +33,12 @@ import { CertificateDesign } from "@/components/certificate-design";
 import { CertificateEditor } from "@/components/certificate-editor";
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
-import { upgradeSignatoryOffsets } from "@/lib/signature-layout";
+import {
+  upgradeSignatoryOffsets, SIGNATURE_LAYOUT_KEY_PREFIX,
+  DEFAULT_SIGNATURE_COMPOSITION, normalizeSignatureComposition, attachSignatureCompositions,
+} from "@/lib/signature-layout";
+import { SignatoryLayoutCanvas } from "@/components/signatory-composition";
+import type { SignatureComposition } from "@/lib/types";
 
 type TemplateRow = {
   key: string;
@@ -190,6 +195,10 @@ export default function CertificateManagerPage() {
 
   // Signatory state
   const [signatories, setSignatories] = useState<Signatory[]>([]);
+  const [editingSignatureId, setEditingSignatureId] = useState<string | null>(null);
+  const [signatureDraft, setSignatureDraft] = useState<SignatureComposition>({ ...DEFAULT_SIGNATURE_COMPOSITION });
+  const [signatureSaving, setSignatureSaving] = useState(false);
+  const [signatureSaveError, setSignatureSaveError] = useState<string | null>(null);
   const [sigLoading, setSigLoading] = useState(true);
   const [sigSaving, setSigSaving] = useState(false);
   const [sigUploading, setSigUploading] = useState<string | null>(null);
@@ -272,11 +281,18 @@ export default function CertificateManagerPage() {
     setSigLoading(true);
     setSignatoriesError(null);
     try {
-      const { data, error } = await readWithTimeout("Signatories", async (signal) =>
-        await supabase.from("signatories").select("*").order("sort_order").abortSignal(signal)
-      );
-      if (error) throw new Error(error.message);
-      setSignatories((data as Signatory[]) ?? []);
+      const [signatoryQuery, layoutsQuery] = await Promise.all([
+        readWithTimeout("Signatories", async (signal) =>
+          await supabase.from("signatories").select("*").order("sort_order").abortSignal(signal)),
+        readWithTimeout("Signatory layout presets", async (signal) =>
+          await supabase.from("system_settings").select("key,value")
+            .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`).abortSignal(signal)),
+      ]);
+      if (signatoryQuery.error) throw new Error(signatoryQuery.error.message);
+      if (layoutsQuery.error) throw new Error(layoutsQuery.error.message);
+      setSignatories(attachSignatureCompositions(
+        (signatoryQuery.data as Signatory[]) ?? [], layoutsQuery.data ?? []
+      ));
     } catch (cause) {
       setSignatoriesError(loadError(cause, "Signatories"));
     } finally {
@@ -649,6 +665,32 @@ export default function CertificateManagerPage() {
       });
       await loadSignatories();
     }
+  };
+
+  const editSignatureLayout = (signatory: Signatory) => {
+    setEditingSignatureId(signatory.id);
+    setSignatureDraft(normalizeSignatureComposition(signatory.signature_layout));
+    setSignatureSaveError(null);
+  };
+
+  const saveSignatureLayout = async () => {
+    const id = editingSignatureId;
+    if (!id) return;
+    const preset = normalizeSignatureComposition(signatureDraft);
+    setSignatureSaving(true);
+    setSignatureSaveError(null);
+    const key = SIGNATURE_LAYOUT_KEY_PREFIX + id;
+    const { error: saveError } = await supabase.from("system_settings")
+      .upsert({ key, value: preset as unknown as Record<string, unknown>, is_default: false }, { onConflict: "key" });
+    setSignatureSaving(false);
+    if (saveError) {
+      setSignatureSaveError(`Could not save signature layout: ${saveError.message}`);
+      return;
+    }
+    setSignatories((previous) => previous.map((sig) =>
+      sig.id === id ? { ...sig, signature_layout: preset } : sig
+    ));
+    setEditingSignatureId(null);
   };
 
   const handleSigToggle = async (sig: Signatory) => {
@@ -1314,6 +1356,11 @@ export default function CertificateManagerPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <button type="button" onClick={() => editSignatureLayout(sig)}
+                            disabled={!sig.signature_url} title={sig.signature_url ? "Open signature layout canvas" : "Upload a signature image first"}
+                            className="border border-[#D9CDD1] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#890022] disabled:opacity-50">
+                            Adjust Signature
+                          </button>
                           <button
                             onClick={() => handleSigToggle(sig)}
                             className="text-xs font-medium text-[#890022] hover:underline"
@@ -1332,6 +1379,18 @@ export default function CertificateManagerPage() {
                   </div>
                 )}
               </div>
+              {editingSignatureId && (() => {
+                const chosen = signatories.find((sig) => sig.id === editingSignatureId);
+                return chosen ? (
+                  <div className="space-y-2">
+                    {signatureSaveError && <p role="alert" className="text-sm text-[#890022]">{signatureSaveError}</p>}
+                    <SignatoryLayoutCanvas key={chosen.id} signatory={chosen}
+                      settings={settings} value={signatureDraft} onChange={setSignatureDraft}
+                      saving={signatureSaving} onSave={() => void saveSignatureLayout()}
+                      onCancel={() => { setEditingSignatureId(null); setSignatureSaveError(null); }} />
+                  </div>
+                ) : null;
+              })()}
             </div>
           )}
         </div>

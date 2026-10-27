@@ -25,6 +25,7 @@ import {
 
 import { ebGaramond } from "@/app/fonts";
 import { CertificateDesign } from "@/components/certificate-design";
+import { attachSignatureCompositions, SIGNATURE_LAYOUT_KEY_PREFIX } from "@/lib/signature-layout";
 import type { CertificateDesignHandle } from "@/components/certificate-design";
 import { NameCorrectionForm } from "@/components/name-correction-form";
 import { RegistryFooter } from "@/components/registry-footer";
@@ -140,13 +141,16 @@ function VerifyPage() {
           : DEFAULT_TEMPLATE_SETTINGS
       );
 
-      const { data: sigData } = await supabase
-        .from("signatories")
-        .select("*")
-        .eq("is_active", true)
-        .order("sort_order");
-
-      setSignatories((sigData as Signatory[]) ?? []);
+      const [sigResult, layoutResult] = await Promise.all([
+        supabase.from("signatories").select("*").eq("is_active", true).order("sort_order"),
+        supabase.from("system_settings").select("key,value")
+          .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`),
+      ]);
+      // A missing layout preset leaves the established 12px fallback intact.
+      setSignatories(attachSignatureCompositions(
+        (sigResult.data as Signatory[]) ?? [],
+        layoutResult.error ? [] : (layoutResult.data ?? [])
+      ));
     })();
   }, [supabase]);
 
