@@ -1,3 +1,13 @@
+## 2026-10-27 — FIRST PUBLIC STORAGE DOWNLOAD: LOCAL VERIFICATION ROOT MISMATCH (NOT CERTIFIED)
+
+Operator's first absolute-destination command (`storage cp -r ss:///certificate-templates <absolute-target>`) returned `Unsupported operation` before download; no object upload or production modifications. Second attempt with a relative local destination `.` inside private `storage-download-diagnostic` **successfully logged 35 individual remote object downloads**, including `recipient-fonts/.emptyFolderPlaceholder`, beneath `storage-download-diagnostic/certificate-templates/`. However, the verification script counted *all files under the parent diagnostic directory* and reported **37 files / 36,838,436 bytes**, rather than expected 35 / 36,838,287. Excess is two files and 149 bytes. Do not misclassify the remote download as failed or certified until examining the exact bucket subfolder.
+
+Independent production read-only `storage.objects` verification after this result confirmed **35 records / 36,838,287 metadata bytes / 1 placeholder / 0 missing sizes** for `certificate-templates`. Thus the likely cause is files outside the downloaded bucket within the parent diagnostic directory; not proven until local subfolder-only count.
+
+**Next:** Check `$HOME/COWL-DOK-PRIVATE-BACKUPS/storage-download-diagnostic/certificate-templates` recursively with `-File -Force`, compare exact 35/36,838,287. Only after PASS run a **relative-destination** recursive download from `ss:///member-documents` while current directory is `storage-download-diagnostic`, with `--experimental --project-ref zlvofcwnpdzfdnipvbbd`, output retained privately rather than shared to chat. Verify private bucket 119/256,939,642 under `member-documents/` only, then create local hash manifest. **Never count the whole diagnostic parent** (may have CLI-generated/unrelated extra files). Do not copy unencrypted member documents to the flash drive. Encryption/second copy/isolated restore remain pending. PR draft/unmerged; NO-GO.
+
+---
+
 ## 2026-10-27 — PRODUCTION STORAGE READ-ONLY LISTING: PASS
 
 The operator successfully ran `npx --yes supabase@2.121.0 storage ls ss:///certificate-templates --recursive --experimental --project-ref zlvofcwnpdzfdnipvbbd` and the corresponding `member-documents` command. Both returned zero exit status with a short-lived `SUPABASE_ACCESS_TOKEN` in the operator's private PowerShell environment. Operator output:
