@@ -1,3 +1,4 @@
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -152,7 +153,7 @@ export default function RenewalReviewQueuePage() {
       {error && <p role="alert" className="border border-[#DFC7CE] bg-[#F8F1F3] p-3 text-sm text-[#890022]">{error}</p>}
       {notice && <p role="status" className="border border-[#DFC7CE] bg-[#F8F1F3] p-3 text-sm text-[#563440]">{notice}</p>}
       {loading ? (
-        <p className="flex items-center gap-2 py-12 text-sm text-[#66575C]"><Loader2 className="h-4 w-4 animate-spin" /> Loading review cases…</p>
+        <CenteredAdminLoader label="Loading renewal review cases…" />
       ) : shown.length === 0 ? (
         <div className="border border-dashed border-[#D7C9CD] bg-white px-5 py-12 text-center">
           <ClipboardCheck className="mx-auto h-8 w-8 text-[#A2969B]" />
