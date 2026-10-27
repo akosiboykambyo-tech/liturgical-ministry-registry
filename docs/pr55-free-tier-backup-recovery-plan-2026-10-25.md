@@ -1,3 +1,24 @@
+## 2026-10-27 — REQUIRED EXTENSION IDENTIFIED: supabase_vault; ENCRYPTION KEY PORTABILITY GATE
+
+Operator ran sanitized, read-only first-error extraction on private `trial-20261027-134639-e384e392/pg-restore-private.log`:
+
+```text
+=== MISSING EXTENSION DIAGNOSTIC ===
+EXTENSION NAME: supabase_vault
+LOCALLY INSTALLED: False
+PASS: No private SQL or member data displayed.
+```
+
+**Confirmed:** the standard locally installed Windows PostgreSQL 18 server does **not** have `C:\Program Files\PostgreSQL\18\share\extension\supabase_vault.control`. That prerequisite prevents the full, strict `--single-transaction --exit-on-error` Supabase-origin archive restore, regardless of backup checksum validity. Do not hand-copy unknown extension binaries, omit the extension, or declare recovery PASS based on partial restores. There may be **more** missing extensions, roles, preloaded libraries or Supabase service dependencies after this first blocker. Inventory the full backup archive's `EXTENSION` TOC entries locally with `pg_restore --list` (read-only) and compare against available local `.control` files before selecting a compatible test environment.
+
+**Security/recovery-critical:** Supabase Vault encrypts secrets with a **per-project root encryption key not included in ordinary pg_dump archive contents**. Supabase's official Vault docs state that manual `pg_dump/pg_restore` to a fresh project **cannot decrypt copied Vault secrets** unless the original root key is securely migrated; hosted project **Clone/Restore-to-new-project** copies it automatically. Do not print the key, paste it into GitHub, logs, PowerShell transcript, or chat. An isolated Supabase-compatible restore environment still needs a protected key-portability plan if Vault secrets are present. Sources: https://supabase.com/docs/guides/database/vault ; https://supabase.com/docs/guides/platform/clone-project .
+
+**Windows runtime:** Official Supabase CLI local stack needs a Docker-compatible container runtime on Windows; the experimental native runtime currently supports Linux and macOS Apple silicon, **not Windows**. Sources: https://supabase.com/docs/guides/local-development ; https://supabase.com/docs/guides/local-development/docker-and-native-runtimes .
+
+No production/staging updates were made. Database recovery rehearsal remains blocked, backups still independently verified, PR55 DRAFT/UNMERGED and release NO-GO.
+
+---
+
 ## 2026-10-27 — FIRST pg_restore ERROR CLASSIFIED AS MISSING EXTENSION
 
 Operator inspected **only the first PostgreSQL restore error** in private `pg-restore-private.log` from **new trial `trial-20261027-134639-e384e392`**, using a classifier that displayed no private SQL or member data:
