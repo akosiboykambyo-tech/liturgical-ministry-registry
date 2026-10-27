@@ -1,3 +1,26 @@
+## 2026-10-27 — ENCRYPTED PRODUCTION ARCHIVE: PASS (OPERATOR OUTPUT)
+
+The operator ran the real `pr55-protect-local-backup.cjs` against the production dump after the offline synthetic tamper test. **All three checks passed:** AES-256-GCM self-test (synthetic), real `--encrypt` with in-memory authenticated decryption and original SHA256 comparison, and independent `--verify` in a separate script invocation. No decrypted copy was written by the verifier.
+
+```text
+PASS: AES-256-GCM encryption, decryption and tamper rejection; synthetic data only, no files or network
+PASS: local production backup encrypted AES-256-GCM and decrypted in memory for verification
+ENCRYPTED BYTES: 18156577
+ENCRYPTED SHA256: 3221ccc7069794f06aac2e9936e76c03ecf274b19bd2ec97838953a1a24daff9
+ORIGINAL SHA256 VERIFIED: 1bcc80f8c672282649b82c552e6b366ce31f1772bb56e790d184cb5292d1a992
+PASS: encrypted archive decrypts in memory and matches original SHA256; no plaintext file written
+```
+
+Encrypted archive basename: `cowl-dok-prod-2026-10-26T23-21-15-064Z-7e5251.backup.enc` in the private `COWL-DOK-PRIVATE-BACKUPS` directory outside Git. Encryption uses AES-256-GCM, randomized salt and nonce, scrypt-derived key and authenticated tag; the script exclusively creates the output and retains the original plain PostgreSQL dump. The reported size is **18,156,577 bytes**.
+
+**Gate assessment:** encryption and authenticated local verification **PASS (operator evidence)**. Actual archive bytes were not accessible for independent verification; password strength beyond script's minimum length was not assessed. `*.backup.enc` does not include the actual Supabase Storage file bytes, global database roles or platform Auth/settings configuration.
+
+**Still required:** make a separately stored off-site copy of the encrypted file; verify copied SHA-256 `3221ccc7069794f06aac2e9936e76c03ecf274b19bd2ec97838953a1a24daff9`; securely escrow the passphrase separately; back up 154 production Storage objects and validate file bytes; rehearse restoring into an isolated environment and verify application functionality and RLS; review any missing project settings/roles. Do **not** delete the plain original until a verified encrypted off-site duplicate and restore procedure have been demonstrated.
+
+**Production release remains NO-GO:** PR #55 stays DRAFT and unmerged. This evidence authorizes no production changes.
+
+---
+
 ## 2026-10-27 — local archive protection utility prepared (NOT YET EXECUTED ON REAL BACKUP)
 
 Added `scripts/pr55-protect-local-backup.cjs` to support private, offline encryption using Node.js built-in **AES-256-GCM with scrypt** (salted key derivation, authenticated tag), immediately followed by an in-memory authenticated-decryption and SHA-256 check. No database connectivity, cloud upload, server-side actions or shell-installed crypto package. It accepts only the operator's `COWL-DOK-PRIVATE-BACKUPS/cowl-dok-prod-*.backup` files, requires an independent **20+ character strong passphrase** and exact prior 64-digit archive SHA-256, writes `<name>.backup.enc` with exclusive-create semantics, and does **not** delete the original plain backup. `--verify` rechecks the encrypted file without writing decrypted member data back to disk. `--self-test` performs a synthetic in-memory tamper rejection check without real data.
