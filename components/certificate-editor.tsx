@@ -9,11 +9,32 @@ import {
 } from "lucide-react";
 import { DYNAMIC_SIGNATORY_SLOT, resolveCertificateSignatory } from "@/lib/certificate";
 import { FONT_OPTIONS } from "@/lib/constants";
+import { DEFAULT_SIGNATURE_OFFSET, signatoryLayout, trimmedSignaturePreview } from "@/lib/signature-layout";
 import type {
   CertificateElement,
   CertificateTemplateSettings,
   Signatory,
 } from "@/lib/types";
+
+function SignaturePreviewImage({ url }: { url: string }) {
+  const [source, setSource] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setSource(null);
+    void trimmedSignaturePreview(url)
+      .then((trimmed) => { if (!cancelled) setSource(trimmed); })
+      .catch(() => { if (!cancelled) setSource(url); });
+    return () => { cancelled = true; };
+  }, [url]);
+  return source ? (
+    <img
+      src={source}
+      alt=""
+      draggable={false}
+      style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center bottom" }}
+    />
+  ) : null;
+}
 
 type PreviewMember = {
   firstName: string;
@@ -251,6 +272,7 @@ export function CertificateEditor({
     width: 180,
     height: 90,
     signatory_id: signatoryId,
+    signature_offset: DEFAULT_SIGNATURE_OFFSET,
     font_family: settings.signatory_font_family || "Georgia, serif",
     font_size: settings.signatory_font_size ?? 12,
     font_weight: settings.signatory_font_weight || "bold",
@@ -519,59 +541,55 @@ export function CertificateEditor({
         );
       }
 
+      const nameSize = element.font_size ?? settings.signatory_font_size ?? 12;
+      const titleSize = settings.signatory_title_font_size ?? Math.max(8, nameSize - 2);
+      const layout = signatoryLayout(element.height, nameSize, titleSize, element.signature_offset);
+      const relative = (y: number) => element.height / 2 + y;
+      const centeredText: React.CSSProperties = {
+        position: "absolute", left: 8, right: 8, transform: "translateY(-50%)",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        lineHeight: 1, textAlign: element.text_align || "center",
+      };
       return (
         <div
           key={element.id}
-          style={{
-            ...commonStyle,
-            ...selectionStyle,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "flex-start",
-            textAlign: element.text_align || "center",
-            overflow: "hidden",
-            padding: "4px 8px",
-          }}
+          style={{ ...commonStyle, ...selectionStyle, textAlign: element.text_align || "center", overflow: "hidden" }}
           onPointerDown={(event) => handlePointerDown(event, element)}
           onClick={(event) => {
             event.stopPropagation();
             setSelectedId(element.id);
           }}
         >
-          <div style={{ width: "100%", height: "50%", flexShrink: 0, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div style={{
+            position: "absolute", left: 8, right: 8,
+            top: relative(layout.signatureTop), height: layout.signatureMaxHeight,
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}>
             {signatory.signature_url ? (
-              <img
-                src={signatory.signature_url}
-                alt=""
-                draggable={false}
-                style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center bottom" }}
-              />
+              <SignaturePreviewImage url={signatory.signature_url} />
             ) : (
               <span style={{ fontSize: 10, color: "#71717a" }}>Signature</span>
             )}
           </div>
           <div style={{
-            width: "100%", marginTop: 5,
+            ...centeredText, top: relative(layout.nameY),
             fontFamily: element.font_family || settings.signatory_font_family || "Georgia, serif",
-            fontSize: element.font_size ?? settings.signatory_font_size ?? 12,
+            fontSize: nameSize,
             fontWeight: element.font_weight || settings.signatory_font_weight || "bold",
             fontVariant: (element.text_case ?? settings.signatory_text_case) === "small-caps" ? "small-caps" : "normal",
             textTransform: (element.text_case ?? settings.signatory_text_case) === "uppercase" ? "uppercase" : "none",
             color: element.color || settings.signatory_font_color || "#0f172a",
-            lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
           }}>
             {signatory.name}
           </div>
           <div style={{
-            width: "100%", marginTop: 3,
+            ...centeredText, top: relative(layout.titleY),
             fontFamily: settings.signatory_title_font_family || element.font_family || settings.signatory_font_family || "Georgia, serif",
-            fontSize: settings.signatory_title_font_size ?? Math.max(8, (element.font_size ?? settings.signatory_font_size ?? 12) - 2),
+            fontSize: titleSize,
             fontWeight: settings.signatory_title_font_weight || "normal",
             fontVariant: settings.signatory_title_text_case === "small-caps" ? "small-caps" : "normal",
             textTransform: settings.signatory_title_text_case === "uppercase" ? "uppercase" : "none",
             color: settings.signatory_title_color || "#71717a",
-            lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
           }}>
             {signatory.title}
           </div>
@@ -837,6 +855,24 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                 />
               </label>
             </div>
+
+            {selectedElement.type === "signatory" && (
+              <label className="block space-y-1.5">
+                <span className="text-[11px] text-muted-foreground">Signature vertical offset (px)</span>
+                <input
+                  type="number" min={-24} max={24} step={1}
+                  value={selectedElement.signature_offset ?? DEFAULT_SIGNATURE_OFFSET}
+                  disabled={selectedElement.locked}
+                  onChange={(event) => updateElement(selectedElement.id, {
+                    signature_offset: Math.max(-24, Math.min(24, Number(event.target.value) || 0)),
+                  })}
+                  className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                />
+                <span className="block text-[11px] leading-4 text-muted-foreground">
+                  Positive values overlap the name; default is 4 px.
+                </span>
+              </label>
+            )}
 
             {(selectedElement.type === "signatory" ||
   selectedElement.type === "text" ||

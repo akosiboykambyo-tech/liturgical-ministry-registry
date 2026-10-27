@@ -173,9 +173,6 @@ export default function CertificateManagerPage() {
     title: "",
     display_type: "static" as "static" | "dynamic",
     ministry: "",
-    position_x: 60,
-    position_y: 720,
-    width: 150,
     alignment: "left" as "left" | "center" | "right",
   });
 
@@ -558,9 +555,10 @@ export default function CertificateManagerPage() {
       signature_url: sigUploadUrl,
       display_type: sigForm.display_type,
       ministry: sigForm.display_type === "dynamic" ? sigForm.ministry : null,
-      position_x: sigForm.position_x,
-      position_y: sigForm.position_y,
-      width: sigForm.width,
+      // Required legacy signatories columns; actual certificate placement lives on the canvas element.
+      position_x: 60,
+      position_y: 720,
+      width: 150,
       alignment: sigForm.alignment,
       is_active: true,
       sort_order: signatories.length,
@@ -575,9 +573,6 @@ export default function CertificateManagerPage() {
         title: "",
         display_type: "static",
         ministry: "",
-        position_x: 60,
-        position_y: 720,
-        width: 150,
         alignment: "left",
       });
       await loadSignatories();
@@ -1128,11 +1123,9 @@ export default function CertificateManagerPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <NumberField label="Position X" value={sigForm.position_x} onChange={(v) => setSigForm((f) => ({ ...f, position_x: v }))} />
-                  <NumberField label="Position Y" value={sigForm.position_y} onChange={(v) => setSigForm((f) => ({ ...f, position_y: v }))} />
-                  <NumberField label="Width" value={sigForm.width} onChange={(v) => setSigForm((f) => ({ ...f, width: v }))} />
-                </div>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Place and resize this signatory by dragging it in the Visual Canvas. Precise positioning remains available under the selected element.
+                </p>
 
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Alignment</label>

@@ -2,6 +2,7 @@
 
 import QRCode from "qrcode";
 import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
+import { signatoryLayout, signatureInkBounds } from "@/lib/signature-layout";
 
 export interface CertificateData {
   firstName: string;
@@ -534,25 +535,23 @@ if (element.type === "member_name") {
           ctx.textAlign = alignment === "justify" ? "center" : alignment;
           ctx.textBaseline = "middle";
 
-          // Fixed baseline positions independent of image aspect ratio.
-          const top = -height / 2;
-          const titleY = height / 2 - titleSize / 2;
-          const nameY = titleY - titleSize / 2 - 3 - nameSize / 2;
-          const signatureBottom = nameY - nameSize / 2 - 5;
-          const signatureMaxHeight = Math.max(1, signatureBottom - top);
+          // Use the same anchored name/title and slightly overlapping signature
+          // positions as the draggable editor preview, regardless of image margins.
+          const { nameY, titleY, signatureBottom, signatureMaxHeight } = signatoryLayout(
+            element.height, nameSize, titleSize, element.signature_offset
+          );
 
           if (signatory.signature_url) {
             const signature = await loadImage(signatory.signature_url);
             if (signature?.naturalWidth && signature.naturalHeight) {
-              const factor = Math.min(
-                width / signature.naturalWidth,
-                signatureMaxHeight / signature.naturalHeight
-              );
-              const imageWidth = signature.naturalWidth * factor;
-              const imageHeight = signature.naturalHeight * factor;
+              const crop = signatureInkBounds(signature);
+              const factor = Math.min(width / crop.width, signatureMaxHeight / crop.height);
+              const imageWidth = crop.width * factor;
+              const imageHeight = crop.height * factor;
               ctx.drawImage(
-                signature, -imageWidth / 2,
-                signatureBottom - imageHeight, imageWidth, imageHeight
+                signature,
+                crop.x, crop.y, crop.width, crop.height,
+                -imageWidth / 2, signatureBottom - imageHeight, imageWidth, imageHeight
               );
             }
           }
