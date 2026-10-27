@@ -1,5 +1,6 @@
-import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 "use client";
+
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
