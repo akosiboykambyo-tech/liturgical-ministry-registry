@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ClipboardCheck, FileCheck2, GitMerge, History, RefreshCw, Upload, Users } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import CsvImportPage from "@/app/admin/import/page";
 import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification-workspace-context";
 import QuickScanMatrixPage from "@/app/admin/verify/page";
@@ -63,7 +64,7 @@ function RegistrationImportHistory() {
       <h2 className="text-xl font-semibold text-[#27191D]">New registration imports</h2>
       <p className="mt-1 text-sm text-[#66575C]">Latest 30 saved CSV import batches. Audit Trail retains the detailed history.</p>
       {loading ? (
-        <p className="mt-4 text-sm text-[#66575C]" role="status">Loading registration history…</p>
+        <CenteredAdminLoader label="Loading registration history…" className="min-h-[260px]" />
       ) : error ? (
         <p className="mt-4 text-sm text-[#A32439]" role="alert">Registration history unavailable: {error}</p>
       ) : rows.length === 0 ? (
