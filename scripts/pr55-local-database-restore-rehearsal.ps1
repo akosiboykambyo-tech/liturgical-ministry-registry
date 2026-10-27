@@ -15,6 +15,18 @@ foreach($name in @("pg_restore","pg_dump","psql","postgres","initdb","pg_ctl")){
         throw "Missing local PostgreSQL 18 executable: $name"
     }
 }
+# initdb requires server-side catalog bootstrap files in the install's share tree.
+# A copied bin directory with working pg_dump/pg_restore is NOT a usable server.
+$pgRoot=Split-Path -Parent $bin
+$shareDir=Join-Path $pgRoot "share"
+$bootstrap=Join-Path $shareDir "postgres.bki"
+$sampleConfig=Join-Path $shareDir "postgresql.conf.sample"
+if(-not (Test-Path -LiteralPath $bootstrap -PathType Leaf)){
+    throw "LOCAL INSTALLATION INCOMPLETE: PostgreSQL 18 share/postgres.bki missing; initdb cannot run. Reinstall complete PostgreSQL 18 server or restore its matching share directory. No restore attempted."
+}
+if(-not (Test-Path -LiteralPath $sampleConfig -PathType Leaf)){
+    throw "LOCAL INSTALLATION INCOMPLETE: PostgreSQL 18 share/postgresql.conf.sample missing. No restore attempted."
+}
 $private=Join-Path $HOME "COWL-DOK-PRIVATE-BACKUPS"
 $archive=Join-Path $private "cowl-dok-prod-2026-10-26T23-21-15-064Z-7e5251.backup"
 $expectedHash="1bcc80f8c672282649b82c552e6b366ce31f1772bb56e790d184cb5292d1a992"
@@ -72,13 +84,26 @@ $env:PGUSER=$restoreUser
 $env:PGPASSWORD=$password
 $env:PGSSLMODE="disable"
 $env:PGCONNECT_TIMEOUT="5"
+# Windows PowerShell 5.1 promotes native stderr to ErrorRecord. Capture it in
+# private logs without aborting before checking the process exit code.
+function Invoke-RehearsalCommand {
+    param([string]$Exe,[string[]]$Arguments,[string]$Log)
+    $previous=$ErrorActionPreference
+    try {
+        $ErrorActionPreference="Continue"
+        & $Exe @Arguments *> $Log
+        return [int]$LASTEXITCODE
+    } finally {
+        $ErrorActionPreference=$previous
+    }
+}
 $started=$false
 $stopped=$false
 $restored=$false
 try{
     Write-Host "CHECK: Initializing new disposable local PostgreSQL cluster..."
-    & (Join-Path $bin "initdb.exe") -D $data -U $restoreUser --auth-host=scram-sha-256 --auth-local=scram-sha-256 "--pwfile=$passFile" --encoding=UTF8 --no-instructions *> $initLog
-    if($LASTEXITCODE -ne 0){throw "Local initdb failed; no restore attempted (private log retained)."}
+    $initExit=Invoke-RehearsalCommand -Exe (Join-Path $bin "initdb.exe") -Arguments @("-D",$data,"-U",$restoreUser,"--auth-host=scram-sha-256","--auth-local=scram-sha-256","--pwfile=$passFile","--encoding=UTF8","--no-instructions") -Log $initLog
+    if($initExit -ne 0){throw "Local initdb failed; no restore attempted (private log retained)."}
     Remove-Item -LiteralPath $passFile -Force -ErrorAction SilentlyContinue
     Add-Content -LiteralPath (Join-Path $data "postgresql.conf") -Value @(
         "# COWL-DOK PR55 disposable loopback-only test"
@@ -88,15 +113,15 @@ try{
         "max_connections = 12"
     )
     Write-Host "CHECK: Starting new local loopback-only PostgreSQL instance..."
-    & (Join-Path $bin "pg_ctl.exe") -D $data -l $serverLog -w start *> $controlLog
-    if($LASTEXITCODE -ne 0){throw "Local PostgreSQL failed to start (private log retained)."}
+    $startExit=Invoke-RehearsalCommand -Exe (Join-Path $bin "pg_ctl.exe") -Arguments @("-D",$data,"-l",$serverLog,"-w","start") -Log $controlLog
+    if($startExit -ne 0){throw "Local PostgreSQL failed to start (private log retained)."}
     $started=$true
     $psql=Join-Path $bin "psql.exe"
-    & $psql "--host=127.0.0.1" "--port=$port" "--username=$restoreUser" "--dbname=postgres" --no-password -X -q -v ON_ERROR_STOP=1 "--command=CREATE DATABASE pr55_restore_rehearsal WITH TEMPLATE template0 ENCODING 'UTF8';" *> (Join-Path $work "create-db-private.log")
-    if($LASTEXITCODE -ne 0){throw "Local disposable database creation failed."}
+    $createdExit=Invoke-RehearsalCommand -Exe $psql -Arguments @("--host=127.0.0.1","--port=$port","--username=$restoreUser","--dbname=postgres","--no-password","-X","-q","-v","ON_ERROR_STOP=1","--command=CREATE DATABASE pr55_restore_rehearsal WITH TEMPLATE template0 ENCODING 'UTF8';") -Log (Join-Path $work "create-db-private.log")
+    if($createdExit -ne 0){throw "Local disposable database creation failed."}
     Write-Host "CHECK: Restoring full archive into NEW LOCAL database; no external endpoint..."
-    & $pgRestore "--host=127.0.0.1" "--port=$port" "--username=$restoreUser" "--dbname=$dbName" --no-password --no-owner --no-privileges --single-transaction --exit-on-error $archive *> $restoreLog
-    if($LASTEXITCODE -ne 0){
+    $restoreExit=Invoke-RehearsalCommand -Exe $pgRestore -Arguments @("--host=127.0.0.1","--port=$port","--username=$restoreUser","--dbname=$dbName","--no-password","--no-owner","--no-privileges","--single-transaction","--exit-on-error",$archive) -Log $restoreLog
+    if($restoreExit -ne 0){
         Write-Host "BLOCKED: Full restore encountered missing local prerequisites or incompatible SQL."
         Write-Host "LIMIT: PostgreSQL restore is NOT certified; private log retained for diagnosis."
         throw "pg_restore returned nonzero status. Do not skip errors or rerun blindly."
@@ -122,8 +147,8 @@ try{
     throw
 }finally{
     if($started){
-        & (Join-Path $bin "pg_ctl.exe") -D $data -m fast -w stop *> (Join-Path $work "pgctl-stop-private.log")
-        if($LASTEXITCODE -eq 0){
+        $stopExit=Invoke-RehearsalCommand -Exe (Join-Path $bin "pg_ctl.exe") -Arguments @("-D",$data,"-m","fast","-w","stop") -Log (Join-Path $work "pgctl-stop-private.log")
+        if($stopExit -eq 0){
             $stopped=$true
             Write-Host "PASS: Disposable local PostgreSQL server stopped."
         }else{
