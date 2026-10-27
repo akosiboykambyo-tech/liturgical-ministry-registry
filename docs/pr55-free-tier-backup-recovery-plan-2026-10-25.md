@@ -1,3 +1,15 @@
+## 2026-10-27 — LOCAL POSTGRESQL SERVER STARTED; RESTORE DID NOT BEGIN (OUTPUT PIPE HANG)
+
+After the corrected `-Preflight` PASS, operator ran `scripts/pr55-local-database-restore-rehearsal.ps1 -Run`. Script printed local `initdb` initiation and `CHECK: Starting new local loopback-only PostgreSQL instance...` but did not advance. Read-only second-terminal diagnostics confirmed `postgres-private.log` **contains `database system is ready to accept connections`**, **nine local PostgreSQL processes** launched concurrently, and loopback-only listener **127.0.0.1:61047** (PID **14324**). `pg-restore-private.log` **DOES NOT EXIST**, no `pg_restore` process was found. Therefore **the local cluster successfully initialized and started** but **the restore has not begun**.
+
+Probable cause is a Windows PowerShell 5.1 `*> $controlLog` output-capture pipe around `pg_ctl -w start`; a long-lived child server can inherit pipe handles, delaying pipeline completion despite pg_ctl server readiness. PostgreSQL 18 documentation identifies `pg_ctl -l <server-log>` as the supported way to redirect the *server's* output separately. Reference: https://www.postgresql.org/docs/18/app-pg-ctl.html . The PR55 script now calls `pg_ctl start -l <server-log>` **directly without PowerShell pipeline redirection**, also calls `pg_ctl stop -m fast` directly, and attempts targeted cleanup when only its *newly created* trial data directory contains a live `postmaster.pid`. Offline guard tests cover the absence of redirected pg_ctl pipes. It still uses `Invoke-RehearsalCommand` for finite `initdb`/`psql`/`pg_restore`.
+
+**Mandatory before retrying**: determine whether operator's original PowerShell is still blocked, interrupt it via Ctrl+C if so, **identify the exact trial PostgreSQL data directory and confirm its `postmaster.pid` reports port 61047 with matching live listener/PID**, then gracefully stop only that disposable instance with the full-path local `pg_ctl -D <that specific trial\data> -m fast -w stop`. Never mass-kill PostgreSQL processes or stop Windows services. Verify the listener is gone. Keep private logs local; do not publish backup data, usernames, member records or passwords. Only after confirmed cleanup, pull the fixed PR55 script and decide whether to retry local rehearsal.
+
+**Recovery gate remains incomplete**. Backup archives, staging and production unchanged. Draft PR55 UNMERGED, production NO-GO.
+
+---
+
 ## 2026-10-27 — PG18 INSTALLATION BLOCKER CONFIRMED BY OPERATOR (READ-ONLY DIAGNOSTIC)
 
 Operator ran a second read-only inventory of `C:\Program Files\PostgreSQL\18`: both **`share/postgres.bki`** and **`share/postgresql.conf.sample`** are **MISSING**. `pg_config --sharedir` resolves to `C:/Program Files/PostgreSQL/18/share`, and recursive file search under the installation root found no `postgres.bki`. `initdb --show` emitted `no data directory specified`; that is not a supported standalone inventory command and does not affect the bootstrap-file diagnosis.
