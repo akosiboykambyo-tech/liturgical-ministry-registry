@@ -1,3 +1,20 @@
+## 2026-10-27 — ENCRYPTED FLASH-DRIVE BACKUP COPY: PASS (OPERATOR OUTPUT)
+
+The operator copied the authenticated encrypted production database archive to an attached USB flash drive mounted at `F:\` using PowerShell `Copy-Item` and independently verified SHA-256 with `Get-FileHash -Algorithm SHA256` after copying.
+
+```text
+PASS: Encrypted off-site backup copy verified.
+SHA256: 3221CCC7069794F06AAC2E9936E76C03ECF274B19BD2EC97838953A1A24DAFF9
+```
+
+Hash equals the original encrypted archive checksum `3221ccc7069794f06aac2e9936e76c03ecf274b19bd2ec97838953a1a24daff9` (hexadecimal comparison is case-insensitive). **Gate: second encrypted copy and local integrity verification PASS (operator output).** This is evidence of an external-device copy, not yet evidence of physically off-site separation or long-term media reliability. Safely eject and store the USB away from the computer; keep the independent passphrase recovery plan secure. Original unencrypted `.backup` must remain until independent restore rehearsal succeeds.
+
+**Independent read-only production Storage inventory:** `certificate-templates` (public): 35 objects; `member-documents` (private): 119 objects; total 154. These counts are from `storage.buckets` joined to `storage.objects`. Actual Storage file bytes have not been exported or verified.
+
+Remaining recovery gates: copy actual Storage object bytes (including private documents), verify per-object bytes/counts and retain secure second copy; rehearse isolated database + Storage restoration and application workflows; resolve missing global roles/configuration and migration readiness. **PR #55 remains DRAFT/UNMERGED; production activation NO-GO.**
+
+---
+
 ## 2026-10-27 — ENCRYPTED PRODUCTION ARCHIVE: PASS (OPERATOR OUTPUT)
 
 The operator ran the real `pr55-protect-local-backup.cjs` against the production dump after the offline synthetic tamper test. **All three checks passed:** AES-256-GCM self-test (synthetic), real `--encrypt` with in-memory authenticated decryption and original SHA256 comparison, and independent `--verify` in a separate script invocation. No decrypted copy was written by the verifier.
