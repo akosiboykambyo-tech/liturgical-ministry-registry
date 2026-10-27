@@ -169,10 +169,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               title={!expanded ? item.label : undefined}
               onClick={() => { if (mobile) setMobileOpen(false); }}
               className={cn(
-                "flex min-h-12 items-center gap-3 rounded-md border-l-[3px] py-2.5 text-sm font-medium transition-colors",
+                "flex min-h-12 items-center gap-3 border-l-[3px] py-2.5 text-sm font-medium transition-colors",
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white",
                 expanded ? "px-3" : "justify-center px-0",
-                active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15 hover:text-white"
+                active
+                  ? "rounded-none border-white bg-white text-[#890022]"
+                  : "rounded-md border-transparent text-white/90 hover:bg-white/15 hover:text-white"
               )}
             >
               <Icon className="h-[19px] w-[19px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
