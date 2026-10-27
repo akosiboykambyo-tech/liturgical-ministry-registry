@@ -7,27 +7,16 @@ import { useAuth } from "@/lib/auth-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   ExternalLink, LayoutDashboard, Loader2, LogOut,
-  Menu, ScrollText, Settings, ShieldCheck, Upload, Users, X,
-  FileBadge, UserPlus, ClipboardList,
+  Menu, Settings, ShieldCheck, Users, X, FileBadge,
 } from "lucide-react";
 import { ebGaramond, inter } from "@/app/fonts";
 
-const NAV_GROUPS = [
-  { name: "Overview", items: [{ href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard }] },
-  { name: "Registry", items: [
-    { href: "/admin/members", label: "Members", icon: Users },
-    { href: "/admin/members/add", label: "Add Member", icon: UserPlus },
-    { href: "/admin/verify", label: "Quick-Scan Matrix", icon: ShieldCheck },
-    { href: "/admin/import", label: "Bulk Registration Import", icon: Upload },
-    { href: "/admin/duplicate-review-preview", label: "Duplicate Queue Preview", icon: ClipboardList },
-    { href: "/admin/renewal-batches", label: "Renewal Batches", icon: ClipboardList },
-    { href: "/admin/renewal-reviews", label: "Renewal Review Queue", icon: ShieldCheck },
-  ] },
-  { name: "Documents", items: [{ href: "/admin/certificates", label: "Certificate Templates", icon: FileBadge }] },
-  { name: "Governance", items: [
-    { href: "/admin/audit", label: "Audit Trail", icon: ScrollText },
-    { href: "/admin/site-settings", label: "Public Website Settings", icon: Settings },
-  ] },
+const NAV_ITEMS = [
+  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/verification", label: "Verification", icon: ShieldCheck },
+  { href: "/admin/members", label: "Members", icon: Users },
+  { href: "/admin/certificates", label: "Certificates and IDs", icon: FileBadge },
+  { href: "/admin/administration", label: "Administration", icon: Settings },
 ];
 
 // The commission's wide identity SVG includes the diocesan coat of arms
@@ -98,7 +87,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ? metadataName.trim()
       : user.email ?? "Administrator"
   );
-  const isActive = (href: string) => pathname === href || (href === "/admin/members" && pathname?.startsWith("/admin/members/") && pathname !== "/admin/members/add");
+  const isActive = (href: string) => {
+    if (pathname === href) return true;
+    if (href === "/admin/members") return pathname?.startsWith("/admin/members/") ?? false;
+    if (href === "/admin/verification") {
+      return ["/admin/verify", "/admin/import", "/admin/renewal-batches", "/admin/renewal-reviews", "/admin/duplicate-review-preview"].some(
+        (route) => pathname === route || pathname?.startsWith(route + "/")
+      );
+    }
+    if (href === "/admin/administration") {
+      return pathname === "/admin/audit" || pathname === "/admin/site-settings";
+    }
+    return false;
+  };
   const handleSignOut = async () => { await signOut(); router.replace("/admin"); };
 
   return (
@@ -126,21 +127,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
-          <nav aria-label="Admin navigation" className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-6">
-            {NAV_GROUPS.map(group => (
-              <div key={group.name}>
-                <p className="px-3 pb-2 text-[14px] font-semibold uppercase tracking-[0.12em] text-white/75">{group.name}</p>
-                <div className="space-y-1">
-                  {group.items.map(item => {
-                    const Icon = item.icon;
-                    const active = isActive(item.href);
-                    return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)} className={`flex min-h-10 items-center gap-3 border-l-[3px] px-3 py-2 text-[14px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15 hover:text-white"}`}>
-                      <Icon className="h-[16px] w-[16px] shrink-0" aria-hidden="true" />{item.label}
-                    </Link>;
-                  })}
-                </div>
-              </div>
-            ))}
+          <nav aria-label="Admin navigation" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-6">
+            {NAV_ITEMS.map(item => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex min-h-11 items-center gap-3 border-l-[3px] px-3 py-2.5 text-[14px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15 hover:text-white"}`}
+                >
+                  <Icon className="h-[17px] w-[17px] shrink-0" aria-hidden="true" />
+                  {item.label}
+                </Link>
+              );
+            })}
             <div className="px-3"><Link href="/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 py-2 text-[14px] font-medium text-white/90 underline-offset-4 hover:underline">Public Website <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></Link></div>
           </nav>
           <div className="border-t border-white/25 px-5 py-4">
