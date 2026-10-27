@@ -203,6 +203,7 @@ export default function CertificateManagerPage() {
   const [signatureSaving, setSignatureSaving] = useState(false);
   const [signatureSaveError, setSignatureSaveError] = useState<string | null>(null);
   const [signatureSavedNotice, setSignatureSavedNotice] = useState<string | null>(null);
+  const [signatureImageError, setSignatureImageError] = useState<string | null>(null);
   const [sigLoading, setSigLoading] = useState(true);
   const [sigSaving, setSigSaving] = useState(false);
   const [sigUploading, setSigUploading] = useState<string | null>(null);
@@ -724,6 +725,54 @@ export default function CertificateManagerPage() {
       setSignatureSavedNotice(`Signature layout saved for ${savedSignatory.name}. The certificate canvas now uses this arrangement.`);
     } else {
       setSignatureSavedNotice("Signature layout saved. This signatory is not currently assigned to a block in the selected certificate; add or select the appropriate signatory there to see it.");
+    }
+  };
+
+  /** Replace handwriting on the same signatory ID so all assigned certificates
+   * immediately use the new asset, retaining the saved layout preset.
+   */
+  const replaceExistingSignature = async (sig: Signatory, file: File) => {
+    setSignatureImageError(null);
+    setSignatureSavedNotice(null);
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      setSignatureImageError("Signature image must be PNG or JPEG.");
+      return;
+    }
+    if (!file.size || file.size > 5 * 1024 * 1024) {
+      setSignatureImageError("Signature image must be smaller than 5 MB.");
+      return;
+    }
+    setSigUploading(sig.id);
+    try {
+      const extension = file.type === "image/png" ? "png" : "jpg";
+      const objectPath = `signatures-${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("certificate-templates")
+        .upload(objectPath, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw new Error(uploadError.message);
+      const { data } = supabase.storage.from("certificate-templates").getPublicUrl(objectPath);
+      const newUrl = data.publicUrl;
+      const { error: updateError } = await withCertificateSessionRecovery(supabase, async () =>
+        await supabase.from("signatories").update({ signature_url: newUrl }).eq("id", sig.id)
+      );
+      if (updateError) throw new Error(updateError.message);
+      // Updating the URL on the existing record invalidates the image cache key
+      // and immediately re-renders both the mini-canvas and certificate canvas.
+      setSignatories((previous) => previous.map((item) =>
+        item.id === sig.id ? { ...item, signature_url: newUrl } : item
+      ));
+      const linked = settings.elements.some((element) =>
+        element.type === "signatory" &&
+        resolveCertificateSignatory(element.signatory_id, signatories, sig.ministry)?.id === sig.id
+      );
+      setSignatureSavedNotice(linked
+        ? `Updated the signature image for ${sig.name} without changing its saved layout or certificate assignment.`
+        : `Updated the signature image for ${sig.name}. Select this signatory in the certificate template to display it there.`);
+      if (linked) setActiveTab("layout");
+    } catch (cause) {
+      setSignatureImageError(cause instanceof Error ? cause.message : "Unable to replace the signature image.");
+    } finally {
+      setSigUploading(null);
     }
   };
 
@@ -1365,6 +1414,11 @@ export default function CertificateManagerPage() {
               </div>
 
               {/* Existing signatories list */}
+              {signatureImageError && (
+                <p role="alert" className="border border-[#C9A5AF] bg-[#F8F1F3] px-4 py-3 text-sm text-[#682037]">
+                  {signatureImageError}
+                </p>
+              )}
               <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white  overflow-hidden">
                 <div className="px-5 py-3 border-b border-border">
                   <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Configured Signatories</h2>
@@ -1400,8 +1454,19 @@ export default function CertificateManagerPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <label className="relative inline-flex cursor-pointer items-center border border-[#D9CDD1] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#890022]">
+                            {sigUploading === sig.id ? "Replacing…" : sig.signature_url ? "Replace Image" : "Upload Image"}
+                            <input type="file" accept="image/png,image/jpeg" className="sr-only"
+                              disabled={sigUploading !== null}
+                              aria-label={`Replace signature image for ${sig.name}`}
+                              onChange={(event) => {
+                                const uploaded = event.target.files?.[0];
+                                if (uploaded) void replaceExistingSignature(sig, uploaded);
+                                event.target.value = "";
+                              }} />
+                          </label>
                           <button type="button" onClick={() => editSignatureLayout(sig)}
-                            disabled={!sig.signature_url} title={sig.signature_url ? "Open signature layout canvas" : "Upload a signature image first"}
+                            disabled={!sig.signature_url || sigUploading !== null} title={sig.signature_url ? "Open signature layout canvas" : "Upload a signature image first"}
                             className="border border-[#D9CDD1] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#890022] disabled:opacity-50">
                             Adjust Signature
                           </button>
