@@ -1,3 +1,15 @@
+## 2026-10-27 — NATIVE WINDOWS DISPOSABLE PG18 RESTORE PREPARATION; NOT YET RUN
+
+The operator's local tooling check confirmed **PRESENT**: `pg_restore`, `pg_dump`, `psql`, `postgres`, `initdb`, `pg_ctl` under `C:\Program Files\PostgreSQL\18\bin`. `pg_restore (PostgreSQL) 18.6` and the existing backup script's `--check-tools` both **PASS**. Docker is **not installed**. Plain `pg_restore` was absent from `PATH`, but the explicit full path works.
+
+Added `scripts/pr55-local-database-restore-rehearsal.ps1` with strict **-Preflight** (no server creation) and explicit **-Run** (offline disposable PostgreSQL 18 cluster), along with static safety assertions and PowerShell parser checks in `tests/production-registration-local-restore-guards.test.cjs`. The preflight requires the exact original local `cowl-dok-prod-2026-10-26T23-21-15-064Z-7e5251.backup`, validates original SHA-256 and essential catalog entries and at least 2 GiB free drive space, and never connects to production/staging.
+
+**Restore mode is not authorized to target existing PostgreSQL installations:** it creates a brand-new uniquely named private data directory under `COWL-DOK-PRIVATE-BACKUPS/PR55-LOCAL-RESTORE-REHEARSALS`, uses random loopback-only port and host `127.0.0.1`, ephemeral random SCRAM password, only local `postgres` / `pr55_restore_rehearsal` DB, `pg_restore --no-owner --no-privileges --single-transaction --exit-on-error`, validates expected core row counts and shuts down the disposable server. It preserves only private diagnostic logs and cleans up test data when shutdown succeeds, with original backup archives retained untouched. No production or existing staging connection string is constructed.
+
+**Limitations:** A stock Windows PostgreSQL server lacks numerous Supabase-specific managed roles and extensions. Even correct backups may fail a full restore; this test should preserve and categorize blockers, **not** bypass them or claim full recovery. Because `--no-owner --no-privileges` necessarily changes owner/ACL semantics, even a passing vanilla local restore would not validate live RLS or Auth/Storage behavior. Full Supabase recovery still requires a separate *isolated* Supabase-compatible environment and role/configuration review. No restore has yet been attempted and no production changes authorized. PR #55 DRAFT/UNMERGED, NO-GO.
+
+---
+
 ## 2026-10-27 — BOTH ENCRYPTED PRODUCTION BACKUPS COPIED TO USB AND HASH-VERIFIED: PASS (OPERATOR OUTPUT)
 
 The operator copied the final **encrypted Storage** archive `cowl-dok-storage-prod-20261027-094928.zip.enc` to removable flash drive `F:\` with PowerShell `Copy-Item`; computed the copied file's SHA-256 using `Get-FileHash -Algorithm SHA256`; then independently re-checked the **already present encrypted PostgreSQL backup** on the same drive. Reported final output:
