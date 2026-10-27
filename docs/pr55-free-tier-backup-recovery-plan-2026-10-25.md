@@ -1,3 +1,24 @@
+## 2026-10-27 — BOTH ENCRYPTED PRODUCTION BACKUPS COPIED TO USB AND HASH-VERIFIED: PASS (OPERATOR OUTPUT)
+
+The operator copied the final **encrypted Storage** archive `cowl-dok-storage-prod-20261027-094928.zip.enc` to removable flash drive `F:\` with PowerShell `Copy-Item`; computed the copied file's SHA-256 using `Get-FileHash -Algorithm SHA256`; then independently re-checked the **already present encrypted PostgreSQL backup** on the same drive. Reported final output:
+
+```text
+PASS: Encrypted Storage backup copied and verified.
+SHA256: 67E2C9C8ADFF5F88B0CB4ABEA8A2A74FD30B522E9DD0B889FEF88B30EF1256F1
+PASS: Encrypted database backup also verified.
+PASS: BOTH ENCRYPTED BACKUPS PRESENT AND VERIFIED.
+```
+
+- **Storage**: 154 objects from 2 buckets in a ZIP with SHA-256 manifest, streaming AES-256-GCM encrypted archive of **286,224,983 bytes**, SHA-256 `67e2c9c8adff5f88b0cb4abea8a2a74fd30b522e9dd0b889fef88b30ef1256f1`.
+- **Postgres**: encrypted custom-format logical archive of **18,156,577 bytes**, SHA-256 `3221ccc7069794f06aac2e9936e76c03ecf274b19bd2ec97838953a1a24daff9`.
+- Combined encrypted files: **304,381,560 bytes**. Two encrypted files present on removable media and post-copy SHA-256 match: **PASS (operator evidence)**. Actual USB bytes were not available for independent inspection here. Drive must be ejected safely and **physically kept separate** from the computer; off-site custody is not independently demonstrated. Keep both encryption passphrases recoverable, independent of and separate from the flash drive.
+
+**Snapshot consistency caveat:** the PostgreSQL dump is timestamped **2026-10-27 07:21 Manila** (2026-10-26T23:21 UTC) and the Storage ZIP was packaged at **2026-10-27 09:49 Manila**, so the two exports were **not taken as one atomic point-in-time snapshot**. A successful hash comparison proves file copy integrity, not transactional consistency between Storage metadata and object bytes. Restore rehearsal must cross-check restored Storage object metadata against archive paths, sizes and application access; if intervening production writes invalidate consistency, take a synchronized new backup before release.
+
+**Remaining release gates:** isolated restore rehearsal to **a new disposable environment** with safeguards against accidentally targeting production or the existing staging project; demonstrate database data/roles/Auth/Storage and application recovery; separately document global roles and Supabase project configuration not included by the dump, confirm backup access/passphrase recovery and retention; finish reviewed SQL migration and admin permission release authorization, Add Member/CSV integration gating. No production migration, deployment, or Storage writes authorized. **PR #55 remains DRAFT and UNMERGED; production remains NO-GO**.
+
+---
+
 ## 2026-10-27 — STORAGE ZIP, ENCRYPTION AND AUTHENTICATED VERIFICATION: PASS (OPERATOR OUTPUT)
 
 The operator ran the checked-in `scripts/pr55-package-storage-backup.ps1` following successful separate downloads and manifest creation for all 154 Storage files. The script re-hashed **all 154 source files** against the private local manifest; created a ZIP containing precisely the 154 bucket objects and private manifest; reopened the ZIP and re-hashed all archived bytes; ran offline AES-256-GCM synthetic tamper test; performed streaming AES-256-GCM encryption with scrypt-derived key; authenticated/decrypted the encrypted ZIP in memory; then independently repeated encrypted archive verification without writing new plaintext.
