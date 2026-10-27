@@ -33,3 +33,20 @@ test("local Windows restore PowerShell parses successfully when pwsh is present"
   if(r.error&&r.error.code==="ENOENT")return;
   assert.equal(r.status,0,r.stderr);
 });
+
+test("native Windows PostgreSQL restore preflight refuses absent server bootstrap/share files",()=>{
+  assert.match(content,/postgres\.bki/);
+  assert.match(content,/postgresql\.conf\.sample/);
+  assert.match(content,/LOCAL INSTALLATION INCOMPLETE/);
+  const shareCheck=content.indexOf('Test-Path -LiteralPath $bootstrap');
+  const startup=content.indexOf('Initializing new disposable local PostgreSQL cluster');
+  assert.ok(shareCheck>0 && startup>shareCheck,"server share guard precedes initdb");
+});
+test("native PostgreSQL stderr is collected privately and exit codes are checked",()=>{
+  assert.match(content,/function Invoke-RehearsalCommand/);
+  assert.match(content,/\$ErrorActionPreference="Continue"/);
+  assert.match(content,/return \[int\]\$LASTEXITCODE/);
+  assert.match(content,/\$initExit -ne 0/);
+  assert.match(content,/\$restoreExit -ne 0/);
+  assert.match(content,/\$stopExit -eq 0/);
+});
