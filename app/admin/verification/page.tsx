@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ClipboardCheck, FileCheck2, GitMerge, History, RefreshCw, Upload, Users } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
-import CsvImportPage, { type CsvImportTab } from "@/app/admin/import/page";
+import CsvImportPage from "@/app/admin/import/page";
+import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification-workspace-context";
 import QuickScanMatrixPage from "@/app/admin/verify/page";
 import RenewalReviewsPage from "@/app/admin/renewal-reviews/page";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -208,11 +209,13 @@ export default function VerificationWorkspacePage() {
       {tab === "history" && <RegistrationImportHistory />}
 
       <div hidden={!showCsv} aria-hidden={!showCsv}>
-        <CsvImportPage
-          embedded
-          workspaceTab={csvTab}
-          onWorkspaceTabChange={onImportTabChange}
-        />
+        <CsvImportWorkspaceContext.Provider value={{
+          embedded: true,
+          workspaceTab: csvTab,
+          onWorkspaceTabChange: onImportTabChange,
+        }}>
+          <CsvImportPage />
+        </CsvImportWorkspaceContext.Provider>
       </div>
 
       {tab === "reviews" && reviewView === "approvals" && <QuickScanMatrixPage />}
