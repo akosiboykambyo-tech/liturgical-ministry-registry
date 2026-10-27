@@ -1,3 +1,20 @@
+## 2026-10-27 — FOLLOW-UP LOCAL RESTORE LOG CLASSIFICATION AND PID STATUS
+
+Operator examined private `create-db-private.log` for the failed 11:30:10 disposable trial using categorical regexes only, without disclosing raw diagnostic contents. Outcomes:
+
+```text
+PASS: Private database-creation log found.
+CHECK: Connection failure
+CHECK: Database or permission error
+CHECK: No PostgreSQL PID file present.
+```
+
+The two categories are **not independent definitive diagnoses**. The `Database or permission error` pattern included the broad text `ERROR:`, which may match a generic `psql: error: connection ... failed` line. Absence of `postmaster.pid` from the old trial indicates no recorded active local postmaster, but does not independently prove a clean shutdown or absence of orphan processes. The local creation command failed, and **no `pg_restore` ran**; the archive remains checked but **restoration unproven**.
+
+Next: safely classify the specific private `psql` connection failure (refused, password, missing role/db, port, access-policy, unknown), compare PostgreSQL private server-log readiness and clean-shutdown markers, and check for remaining local postgres loopback listeners. Avoid sending log text/credentials; do not retry restore, kill all PostgreSQL processes, or delete old trial directories until the local status is confirmed. The two encrypted USB backups remain unchanged; PR55 DRAFT/UNMERGED production NO-GO.
+
+---
+
 ## 2026-10-27 — NEXT OFFLINE RESTORE REHEARSAL: LOCAL CREATE DATABASE FAIL; SHUTDOWN UNCONFIRMED
 
 Operator ran the fixed `scripts/pr55-local-database-restore-rehearsal.ps1 -Run` in normal PowerShell. Exact original backup integrity/catalog and disk preflight **PASS**; `initdb` completed without reported error. The script advanced past `CHECK: Starting new local loopback-only PostgreSQL instance...` to the local `psql CREATE DATABASE` command, which exited nonzero:
