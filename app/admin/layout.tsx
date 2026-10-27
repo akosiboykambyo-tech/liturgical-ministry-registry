@@ -233,7 +233,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 
   return (
-    <div className={cn(inter.className, "min-h-dvh bg-[#FBF9F9] text-[#1E1114]")}>
+    <div className={cn(inter.className, "min-h-[100dvh] bg-[#FBF9F9] text-[#1E1114]")}>
       {/* On small screens, preserve a labeled drawer instead of an icon-only rail. */}
       <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#E6DADC] bg-white px-4 lg:hidden">
         <Link href="/admin/dashboard" className="flex items-center gap-2.5 text-sm font-semibold text-[#5A1730]">
@@ -252,7 +252,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </button>
       </header>
 
-      <div className="flex min-h-dvh items-stretch">
+      <div className="flex min-h-[100dvh] items-stretch">
         {/* Aceternity sidebar-demo interaction: compact desktop icon rail
             expands on hover, keyboard focus, or explicit pin. No Tabler or
             motion dependency is needed; all icons come from Lucide. */}
@@ -266,7 +266,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusOpen(false);
           }}
           className={cn(
-            "sticky top-0 hidden h-dvh shrink-0 flex-col overflow-hidden bg-[#890022] text-white shadow-[2px_0_16px_rgba(67,12,28,0.10)]",
+            "sticky top-0 hidden h-[100dvh] shrink-0 flex-col overflow-hidden bg-[#890022] text-white shadow-[2px_0_16px_rgba(67,12,28,0.10)]",
             "transition-[width] duration-300 ease-in-out motion-reduce:transition-none lg:flex",
             desktopExpanded ? "w-[270px]" : "w-[76px]"
           )}
@@ -275,7 +275,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             "flex min-h-[96px] shrink-0 items-center border-b border-white/20",
             desktopExpanded ? "gap-3 px-4" : "justify-center px-2"
           )}>
-            <DiocesanCoat size={desktopExpanded ? 54 : 43} />
+            <DiocesanCoat size={54} />
             <div className={cn(
               "min-w-0 overflow-hidden whitespace-nowrap transition-[opacity,max-width] duration-200 motion-reduce:transition-none",
               desktopExpanded ? "max-w-[160px] opacity-100" : "max-w-0 opacity-0"
@@ -289,9 +289,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <button
               type="button"
               onClick={() => setPinnedOpen((current) => !current)}
-              aria-label={pinnedOpen ? "Collapse sidebar" : "Keep sidebar expanded"}
+              aria-label={pinnedOpen ? "Unpin sidebar" : "Pin sidebar open"}
               aria-pressed={pinnedOpen}
-              title={pinnedOpen ? "Collapse sidebar" : "Keep sidebar expanded"}
+              title={pinnedOpen ? "Unpin sidebar" : "Pin sidebar open"}
               className="grid h-9 w-9 place-items-center rounded-md text-white/85 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             >
               {desktopExpanded ? <ChevronLeft className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
