@@ -50,3 +50,13 @@ test("native PostgreSQL stderr is collected privately and exit codes are checked
   assert.match(content,/\$restoreExit -ne 0/);
   assert.match(content,/\$stopExit -eq 0/);
 });
+
+test("pg_ctl server startup and shutdown never use PowerShell output capture pipelines",()=>{
+  assert.match(content,/& \(Join-Path \$bin "pg_ctl\.exe"\) -D \$data -l \$serverLog -w start/);
+  assert.match(content,/& \(Join-Path \$bin "pg_ctl\.exe"\) -D \$data -m fast -w stop/);
+  assert.doesNotMatch(content,/\$startExit=Invoke-RehearsalCommand/);
+  assert.doesNotMatch(content,/\$stopExit=Invoke-RehearsalCommand/);
+  assert.match(content,/if\(-not \$started -and \(Test-Path -LiteralPath \(Join-Path \$data "postmaster\.pid"\)/);
+  assert.match(content,/\$startExit=\[int\]\$LASTEXITCODE/);
+  assert.match(content,/\$stopExit=\[int\]\$LASTEXITCODE/);
+});
