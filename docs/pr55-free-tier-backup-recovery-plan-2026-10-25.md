@@ -1,3 +1,32 @@
+## 2026-10-27 — FRESH LOCAL RESTORE REHEARSAL REACHED pg_restore, BLOCKED
+
+Operator pulled latest PR55 draft branch and ran `-Preflight`, then a **genuinely new** `-Run` trial at `trial-20261027-134639-e384e392`. New preflight **PASS** verified PostgreSQL 18 tools, exact original dump SHA256, archive catalog, and disk capacity. `initdb` completed, local PostgreSQL started successfully via direct nonredirected `pg_ctl start`, and the script **successfully created a new local test database** (otherwise it could not have advanced to the archive restore). The `pg_restore --single-transaction --exit-on-error --no-owner --no-privileges` attempt began and returned nonzero; first private error and SQL prerequisite mismatch have not yet been categorized.
+
+```text
+PASS: PostgreSQL 18 binaries present.
+PASS: Original PostgreSQL archive SHA256 and required catalog entries verified.
+PASS: At least 2 GiB free for disposable restore.
+PASS: LOCAL RESTORE PREFLIGHT COMPLETE; no database connection or writes made.
+CHECK: Initializing new disposable local PostgreSQL cluster...
+CHECK: Starting new local loopback-only PostgreSQL instance...
+waiting for server to start.... done
+server started
+CHECK: Restoring full archive into NEW LOCAL database; no external endpoint...
+BLOCKED: Full restore encountered missing local prerequisites or incompatible SQL.
+LIMIT: PostgreSQL restore is NOT certified; private log retained for diagnosis.
+FAIL: Local database-only rehearsal remains incomplete; no production/staging changes made.
+waiting for server to shut down..... done
+server stopped
+PASS: Disposable local PostgreSQL server stopped.
+CHECK: Disposable trial data directory cleanup requested.
+PRIVATE DIAGNOSTIC DIRECTORY: $HOME\\COWL-DOK-PRIVATE-BACKUPS\\PR55-LOCAL-RESTORE-REHEARSALS\\trial-20261027-134639-e384e392
+pg_restore returned nonzero status. Do not skip errors or rerun blindly.
+```
+
+Previous `pg_ctl` pipe hang and local create-db connection refusal **are resolved/understood**; **actual archive SQL restore is now the sole observed blocker**. The temporary server's stop is confirmed; data directory removal was **requested**, not positively verified. Restore failure with `--single-transaction` should be treated as an incomplete rehearsal, not a certified database restore; independent file integrity verification of backup still PASS. Next step is **local-only sanitized categorization of the FIRST private `pg-restore-private.log` error**, without emitting raw SQL/member data, then determine needed native PostgreSQL extension/role compatibility or safer Supabase-equivalent rehearsal. Do not rerun blindly or bypass errors. Both production and staging unchanged, PR55 DRAFT/UNMERGED, release NO-GO.
+
+---
+
 ## 2026-10-27 — ROOT CAUSE CLARIFICATION: ORIGINAL TRIAL RESUMED AFTER SERVER SHUTDOWN
 
 Operator's read-only **port comparison confirmed all three values match**: PostgreSQL `postgresql.conf` configured **61047**, `postgres-private.log` showed server listening on **61047**, and `create-db-private.log` recorded client attempted **61047**. There is **no client/server port mismatch**.
