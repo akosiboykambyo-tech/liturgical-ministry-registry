@@ -37,7 +37,6 @@ import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 type TemplateRow = {
   key: string;
   is_default: boolean;
-  updated_at: string;
 };
 
 const TEMPLATE_KEY_PREFIX = "certificate_template";
@@ -211,7 +210,7 @@ export default function CertificateManagerPage() {
     try {
       const readOne = async (signal: AbortSignal, key?: string, first = false) => {
         let query = supabase.from("system_settings")
-          .select("key,value,is_default,updated_at")
+          .select("key,value,is_default")
           .like("key", `${TEMPLATE_KEY_PREFIX}%`);
         if (key) query = query.eq("key", key);
         else if (!first) query = query.eq("is_default", true);
@@ -248,7 +247,7 @@ export default function CertificateManagerPage() {
     try {
       const { data, error } = await readWithTimeout("Template names", async (signal) =>
         await supabase.from("system_settings")
-          .select("key,is_default,updated_at")
+          .select("key,is_default")
           .like("key", `${TEMPLATE_KEY_PREFIX}%`)
           .order("key").abortSignal(signal)
       );
@@ -256,7 +255,6 @@ export default function CertificateManagerPage() {
       setTemplates((data ?? []).map((row) => ({
         key: row.key as string,
         is_default: Boolean(row.is_default),
-        updated_at: (row.updated_at as string) ?? "",
       })));
     } catch (cause) {
       setListError(loadError(cause, "Saved template list"));
@@ -1423,7 +1421,7 @@ export default function CertificateManagerPage() {
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                      {isEditing ? "Currently selected" : "Select Edit to load full template"} · Updated {row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "unknown"}
+                      {isEditing ? "Currently selected" : "Select Edit to load full template"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
