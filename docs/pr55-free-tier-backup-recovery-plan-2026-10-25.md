@@ -1,3 +1,29 @@
+## 2026-10-27 — STORAGE ZIP, ENCRYPTION AND AUTHENTICATED VERIFICATION: PASS (OPERATOR OUTPUT)
+
+The operator ran the checked-in `scripts/pr55-package-storage-backup.ps1` following successful separate downloads and manifest creation for all 154 Storage files. The script re-hashed **all 154 source files** against the private local manifest; created a ZIP containing precisely the 154 bucket objects and private manifest; reopened the ZIP and re-hashed all archived bytes; ran offline AES-256-GCM synthetic tamper test; performed streaming AES-256-GCM encryption with scrypt-derived key; authenticated/decrypted the encrypted ZIP in memory; then independently repeated encrypted archive verification without writing new plaintext.
+
+```text
+PASS: All 154 local files match private manifest.
+PASS: ZIP archive includes all 154 objects plus manifest; contents rehashed.
+ZIP BYTES: 286224911
+ZIP SHA256: 7295E99EE3BF6EF0E6D65DA63BE5D115402E7523C63540C65EFC3D54A2624B95
+PASS: Storage encryption synthetic self-test and tamper rejection; no source files or network
+PASS: Storage ZIP encrypted and decrypted in memory for authenticated verification
+ENCRYPTED BYTES: 286224983
+ENCRYPTED SHA256: 67e2c9c8adff5f88b0cb4abea8a2a74fd30b522e9dd0b889fef88b30ef1256f1
+SOURCE ZIP SHA256 VERIFIED: 7295e99ee3bf6ef0e6d65da63be5d115402e7523c63540c65efc3d54a2624b95
+PASS: Storage encrypted ZIP independently authenticated and original SHA256 verified; no plaintext written
+PASS: STORAGE BACKUP ZIP + ENCRYPTION + VERIFICATION COMPLETE.
+```
+
+Private encrypted archive basename: `cowl-dok-storage-prod-20261027-094928.zip.enc`; size **286,224,983 bytes**; SHA256 `67e2c9c8adff5f88b0cb4abea8a2a74fd30b522e9dd0b889fef88b30ef1256f1`. Original plain ZIP size **286,224,911 bytes**, SHA256 `7295e99ee3bf6ef0e6d65da63be5d115402e7523c63540c65efc3d54a2624b95`.
+
+**Gate:** full production Storage object-byte download, local per-file manifest verification, sealed archive and repeated authenticated encryption checks **PASS based on operator output**. The assistant cannot independently inspect private archive bytes. Backup remains protected on operator's PC; encrypted Storage ZIP has **not yet been copied to USB** or independently verified there. Stored source downloads and plain ZIP must not be deleted until a rehearsed isolated restore succeeds. Keep private member files, manifests, and encryption passphrase out of GitHub/chat, and passphrase separately recoverable.
+
+**Next:** copy the encrypted `.zip.enc` only to physically separate USB (previous DB backup on F:\ when available) with `Copy-Item` and SHA256 comparison; verify both encrypted backups physically present. Then rehearse isolated database and Storage restores, independently check integrity, roles/platform configuration, and PR55 production release gates. Production PR remains DRAFT/UNMERGED and NO-GO; no production SQL or Storage writes authorized.
+
+---
+
 ## 2026-10-27 — ALL 154 STORAGE OBJECTS DOWNLOADED AND LOCAL BASELINES VERIFIED (OPERATOR PASS)
 
 Operator completed corrected **relative-source to relative-destination**, explicit production-project, read-only Storage CLI downloads. Public `certificate-templates` was verified in its precise bucket directory (not the parent diagnostic directory), then all 119 private `member-documents` objects were downloaded into a separate private bucket folder. Operator output:
