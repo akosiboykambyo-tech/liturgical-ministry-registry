@@ -15,7 +15,7 @@ test("local Windows restore refuses ambient remote Postgres settings and targets
   assert.match(content,/NewGuid\(\)/);
   assert.match(content,/PR55-LOCAL-RESTORE-REHEARSALS/);
   assert.match(content,/--auth-host=scram-sha-256/);
-  assert.match(content,/--no-password --no-owner --no-privileges --single-transaction --exit-on-error/);
+  assert.match(content,/"--no-password","--no-owner","--no-privileges","--single-transaction","--exit-on-error"/);
   assert.doesNotMatch(content,/aws-\d.*pooler|db\.zlvofcwnpdzfdnipvbbd|rtptybxugjhvpfjvcvgw/);
 });
 test("local Windows restore validates private original hash before starting server and never removes real backups",()=>{
