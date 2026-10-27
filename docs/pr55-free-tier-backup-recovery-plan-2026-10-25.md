@@ -1,3 +1,18 @@
+## 2026-10-27 — FIRST pg_restore ERROR CLASSIFIED AS MISSING EXTENSION
+
+Operator inspected **only the first PostgreSQL restore error** in private `pg-restore-private.log` from **new trial `trial-20261027-134639-e384e392`**, using a classifier that displayed no private SQL or member data:
+
+```text
+=== FIRST RESTORE ERROR ===
+FIRST ERROR LINE: 1
+CATEGORY: Missing PostgreSQL extension
+PASS: Private SQL contents were not displayed.
+```
+
+Diagnosis: the generic Windows PostgreSQL 18 installation lacks at least one extension required by the Supabase-origin archive. The **exact extension identifier has NOT yet been collected**. A prior `pg_restore --single-transaction --exit-on-error` transaction failed and the disposable local PostgreSQL service stopped cleanly. This failure is evidence of a missing local restore prerequisite, NOT proof of corruption of the original, SHA256-validated backup; recovery certification remains incomplete. Next: extract only an allowlisted extension identifier from the first private log lines, check matching `.control` file availability locally (without exposing raw SQL), and decide whether native PostgreSQL with compatible extensions or a fully isolated local Supabase stack is feasible. Supabase documents its large managed extension catalog at https://supabase.com/docs/guides/database/extensions and local stack isolation at https://supabase.com/docs/guides/local-development. Do NOT disable extensions or skip errors merely to force a green restore. Production/staging untouched; PR55 DRAFT/UNMERGED production NO-GO.
+
+---
+
 ## 2026-10-27 — FRESH LOCAL RESTORE REHEARSAL REACHED pg_restore, BLOCKED
 
 Operator pulled latest PR55 draft branch and ran `-Preflight`, then a **genuinely new** `-Run` trial at `trial-20261027-134639-e384e392`. New preflight **PASS** verified PostgreSQL 18 tools, exact original dump SHA256, archive catalog, and disk capacity. `initdb` completed, local PostgreSQL started successfully via direct nonredirected `pg_ctl start`, and the script **successfully created a new local test database** (otherwise it could not have advanced to the archive restore). The `pg_restore --single-transaction --exit-on-error --no-owner --no-privileges` attempt began and returned nonzero; first private error and SQL prerequisite mismatch have not yet been categorized.
