@@ -139,7 +139,18 @@ export async function trimmedSignaturePreview(url: string): Promise<string> {
 
 /** Per-signatory artwork positioning, independent of certificate placement. */
 export type SignatureComposition = { x: number; y: number; scale: number };
-export const SIGNATURE_LAYOUT_KEY_PREFIX = "certificate_signatory_layout_";
+/** Keep this prefix short: system_settings.key is varchar(50), while IDs are UUIDs (36 chars). */
+export const SIGNATURE_LAYOUT_KEY_PREFIX = "sig_layout_";
+export const MAX_SIGNATURE_LAYOUT_KEY_LENGTH = 50;
+
+/** Construct the same bounded settings key for writes and reads. */
+export function signatureLayoutSettingsKey(signatoryId: string): string {
+  const key = SIGNATURE_LAYOUT_KEY_PREFIX + signatoryId;
+  if (key.length > MAX_SIGNATURE_LAYOUT_KEY_LENGTH) {
+    throw new Error("Signatory ID is too long for a signature layout settings key.");
+  }
+  return key;
+}
 export const DEFAULT_SIGNATURE_COMPOSITION: SignatureComposition = { x: 0, y: 0, scale: 1 };
 
 function constrain(value: unknown, min: number, max: number, fallback: number) {

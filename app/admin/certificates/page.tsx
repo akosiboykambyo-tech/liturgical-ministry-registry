@@ -35,7 +35,7 @@ import { CertificateEditor } from "@/components/certificate-editor";
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import {
-  upgradeSignatoryOffsets, SIGNATURE_LAYOUT_KEY_PREFIX,
+  upgradeSignatoryOffsets, SIGNATURE_LAYOUT_KEY_PREFIX, signatureLayoutSettingsKey,
   DEFAULT_SIGNATURE_COMPOSITION, normalizeSignatureComposition, attachSignatureCompositions,
 } from "@/lib/signature-layout";
 import { SignatoryLayoutCanvas } from "@/components/signatory-composition";
@@ -695,9 +695,9 @@ export default function CertificateManagerPage() {
     const preset = normalizeSignatureComposition(signatureDraft);
     setSignatureSaving(true);
     setSignatureSaveError(null);
-    const key = SIGNATURE_LAYOUT_KEY_PREFIX + id;
     let saveError: { message: string } | null = null;
     try {
+      const key = signatureLayoutSettingsKey(id);
       const result = await withCertificateSessionRecovery(supabase, async () =>
         await supabase.from("system_settings")
           .upsert({ key, value: preset as unknown as Record<string, unknown>, is_default: false }, { onConflict: "key" })
