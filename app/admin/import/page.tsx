@@ -1,7 +1,8 @@
 "use client";
 
 import { normalizeApprovedMinistries } from "@/lib/registration-ministry-validation";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useContext } from "react";
+import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification-workspace-context";
 import Link from "next/link";
 import Papa from "papaparse";
 import { ebGaramond } from "@/app/fonts";
@@ -83,7 +84,6 @@ interface Progress {
   phase: string;
 }
 
-export type CsvImportTab = "import" | "renewal" | "history" | "pending";
 type Tab = CsvImportTab;
 
 type RenewalHistoryBatch = RecommendationRenewalBatch & {
@@ -182,15 +182,9 @@ function getDefaultNextRenewalDate(renewalDate: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-export default function CsvImportPage({
-  embedded = false,
-  workspaceTab,
-  onWorkspaceTabChange,
-}: {
-  embedded?: boolean;
-  workspaceTab?: CsvImportTab;
-  onWorkspaceTabChange?: (next: CsvImportTab) => void;
-} = {}) {
+export default function CsvImportPage() {
+  const { embedded = false, workspaceTab, onWorkspaceTabChange } =
+    useContext(CsvImportWorkspaceContext);
   const supabase = getSupabaseBrowserClient();
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>("");
