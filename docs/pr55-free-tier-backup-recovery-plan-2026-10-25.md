@@ -1,3 +1,13 @@
+## 2026-10-27 — PG18 INSTALLATION BLOCKER CONFIRMED BY OPERATOR (READ-ONLY DIAGNOSTIC)
+
+Operator ran a second read-only inventory of `C:\Program Files\PostgreSQL\18`: both **`share/postgres.bki`** and **`share/postgresql.conf.sample`** are **MISSING**. `pg_config --sharedir` resolves to `C:/Program Files/PostgreSQL/18/share`, and recursive file search under the installation root found no `postgres.bki`. `initdb --show` emitted `no data directory specified`; that is not a supported standalone inventory command and does not affect the bootstrap-file diagnosis.
+
+**Confirmed blocker:** PostgreSQL 18.6 command-line programs are present, but required matching *server share/support files* are absent. An installation repair or completion from official PostgreSQL/EDB Windows packaging is required to run a native disposable local cluster. Avoid copying `postgres.bki` from a different PostgreSQL release, uninstalling an existing service, or modifying a production/staging DB. The updated `-Preflight` script now checks both required share files and fails before creating a trial environment. **No restore yet, NO-GO**. Keep verified encrypted database and Storage USB archives safe.
+
+Reference: https://www.postgresql.org/download/windows/ and https://www.enterprisedb.com/docs/supported-open-source/postgresql/installing/windows .
+
+---
+
 ## 2026-10-27 — LOCAL RESTORE BLOCKED BY MISSING POSTGRESQL SERVER BOOTSTRAP FILE (NO DATA RESTORED)
 
 The operator successfully ran `scripts/pr55-local-database-restore-rehearsal.ps1 -Preflight`, which verified the exact production backup archive SHA-256 and required table-data catalog entries, executable presence and drive space. The subsequent `-Run` attempt reached `initdb` but **failed before PostgreSQL could be initialized, started or a restore executed**. The direct error was:
