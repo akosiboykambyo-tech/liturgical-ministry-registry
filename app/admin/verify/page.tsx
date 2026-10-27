@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { quickVerifyMember } from "@/lib/verify-actions";
 import { StatusBadge } from "@/components/status-badge";
 import { shortMinistry, MINISTRIES, PARISHES } from "@/lib/constants";
@@ -379,9 +380,7 @@ export default function QuickScanMatrixPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
+        <CenteredAdminLoader label="Loading members awaiting verification…" />
       ) : filtered.length === 0 ? (
         <div className="border border-dashed border-border py-16 text-center">
           <Inbox className="mx-auto h-10 w-10 text-muted-foreground/50" />
