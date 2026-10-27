@@ -1,3 +1,22 @@
+## 2026-10-27 — DISPOSABLE LOCAL POSTGRESQL SERVER SHUT DOWN: PASS
+
+Operator ran fail-closed targeted shutdown of the stuck *disposable* PostgreSQL rehearsal instance. The script matched the unique trial data directory against `postmaster.pid`, its PostgreSQL process, and the `127.0.0.1:61047` listener; `pg_ctl -D <verified trial data dir> -m fast -w stop` exited successfully. Post-stop `Get-NetTCPConnection` verified port **61047 was no longer listening**.
+
+```text
+PASS: Exact disposable test server identified.
+CHECK: Stopping test server on localhost port 61047...
+waiting for server to shut down.... done
+server stopped
+PASS: Disposable PostgreSQL server stopped.
+PASS: Port 61047 no longer listening.
+```
+
+**Outcome:** The stuck rehearsal server is cleanly stopped. No database data was restored during this previous attempt (`pg-restore-private.log` was absent); production and staging were never targeted. Original local plaintext and encrypted backups and SHA-verified USB copies remain intact. The guarded `pg_ctl` no-pipe-hang fix on PR55 branch is ready for a **new** disposable -Run attempt after the operator pulls the latest branch. Ensure prior hung PowerShell invocation is ended (Ctrl+C once if necessary), use normal non-elevated PowerShell, and do not delete the private logs or backup archives. A new `-Run` creates a fresh unique trial directory; it does not reuse the stopped cluster.
+
+**Pending:** Database-only restore and row-count validation, followed by independent full Supabase Auth/Storage/roles/RLS restore rehearsal. PR #55 remains DRAFT/UNMERGED, production NO-GO.
+
+---
+
 ## 2026-10-27 — LOCAL POSTGRESQL SERVER STARTED; RESTORE DID NOT BEGIN (OUTPUT PIPE HANG)
 
 After the corrected `-Preflight` PASS, operator ran `scripts/pr55-local-database-restore-rehearsal.ps1 -Run`. Script printed local `initdb` initiation and `CHECK: Starting new local loopback-only PostgreSQL instance...` but did not advance. Read-only second-terminal diagnostics confirmed `postgres-private.log` **contains `database system is ready to accept connections`**, **nine local PostgreSQL processes** launched concurrently, and loopback-only listener **127.0.0.1:61047** (PID **14324**). `pg-restore-private.log` **DOES NOT EXIST**, no `pg_restore` process was found. Therefore **the local cluster successfully initialized and started** but **the restore has not begun**.
