@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { withCertificateSessionRecovery, AdminReauthenticationRequiredError } from "@/lib/certificate-session-recovery";
 import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
 import {
   CERTIFICATE_FONT_PAIRINGS,
@@ -97,6 +98,7 @@ export default function CertificateManagerPage() {
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [templateError, setTemplateError] = useState<string | null>(null);
+  const [reauthenticationRequired, setReauthenticationRequired] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [signatoriesError, setSignatoriesError] = useState<string | null>(null);
@@ -217,14 +219,17 @@ export default function CertificateManagerPage() {
     const current = ++activeLoadId.current;
     setLoading(true);
     setTemplateError(null);
+    setReauthenticationRequired(false);
     try {
       const readOne = async (signal: AbortSignal, key?: string, first = false) => {
-        let query = supabase.from("system_settings")
-          .select("key,value,is_default")
-          .like("key", `${TEMPLATE_KEY_PREFIX}%`);
-        if (key) query = query.eq("key", key);
-        else if (!first) query = query.eq("is_default", true);
-        const { data, error } = await query.order("key").limit(1).abortSignal(signal).maybeSingle();
+        const { data, error } = await withCertificateSessionRecovery(supabase, async () => {
+          let query = supabase.from("system_settings")
+            .select("key,value,is_default")
+            .like("key", `${TEMPLATE_KEY_PREFIX}%`);
+          if (key) query = query.eq("key", key);
+          else if (!first) query = query.eq("is_default", true);
+          return await query.order("key").limit(1).abortSignal(signal).maybeSingle();
+        });
         if (error) throw new Error(error.message);
         return data;
       };
@@ -249,7 +254,10 @@ export default function CertificateManagerPage() {
         setTemplateName("");
       }
     } catch (cause) {
-      if (current === activeLoadId.current) setTemplateError(loadError(cause, "Certificate template"));
+      if (current === activeLoadId.current) {
+        setTemplateError(loadError(cause, "Certificate template"));
+        setReauthenticationRequired(cause instanceof AdminReauthenticationRequiredError);
+      }
     } finally {
       if (current === activeLoadId.current) setLoading(false);
     }
@@ -259,11 +267,13 @@ export default function CertificateManagerPage() {
     setListLoading(true);
     setListError(null);
     try {
-      const { data, error } = await readWithTimeout("Template names", async (signal) =>
-        await supabase.from("system_settings")
-          .select("key,is_default")
-          .like("key", `${TEMPLATE_KEY_PREFIX}%`)
-          .order("key").abortSignal(signal)
+      const { data, error } = await readWithTimeout("Template names", (signal) =>
+        withCertificateSessionRecovery(supabase, async () =>
+          await supabase.from("system_settings")
+            .select("key,is_default")
+            .like("key", `${TEMPLATE_KEY_PREFIX}%`)
+            .order("key").abortSignal(signal)
+        )
       );
       if (error) throw new Error(error.message);
       setTemplates((data ?? []).map((row) => ({
@@ -282,11 +292,13 @@ export default function CertificateManagerPage() {
     setSignatoriesError(null);
     try {
       const [signatoryQuery, layoutsQuery] = await Promise.all([
-        readWithTimeout("Signatories", async (signal) =>
-          await supabase.from("signatories").select("*").order("sort_order").abortSignal(signal)),
-        readWithTimeout("Signatory layout presets", async (signal) =>
-          await supabase.from("system_settings").select("key,value")
-            .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`).abortSignal(signal)),
+        readWithTimeout("Signatories", (signal) =>
+          withCertificateSessionRecovery(supabase, async () =>
+            await supabase.from("signatories").select("*").order("sort_order").abortSignal(signal))),
+        readWithTimeout("Signatory layout presets", (signal) =>
+          withCertificateSessionRecovery(supabase, async () =>
+            await supabase.from("system_settings").select("key,value")
+              .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`).abortSignal(signal))),
       ]);
       if (signatoryQuery.error) throw new Error(signatoryQuery.error.message);
       if (layoutsQuery.error) throw new Error(layoutsQuery.error.message);
@@ -680,8 +692,16 @@ export default function CertificateManagerPage() {
     setSignatureSaving(true);
     setSignatureSaveError(null);
     const key = SIGNATURE_LAYOUT_KEY_PREFIX + id;
-    const { error: saveError } = await supabase.from("system_settings")
-      .upsert({ key, value: preset as unknown as Record<string, unknown>, is_default: false }, { onConflict: "key" });
+    let saveError: { message: string } | null = null;
+    try {
+      const result = await withCertificateSessionRecovery(supabase, async () =>
+        await supabase.from("system_settings")
+          .upsert({ key, value: preset as unknown as Record<string, unknown>, is_default: false }, { onConflict: "key" })
+      );
+      saveError = result.error;
+    } catch (cause) {
+      saveError = { message: cause instanceof Error ? cause.message : "Session recovery failed." };
+    }
     setSignatureSaving(false);
     if (saveError) {
       setSignatureSaveError(`Could not save signature layout: ${saveError.message}`);
@@ -746,9 +766,19 @@ export default function CertificateManagerPage() {
         <div role="alert" className="w-full max-w-lg space-y-4 border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-7 text-center">
           <h1 className={`${ebGaramond.className} text-3xl text-[#1E1114]`}>Certificate Template Manager</h1>
           <p className="text-sm text-[#682037]">{templateError}</p>
-          <button type="button" onClick={() => void load()} className="min-h-11 bg-[#890022] px-5 py-2 text-sm font-semibold text-white">
-            Retry loading
-          </button>
+          {reauthenticationRequired ? (
+            <button type="button" onClick={() => {
+              void supabase.auth.signOut({ scope: "local" }).finally(() => {
+                window.location.assign("/admin");
+              });
+            }} className="min-h-11 bg-[#890022] px-5 py-2 text-sm font-semibold text-white">
+              Sign out and sign in again
+            </button>
+          ) : (
+            <button type="button" onClick={() => void load()} className="min-h-11 bg-[#890022] px-5 py-2 text-sm font-semibold text-white">
+              Retry loading
+            </button>
+          )}
         </div>
       </div>
     );
