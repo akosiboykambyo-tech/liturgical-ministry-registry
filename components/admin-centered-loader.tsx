@@ -18,7 +18,9 @@ export function CenteredAdminLoader({
       aria-live="polite"
       className={cn(
         "flex w-full items-center justify-center bg-[#FBF9F9]",
-        fullscreen ? "fixed inset-0 z-50 min-h-[100dvh]" : "min-h-[calc(100dvh-11rem)]",
+        fullscreen
+          ? "fixed inset-0 z-50 min-h-[100dvh]"
+          : "min-h-[calc(100dvh-7rem)] lg:min-h-[calc(100dvh-4rem)]",
         className
       )}
     >
