@@ -33,6 +33,7 @@ import { CertificateDesign } from "@/components/certificate-design";
 import { CertificateEditor } from "@/components/certificate-editor";
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
+import { upgradeSignatoryOffsets } from "@/lib/signature-layout";
 
 type TemplateRow = {
   key: string;
@@ -224,7 +225,11 @@ export default function CertificateManagerPage() {
       });
       if (current !== activeLoadId.current) return;
       if (row) {
-        setSettings({ ...DEFAULTS, ...(row.value as CertificateTemplateSettings) });
+        const loaded = { ...DEFAULTS, ...(row.value as CertificateTemplateSettings) };
+        setSettings({
+          ...loaded,
+          elements: upgradeSignatoryOffsets(loaded.elements ?? []),
+        });
         setEditingKey(row.key);
         setTemplateName(templateLabel(row.key));
       } else if (selectedKey) {

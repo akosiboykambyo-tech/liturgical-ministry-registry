@@ -1,10 +1,47 @@
 /**
  * Shared signatory geometry for the visual editor and the exported certificate.
- * Positive offsets lower the signature into the name line; 4px is the default overlap.
+ * Positive offsets lower the signature into the name line; 12px is the default overlap.
  * Position remains a property of the draggable certificate element, not the
  * reusable signatory record.
  */
-export const DEFAULT_SIGNATURE_OFFSET = 4;
+export const DEFAULT_SIGNATURE_OFFSET = 12;
+export const LEGACY_SIGNATURE_OFFSET = 4;
+
+/**
+ * 4px was the old default stored on signatory elements. A legacy 4px value
+ * now means 12px; other legacy custom values are preserved. Version 2 means
+ * a deliberately chosen offset, including an explicit choice of 4px.
+ */
+export function effectiveSignatureOffset(element: {
+  signature_offset?: number;
+  signature_offset_version?: 2;
+}): number {
+  const value = element.signature_offset;
+  if (element.signature_offset_version !== 2 &&
+      (value == null || value === LEGACY_SIGNATURE_OFFSET)) {
+    return DEFAULT_SIGNATURE_OFFSET;
+  }
+  return typeof value === "number" && Number.isFinite(value)
+    ? value : DEFAULT_SIGNATURE_OFFSET;
+}
+
+/** In-memory upgrade; database persistence happens only on explicit Save. */
+export function upgradeSignatoryOffsets<T extends {
+  type: string;
+  signature_offset?: number;
+  signature_offset_version?: 2;
+}>(elements: T[]): T[] {
+  return elements.map((element) =>
+    element.type === "signatory" && element.signature_offset_version !== 2
+      ? {
+          ...element,
+          signature_offset: effectiveSignatureOffset(element),
+          signature_offset_version: 2 as const,
+        }
+      : element
+  );
+}
+
 
 export function signatoryLayout(
   elementHeight: number,

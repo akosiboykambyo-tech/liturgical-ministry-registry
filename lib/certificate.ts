@@ -2,7 +2,7 @@
 
 import QRCode from "qrcode";
 import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
-import { signatoryLayout, signatureInkBounds } from "@/lib/signature-layout";
+import { effectiveSignatureOffset, signatoryLayout, signatureInkBounds } from "@/lib/signature-layout";
 
 export interface CertificateData {
   firstName: string;
@@ -538,7 +538,7 @@ if (element.type === "member_name") {
           // Use the same anchored name/title and slightly overlapping signature
           // positions as the draggable editor preview, regardless of image margins.
           const { nameY, titleY, signatureBottom, signatureMaxHeight } = signatoryLayout(
-            element.height, nameSize, titleSize, element.signature_offset
+            element.height, nameSize, titleSize, effectiveSignatureOffset(element)
           );
 
           if (signatory.signature_url) {

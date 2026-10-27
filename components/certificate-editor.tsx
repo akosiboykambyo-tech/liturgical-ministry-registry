@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { DYNAMIC_SIGNATORY_SLOT, resolveCertificateSignatory } from "@/lib/certificate";
 import { FONT_OPTIONS } from "@/lib/constants";
-import { DEFAULT_SIGNATURE_OFFSET, signatoryLayout, trimmedSignaturePreview } from "@/lib/signature-layout";
+import { DEFAULT_SIGNATURE_OFFSET, effectiveSignatureOffset, signatoryLayout, trimmedSignaturePreview } from "@/lib/signature-layout";
 import type {
   CertificateElement,
   CertificateTemplateSettings,
@@ -273,6 +273,7 @@ export function CertificateEditor({
     height: 90,
     signatory_id: signatoryId,
     signature_offset: DEFAULT_SIGNATURE_OFFSET,
+    signature_offset_version: 2,
     font_family: settings.signatory_font_family || "Georgia, serif",
     font_size: settings.signatory_font_size ?? 12,
     font_weight: settings.signatory_font_weight || "bold",
@@ -543,7 +544,7 @@ export function CertificateEditor({
 
       const nameSize = element.font_size ?? settings.signatory_font_size ?? 12;
       const titleSize = settings.signatory_title_font_size ?? Math.max(8, nameSize - 2);
-      const layout = signatoryLayout(element.height, nameSize, titleSize, element.signature_offset);
+      const layout = signatoryLayout(element.height, nameSize, titleSize, effectiveSignatureOffset(element));
       const relative = (y: number) => element.height / 2 + y;
       const centeredText: React.CSSProperties = {
         position: "absolute", left: 8, right: 8, transform: "translateY(-50%)",
@@ -861,15 +862,16 @@ console.log("CERTIFICATE ELEMENTS:", settings.elements);
                 <span className="text-[11px] text-muted-foreground">Signature vertical offset (px)</span>
                 <input
                   type="number" min={-24} max={24} step={1}
-                  value={selectedElement.signature_offset ?? DEFAULT_SIGNATURE_OFFSET}
+                  value={effectiveSignatureOffset(selectedElement)}
                   disabled={selectedElement.locked}
                   onChange={(event) => updateElement(selectedElement.id, {
                     signature_offset: Math.max(-24, Math.min(24, Number(event.target.value) || 0)),
+                    signature_offset_version: 2,
                   })}
                   className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
                 />
                 <span className="block text-[11px] leading-4 text-muted-foreground">
-                  Positive values overlap the name; default is 4 px.
+                  Positive values overlap the name; default is 12 px.
                 </span>
               </label>
             )}

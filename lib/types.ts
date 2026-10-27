@@ -172,8 +172,10 @@ export interface CertificateElement {
   image_url?: string;
 
   signatory_id?: string;
-  /** Pixels by which the signature overlaps the printed name (default 4). */
+  /** Pixels by which the signature overlaps the printed name (default 12). */
   signature_offset?: number;
+  /** 2 = explicit offset from the 12px-default signatory layout. */
+  signature_offset_version?: 2;
 
   visible?: boolean;
   locked?: boolean;
