@@ -51,3 +51,12 @@ test("Storage backup guard requires private ZIP, exact SHA256 and 20+ character 
   assert.equal(invalid.status,1);
   assert.match(invalid.stderr,/FAIL/);
 });
+
+test("Storage package PowerShell script has valid parse tree when pwsh is available",()=>{
+  const target=path.join(__dirname,"../scripts/pr55-package-storage-backup.ps1");
+  const escaped=target.replace(/'/g,"''");
+  const command="$tokens=$null; $errorsFound=$null; [void][System.Management.Automation.Language.Parser]::ParseFile('"+escaped+"',[ref]$tokens,[ref]$errorsFound); if($errorsFound){$errorsFound | Out-String | Write-Error; exit 1}";
+  const r=spawnSync("pwsh",["-NoProfile","-NonInteractive","-Command",command],{encoding:"utf8",timeout:15000});
+  if(r.error&&r.error.code==="ENOENT")return; // e.g. Windows installation lacking PowerShell 7
+  assert.equal(r.status,0,r.stderr);
+});
