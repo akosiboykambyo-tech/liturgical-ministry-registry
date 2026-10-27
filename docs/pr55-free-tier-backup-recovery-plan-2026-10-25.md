@@ -1,3 +1,15 @@
+## 2026-10-27 — ROOT CAUSE CLARIFICATION: ORIGINAL TRIAL RESUMED AFTER SERVER SHUTDOWN
+
+Operator's read-only **port comparison confirmed all three values match**: PostgreSQL `postgresql.conf` configured **61047**, `postgres-private.log` showed server listening on **61047**, and `create-db-private.log` recorded client attempted **61047**. There is **no client/server port mismatch**.
+
+Crucially, the failed `CREATE DATABASE` reported the diagnostic directory `trial-20261027-113010-9f6d1401`, which is the **same original 11:30:10 trial** (localhost port **61047**) previously hung at PowerShell `pg_ctl` output redirection and then **intentionally shut down** by the operator. A new invocation of the rehearsal script generates a fresh timestamp and random GUID and cannot reuse that existing directory. Thus the apparent later `-Run` failure most likely represents **the original blocked invocation resuming after the manual server stop**; `psql` then attempted to reach a correctly configured but already stopped local server, producing `Connection refused`. This chronology is substantially stronger than the previous speculation about startup timing or port mismatch. Do not classify this as a new failed local restore run.
+
+Subsequent diagnostics confirmed `postgres-private.log` **ready=true**, **clean shutdown=true**, **fatal/panic=false**; **0 PostgreSQL localhost listeners** and **no `postmaster.pid`** in the trial directory. No `pg_restore` ran. The clean, safely stopped status is verified, but a *fresh* PostgreSQL local-restore trial remains **NOT YET ATTEMPTED** since the `pg_ctl` process-output fix.
+
+Next step: operator checks shell is on `fix/production-registration-compatibility`, performs fast-forward-only pull, and runs `-Run` **once** in an ordinary foreground PowerShell session. Verify that any new private diagnostic trial has a **new timestamp/GUID**, and diagnose any actual new issue without disclosing raw private logs or destroying backup archives. Both original and encrypted backup copies remain unchanged. PR #55 DRAFT/UNMERGED; production release NO-GO.
+
+---
+
 ## 2026-10-27 — FOLLOW-UP LOCAL RESTORE LOG CLASSIFICATION AND PID STATUS
 
 Operator examined private `create-db-private.log` for the failed 11:30:10 disposable trial using categorical regexes only, without disclosing raw diagnostic contents. Outcomes:
