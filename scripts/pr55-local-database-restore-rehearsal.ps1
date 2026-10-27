@@ -113,8 +113,19 @@ try{
         "max_connections = 12"
     )
     Write-Host "CHECK: Starting new local loopback-only PostgreSQL instance..."
-    $startExit=Invoke-RehearsalCommand -Exe (Join-Path $bin "pg_ctl.exe") -Arguments @("-D",$data,"-l",$serverLog,"-w","start") -Log $controlLog
-    if($startExit -ne 0){throw "Local PostgreSQL failed to start (private log retained)."}
+    # pg_ctl starts a long-lived postgres child. Capturing the pg_ctl stdout
+    # through PowerShell's *> pipeline can wait forever for the inherited pipe
+    # to close although the server has already become ready. Let pg_ctl write
+    # short status lines directly to console; -l keeps server logs PRIVATE.
+    $oldPreference=$ErrorActionPreference
+    try {
+        $ErrorActionPreference="Continue"
+        & (Join-Path $bin "pg_ctl.exe") -D $data -l $serverLog -w start
+        $startExit=[int]$LASTEXITCODE
+    } finally {
+        $ErrorActionPreference=$oldPreference
+    }
+    if($startExit -ne 0){throw "Local PostgreSQL failed to start (private server log retained)."}
     $started=$true
     $psql=Join-Path $bin "psql.exe"
     $createdExit=Invoke-RehearsalCommand -Exe $psql -Arguments @("--host=127.0.0.1","--port=$port","--username=$restoreUser","--dbname=postgres","--no-password","-X","-q","-v","ON_ERROR_STOP=1","--command=CREATE DATABASE pr55_restore_rehearsal WITH TEMPLATE template0 ENCODING 'UTF8';") -Log (Join-Path $work "create-db-private.log")
@@ -146,8 +157,20 @@ try{
     Write-Host "FAIL: Local database-only rehearsal remains incomplete; no production/staging changes made."
     throw
 }finally{
+    # A startup error may still have started the server in the background.
+    # Only examine the disposable, uniquely-created data directory.
+    if(-not $started -and (Test-Path -LiteralPath (Join-Path $data "postmaster.pid") -PathType Leaf)){
+        $started=$true
+    }
     if($started){
-        $stopExit=Invoke-RehearsalCommand -Exe (Join-Path $bin "pg_ctl.exe") -Arguments @("-D",$data,"-m","fast","-w","stop") -Log (Join-Path $work "pgctl-stop-private.log")
+        $oldPreference=$ErrorActionPreference
+        try {
+            $ErrorActionPreference="Continue"
+            & (Join-Path $bin "pg_ctl.exe") -D $data -m fast -w stop
+            $stopExit=[int]$LASTEXITCODE
+        } finally {
+            $ErrorActionPreference=$oldPreference
+        }
         if($stopExit -eq 0){
             $stopped=$true
             Write-Host "PASS: Disposable local PostgreSQL server stopped."
