@@ -316,7 +316,7 @@ export default function AdminDashboardPage() {
           {summary.people === 0 && (
             <section className="border border-[#E6DADC] bg-white p-6 sm:p-8" aria-labelledby="getting-started">
               <h2 id="getting-started" className={ebGaramond.className + " text-[34px] font-medium leading-tight sm:text-[44px]"}>
-                Ready for your first registration
+                Ready for your first batch
               </h2>
               <p className="mt-3 max-w-2xl text-[17px] leading-8 text-[#5F4A4F]">
                 Start by uploading a CSV roster for batch registration. Individual members can still be added from the Members section.
@@ -356,10 +356,9 @@ export default function AdminDashboardPage() {
               <p className="mt-1 text-[16px] leading-7 text-[#5F4A4F]">Document and verification tasks at ministry-assignment level.</p>
               <div className="mt-5 divide-y divide-[#E6DADC]">
                 {[
-                  { label: "Awaiting recommendation letter", count: summary.waitingForLetter, icon: FileWarning, href: "/admin/verification?tab=reviews&view=approvals" },
-                  { label: "Documents ready for review", count: summary.readyToReview, icon: FileCheck2, href: "/admin/verify" },
-                  { label: "Verified but missing validity date", count: summary.missingValidity, icon: CalendarClock, href: "/admin/members" },
-                  { label: "Verified but missing recommendation letter", count: summary.verifiedMissingLetter, icon: FileWarning, href: "/admin/members" },
+                  { label: "Missing recommendation letters", count: summary.waitingForLetter + summary.verifiedMissingLetter, icon: FileWarning, href: "/admin/verification?tab=reviews&view=approvals" },
+                  { label: "Documents ready for review", count: summary.readyToReview, icon: FileCheck2, href: "/admin/verification?tab=reviews&view=approvals" },
+                  { label: "Verified without validity date", count: summary.missingValidity, icon: CalendarClock, href: "/admin/members" },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
