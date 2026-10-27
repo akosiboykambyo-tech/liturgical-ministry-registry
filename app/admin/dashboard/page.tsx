@@ -8,6 +8,7 @@ import {
   Upload, Users,
 } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Member, MemberMinistry } from "@/lib/types";
 
@@ -288,7 +289,7 @@ export default function AdminDashboardPage() {
           The dashboard could not load complete registry data: {data.error}. No partial figures are shown.
         </div>
       )}
-      {loading && <p role="status" className="py-8 text-[17px] text-[#5F4A4F]">Loading registry overview…</p>}
+      {loading && <CenteredAdminLoader label="Loading registry overview…" />}
 
       {!loading && !data.error && (
         <>
