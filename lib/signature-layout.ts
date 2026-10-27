@@ -193,3 +193,10 @@ export function signatureInkPlacement(
     width, height,
   };
 }
+
+/** Match canvas.fillText(text, x, y, maxWidth): fit a single line without truncation. */
+export function fitSignatoryLine(measuredWidth: number, maxWidth: number): number {
+  if (!Number.isFinite(measuredWidth) || measuredWidth <= 0) return 1;
+  if (!Number.isFinite(maxWidth) || maxWidth <= 0) return 1;
+  return Math.min(1, maxWidth / measuredWidth);
+}

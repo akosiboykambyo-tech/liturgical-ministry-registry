@@ -5,7 +5,7 @@ import type { CertificateElement, CertificateTemplateSettings, Signatory, Signat
 import {
   DEFAULT_SIGNATURE_OFFSET, DEFAULT_SIGNATURE_COMPOSITION,
   effectiveSignatureOffset, normalizeSignatureComposition,
-  signatoryLayout, signatureInkPlacement, trimmedSignaturePreview,
+  signatoryLayout, signatureInkPlacement, trimmedSignaturePreview, fitSignatoryLine,
 } from "@/lib/signature-layout";
 
 type InkAsset = { url: string; width: number; height: number };
@@ -62,10 +62,37 @@ export function SignatoryArtwork({
   ) : null;
   const nameCase = element.text_case ?? settings.signatory_text_case;
   const titleCase = settings.signatory_title_text_case;
+  const nameFamily = element.font_family || settings.signatory_font_family || "Georgia, serif";
+  const nameWeight = element.font_weight || settings.signatory_font_weight || "bold";
+  const titleFamily = settings.signatory_title_font_family || nameFamily;
+  const titleWeight = settings.signatory_title_font_weight || "normal";
+  const fullName = nameCase === "uppercase" ? signatory.name.toLocaleUpperCase() : signatory.name;
+  const fullTitle = titleCase === "uppercase" ? signatory.title.toLocaleUpperCase() : signatory.title;
+  const [textFits, setTextFits] = useState({ name: 1, title: 1 });
+  useEffect(() => {
+    let active = true;
+    const calculate = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const nameVariant = nameCase === "small-caps" ? "small-caps" : "normal";
+      const titleVariant = titleCase === "small-caps" ? "small-caps" : "normal";
+      ctx.font = `${element.font_style || "normal"} ${nameVariant} ${nameWeight} ${nameSize}px ${nameFamily}`;
+      const name = fitSignatoryLine(ctx.measureText(fullName).width, element.width - 16);
+      ctx.font = `normal ${titleVariant} ${titleWeight} ${titleSize}px ${titleFamily}`;
+      const title = fitSignatoryLine(ctx.measureText(fullTitle).width, element.width - 16);
+      if (active) setTextFits({ name, title });
+    };
+    calculate();
+    void document.fonts?.ready.then(() => { if (active) calculate(); });
+    return () => { active = false; };
+  }, [element.width, element.font_style, nameSize, titleSize, nameFamily, nameWeight,
+    titleFamily, titleWeight, nameCase, titleCase, fullName, fullTitle]);
   const textBase: CSSProperties = {
-    position: "absolute", left: 8, right: 8, transform: "translateY(-50%)",
-    lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+    position: "absolute", left: 8, right: 8,
+    lineHeight: 1, whiteSpace: "nowrap", overflow: "visible",
     textAlign: element.text_align || "center",
+    transformOrigin: (element.text_align === "left" ? "left" : element.text_align === "right" ? "right" : "center") + " center",
   };
   const y = (position: number) => element.height / 2 + position;
   return (
@@ -81,16 +108,18 @@ export function SignatoryArtwork({
       ) : null}
       <div style={{
         ...textBase, top: y(layout.nameY),
-        fontFamily: element.font_family || settings.signatory_font_family || "Georgia, serif",
-        fontSize: nameSize, fontWeight: element.font_weight || settings.signatory_font_weight || "bold",
+        transform: `translateY(-50%) scaleX(${textFits.name})`,
+        fontFamily: nameFamily,
+        fontSize: nameSize, fontWeight: nameWeight,
         fontVariant: nameCase === "small-caps" ? "small-caps" : "normal",
         textTransform: nameCase === "uppercase" ? "uppercase" : "none",
         color: element.color || settings.signatory_font_color || "#0f172a",
       }}>{signatory.name}</div>
       <div style={{
         ...textBase, top: y(layout.titleY),
-        fontFamily: settings.signatory_title_font_family || element.font_family || settings.signatory_font_family || "Georgia, serif",
-        fontSize: titleSize, fontWeight: settings.signatory_title_font_weight || "normal",
+        transform: `translateY(-50%) scaleX(${textFits.title})`,
+        fontFamily: titleFamily,
+        fontSize: titleSize, fontWeight: titleWeight,
         fontVariant: titleCase === "small-caps" ? "small-caps" : "normal",
         textTransform: titleCase === "uppercase" ? "uppercase" : "none",
         color: settings.signatory_title_color || "#71717a",
@@ -99,14 +128,12 @@ export function SignatoryArtwork({
   );
 }
 
-const W = 320;
-const H = 160;
-
 export function SignatoryLayoutCanvas({
-  signatory, settings, value, onChange, onSave, onCancel, saving,
+  signatory, settings, certificateElement, value, onChange, onSave, onCancel, saving,
 }: {
   signatory: Signatory;
   settings: CertificateTemplateSettings;
+  certificateElement?: CertificateElement;
   value: SignatureComposition;
   onChange: (next: SignatureComposition) => void;
   onSave: () => void;
@@ -115,13 +142,18 @@ export function SignatoryLayoutCanvas({
 }) {
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
   const current = normalizeSignatureComposition(value);
-  const previewElement: CertificateElement = {
-    id: "signatory-layout-preview", type: "signatory", x: W / 2, y: H / 2,
-    width: W, height: H, font_size: settings.signatory_font_size ?? 14,
+  // Real signatory element dimensions ensure the mini-canvas previews the
+  // same artwork and typography that the main certificate uses.
+  const previewElement: CertificateElement = certificateElement ?? {
+    id: "signatory-layout-preview", type: "signatory", x: 90, y: 45,
+    width: 180, height: 90, font_size: settings.signatory_font_size ?? 12,
     font_family: settings.signatory_font_family || "Georgia, serif",
     font_weight: settings.signatory_font_weight || "bold", text_align: "center",
     signature_offset: DEFAULT_SIGNATURE_OFFSET, signature_offset_version: 2,
   };
+  const zoom = Math.min(2.5, 360 / previewElement.width);
+  const previewWidth = previewElement.width * zoom;
+  const previewHeight = previewElement.height * zoom;
   const handleStart = (event: PointerEvent<HTMLDivElement>) => {
     if (!signatory.signature_url) return;
     drag.current = { px: event.clientX, py: event.clientY, x: current.x, y: current.y };
@@ -143,16 +175,24 @@ export function SignatoryLayoutCanvas({
       <div className="mb-3">
         <h3 className="text-sm font-semibold text-[#1E1114]">Signatory Layout Canvas</h3>
         <p className="mt-1 text-xs text-[#66565A]">Drag the handwriting independently of the printed name and title. Resize or fine-tune using the sliders.</p>
+        <p className="mt-1 text-[11px] text-[#66565A]">
+          {certificateElement
+            ? `Previewing this certificate's actual ${Math.round(previewElement.width)} × ${Math.round(previewElement.height)} signatory block (zoomed for editing).`
+            : "This signatory is not currently placed on the selected certificate; showing a standard 180 × 90 block."}
+        </p>
       </div>
       <div className="overflow-x-auto border border-[#E5DDDF] bg-white p-4">
         <div role="img" aria-label={`Editable signature placement for ${signatory.name}`}
           className="relative mx-auto border border-dashed border-[#C9B8BE] bg-white"
-          style={{ width: W, height: H, touchAction: "none", userSelect: "none",
+          style={{ width: previewWidth, height: previewHeight, touchAction: "none", userSelect: "none",
             cursor: signatory.signature_url ? "grab" : "default" }}
           onPointerDown={handleStart} onPointerMove={handleMove}
           onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}>
-          <SignatoryArtwork signatory={signatory} settings={settings}
-            element={previewElement} composition={current} />
+          <div style={{ width: previewElement.width, height: previewElement.height,
+            transform: `scale(${zoom})`, transformOrigin: "top left", position: "relative" }}>
+            <SignatoryArtwork signatory={signatory} settings={settings}
+              element={previewElement} composition={current} />
+          </div>
         </div>
       </div>
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">

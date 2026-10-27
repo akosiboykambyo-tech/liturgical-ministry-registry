@@ -39,6 +39,7 @@ import {
   DEFAULT_SIGNATURE_COMPOSITION, normalizeSignatureComposition, attachSignatureCompositions,
 } from "@/lib/signature-layout";
 import { SignatoryLayoutCanvas } from "@/components/signatory-composition";
+import { resolveCertificateSignatory } from "@/lib/certificate";
 import type { SignatureComposition } from "@/lib/types";
 
 type TemplateRow = {
@@ -201,6 +202,7 @@ export default function CertificateManagerPage() {
   const [signatureDraft, setSignatureDraft] = useState<SignatureComposition>({ ...DEFAULT_SIGNATURE_COMPOSITION });
   const [signatureSaving, setSignatureSaving] = useState(false);
   const [signatureSaveError, setSignatureSaveError] = useState<string | null>(null);
+  const [signatureSavedNotice, setSignatureSavedNotice] = useState<string | null>(null);
   const [sigLoading, setSigLoading] = useState(true);
   const [sigSaving, setSigSaving] = useState(false);
   const [sigUploading, setSigUploading] = useState<string | null>(null);
@@ -683,6 +685,7 @@ export default function CertificateManagerPage() {
     setEditingSignatureId(signatory.id);
     setSignatureDraft(normalizeSignatureComposition(signatory.signature_layout));
     setSignatureSaveError(null);
+    setSignatureSavedNotice(null);
   };
 
   const saveSignatureLayout = async () => {
@@ -711,6 +714,17 @@ export default function CertificateManagerPage() {
       sig.id === id ? { ...sig, signature_layout: preset } : sig
     ));
     setEditingSignatureId(null);
+    const savedSignatory = signatories.find((sig) => sig.id === id);
+    const inCertificate = savedSignatory && settings.elements.some((element) =>
+      element.type === "signatory" &&
+      resolveCertificateSignatory(element.signatory_id, signatories, savedSignatory.ministry)?.id === id
+    );
+    if (inCertificate) {
+      setActiveTab("layout");
+      setSignatureSavedNotice(`Signature layout saved for ${savedSignatory.name}. The certificate canvas now uses this arrangement.`);
+    } else {
+      setSignatureSavedNotice("Signature layout saved. This signatory is not currently assigned to a block in the selected certificate; add or select the appropriate signatory there to see it.");
+    }
   };
 
   const handleSigToggle = async (sig: Signatory) => {
@@ -1409,13 +1423,21 @@ export default function CertificateManagerPage() {
                   </div>
                 )}
               </div>
+              {signatureSavedNotice && (
+                <div role="status" className="mt-3 border border-[#C5D9D2] bg-[#F3F9F7] px-4 py-3 text-sm text-[#145C51]">
+                  {signatureSavedNotice}
+                </div>
+              )}
               {editingSignatureId && (() => {
                 const chosen = signatories.find((sig) => sig.id === editingSignatureId);
                 return chosen ? (
                   <div className="space-y-2">
                     {signatureSaveError && <p role="alert" className="text-sm text-[#890022]">{signatureSaveError}</p>}
                     <SignatoryLayoutCanvas key={chosen.id} signatory={chosen}
-                      settings={settings} value={signatureDraft} onChange={setSignatureDraft}
+                      settings={settings} certificateElement={settings.elements.find((element) =>
+                        element.type === "signatory" &&
+                        resolveCertificateSignatory(element.signatory_id, signatories, chosen.ministry)?.id === chosen.id
+                      )} value={signatureDraft} onChange={setSignatureDraft}
                       saving={signatureSaving} onSave={() => void saveSignatureLayout()}
                       onCancel={() => { setEditingSignatureId(null); setSignatureSaveError(null); }} />
                   </div>
@@ -1441,6 +1463,11 @@ export default function CertificateManagerPage() {
         </div>
       </div>
 
+      {signatureSavedNotice && (
+        <div role="status" className="mb-3 border border-[#C5D9D2] bg-[#F3F9F7] px-4 py-3 text-sm text-[#145C51]">
+          {signatureSavedNotice}
+        </div>
+      )}
       <CertificateEditor
         settings={settings}
         onChange={setSettings}
