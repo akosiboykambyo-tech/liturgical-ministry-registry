@@ -1,3 +1,30 @@
+## 2026-10-27 — COMPLETE EXTENSION INVENTORY + READ-ONLY PRODUCTION PG/Vault CHECK
+
+Operator inventoried all PostgreSQL EXTENSION entries directly from the original SHA256-verified production `pg_dump` archive's catalog with `pg_restore --list`. **Exactly four extension entries**:
+
+| Archive extension | Windows native PostgreSQL 18 control file |
+|---|---|
+| `pg_stat_statements` | AVAILABLE |
+| `pgcrypto` | AVAILABLE |
+| `uuid-ossp` | AVAILABLE |
+| `supabase_vault` | **MISSING** |
+
+This is an **archive extension inventory**, not a complete database dependency or restore-compatibility proof. Even the three installed control files do not prove the matching extension binary can load or all dumped SQL works. Current native Windows PostgreSQL 18 fails the strict full `pg_restore` on absent `supabase_vault`.
+
+A **read-only Supabase SQL verification on the production project** (no schema, rows or settings modified) returned:
+- `current_setting('server_version')` = **17.6** (local PostgreSQL is **18.x**, thus a major-version mismatch as well as extension mismatch);
+- `pg_extension` contains `supabase_vault`;
+- `to_regclass('vault.secrets')` exists;
+- `SELECT count(*) FROM vault.secrets` = **0 at time of check**; no secret names, ciphertext, decrypted values or keys were retrieved or logged.
+
+**Caveat:** current live production Vault row count alone **does not establish the archive's historical Vault row count** at the October 26 dump snapshot. Vault root-key portability remains a conditional recovery requirement for any archived or otherwise encrypted Vault values. Supabase docs: https://supabase.com/docs/guides/database/vault ; https://supabase.com/docs/guides/platform/clone-project .
+
+**Recommendation:** Stop retrying the native Windows PostgreSQL 18 full-Supabase restore; do not force-success via disabling/skipping extensions. Plan an **isolated, compatible PostgreSQL 17 / Supabase runtime** for a new strict restore rehearsal, with correct extension binaries, roles, schema dependencies and separate Auth/Storage blob tests. On Windows, the supported Supabase local stack requires Docker-compatible runtime; native runtime is not supported. https://supabase.com/docs/guides/local-development ; https://supabase.com/docs/guides/local-development/docker-and-native-runtimes . Docker was previously absent on operator's Windows machine; do not assume it is installed now. Before provisioning any new environment, review network isolation, disk budget, VM permissions, personal-data handling and whether any extensions execute external side effects. No production/staging changes, no clone/restore to an online project, no secret recovery requests performed.
+
+Both database and private Storage encrypted backups and externally verified copies remain intact. Database restore REHEARSAL NOT PASSED; PR55 DRAFT/UNMERGED and production NO-GO.
+
+---
+
 ## 2026-10-27 — REQUIRED EXTENSION IDENTIFIED: supabase_vault; ENCRYPTION KEY PORTABILITY GATE
 
 Operator ran sanitized, read-only first-error extraction on private `trial-20261027-134639-e384e392/pg-restore-private.log`:
