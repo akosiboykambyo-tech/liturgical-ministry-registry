@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { StatusBadge } from "@/components/status-badge";
 import { MemberDetailDrawer } from "@/components/member-detail-drawer";
 import {
@@ -868,9 +869,7 @@ export default function MembersListPage() {
 
       {/* Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
+        <CenteredAdminLoader label="Loading member records…" />
       ) : members.length === 0 ? (
         <div className="border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
           {isActiveSearch || activeFilterCount > 0
