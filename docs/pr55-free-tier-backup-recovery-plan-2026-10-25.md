@@ -1,3 +1,22 @@
+## 2026-10-27 — LOCAL RESTORE BLOCKED BY MISSING POSTGRESQL SERVER BOOTSTRAP FILE (NO DATA RESTORED)
+
+The operator successfully ran `scripts/pr55-local-database-restore-rehearsal.ps1 -Preflight`, which verified the exact production backup archive SHA-256 and required table-data catalog entries, executable presence and drive space. The subsequent `-Run` attempt reached `initdb` but **failed before PostgreSQL could be initialized, started or a restore executed**. The direct error was:
+
+```text
+initdb: error: file "C:/Program Files/PostgreSQL/18/share/postgres.bki" does not exist
+FAIL: Local database-only rehearsal remains incomplete; no production/staging changes made.
+```
+
+Native PostgreSQL 18.6 executables present under `C:\Program Files\PostgreSQL\18\bin` do NOT establish a complete server installation: `postgres.bki` is a required version-matched PostgreSQL system catalog bootstrap file, ordinarily installed in the server's `share` directory. Reference: https://www.postgresql.org/docs/18/bki.html . The original `-Preflight` checked executable presence but **did not check server data/support files**, producing an incomplete assessment; this has now been corrected to fail closed before initialization unless both `share/postgres.bki` and `share/postgresql.conf.sample` exist. The script also now captures Windows PowerShell native process stderr in private logs while interpreting the actual exit code. Static regression tests added.
+
+Local private diagnostic directory: `PR55-LOCAL-RESTORE-REHEARSALS/trial-20261027-102811-08406989` below user's home backup directory; no sensitive logs were requested for upload or publication. Trial data from failed initdb may be left in this disposable directory, but **do not delete without confirming no local process is using it**. Production, staging, PostgreSQL backup and Storage files are unaffected. Backup validity not disproven; **restore gate BLOCKED**.
+
+**Next action (read-only):** operator should inspect presence of `C:\Program Files\PostgreSQL\18\share\postgres.bki`, `share\postgresql.conf.sample` and `pg_config --sharedir`/`initdb --show`, then select a complete same-version PostgreSQL 18 server installation (official Windows EDB installer) or Supabase-compatible disposable runtime. Do NOT patch missing bootstrap files from other PostgreSQL versions or bypass full restore errors. Official Windows installer: https://www.postgresql.org/download/windows/ . PostgreSQL `initdb -L` may select an alternate **valid, complete version-matching share directory**, only if one already exists. Do not retry the `-Run` restore until tools and bootstrap data are verified.
+
+**PR #55 remains DRAFT/UNMERGED, production NO-GO.** Nothing was applied to production.
+
+---
+
 ## 2026-10-27 — NATIVE WINDOWS DISPOSABLE PG18 RESTORE PREPARATION; NOT YET RUN
 
 The operator's local tooling check confirmed **PRESENT**: `pg_restore`, `pg_dump`, `psql`, `postgres`, `initdb`, `pg_ctl` under `C:\Program Files\PostgreSQL\18\bin`. `pg_restore (PostgreSQL) 18.6` and the existing backup script's `--check-tools` both **PASS**. Docker is **not installed**. Plain `pg_restore` was absent from `PATH`, but the explicit full path works.
