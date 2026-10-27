@@ -36,7 +36,6 @@ import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 
 type TemplateRow = {
   key: string;
-  settings: CertificateTemplateSettings;
   is_default: boolean;
   updated_at: string;
 };
@@ -61,6 +60,28 @@ function nameToKey(name: string) {
 }
 
 const DEFAULTS = DEFAULT_TEMPLATE_SETTINGS;
+
+// Keep a stalled network request from trapping the editor behind a spinner.
+// Timings are visible in development tools, without logging member data.
+async function readWithTimeout<T>(label: string, request: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 15000);
+  const started = performance.now();
+  try {
+    return await request(controller.signal);
+  } finally {
+    window.clearTimeout(timer);
+    if (process.env.NODE_ENV === "development") {
+      console.debug(`[Certificate Manager] ${label}: ${Math.round(performance.now() - started)} ms`);
+    }
+  }
+}
+
+function loadError(cause: unknown, resource: string) {
+  return cause instanceof Error && cause.name === "AbortError"
+    ? `${resource} timed out. Check your connection and retry.`
+    : `Unable to load ${resource.toLowerCase()}: ${cause instanceof Error ? cause.message : "Request failed"}`;
+}
   type Tab = "layout" | "signatories";
 
 export default function CertificateManagerPage() {
@@ -70,6 +91,11 @@ export default function CertificateManagerPage() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [signatoriesError, setSignatoriesError] = useState<string | null>(null);
+  const activeLoadId = useRef(0);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fontUploading, setFontUploading] = useState(false);
@@ -176,47 +202,90 @@ export default function CertificateManagerPage() {
     alignment: "left" as "left" | "center" | "right",
   });
 
+  // Fetch one complete template for the editor. The saved-template index contains
+  // metadata only and is loaded independently, so it does not block first paint.
   const load = useCallback(async (selectedKey?: string) => {
+    const current = ++activeLoadId.current;
     setLoading(true);
-    const { data } = await supabase
-      .from("system_settings")
-      .select("*")
-      .like("key", `${TEMPLATE_KEY_PREFIX}%`)
-      .order("key");
-    const rows: TemplateRow[] = (data ?? []).map((row) => ({
-      key: row.key as string,
-      settings: { ...DEFAULTS, ...(row.value as CertificateTemplateSettings) },
-      is_default: Boolean(row.is_default),
-      updated_at: (row.updated_at as string) ?? "",
-    }));
-    setTemplates(rows);
-    const defaultRow = rows.find((r) => r.key === selectedKey) ?? rows.find((r) => r.is_default) ?? rows[0];
-    if (defaultRow) {
-      setSettings(defaultRow.settings);
-      setEditingKey(defaultRow.key);
-      setTemplateName(templateLabel(defaultRow.key));
-    } else {
-      setSettings(DEFAULTS);
-      setEditingKey(null);
-      setTemplateName("");
+    setTemplateError(null);
+    try {
+      const readOne = async (signal: AbortSignal, key?: string, first = false) => {
+        let query = supabase.from("system_settings")
+          .select("key,value,is_default,updated_at")
+          .like("key", `${TEMPLATE_KEY_PREFIX}%`);
+        if (key) query = query.eq("key", key);
+        else if (!first) query = query.eq("is_default", true);
+        const { data, error } = await query.order("key").limit(1).abortSignal(signal).maybeSingle();
+        if (error) throw new Error(error.message);
+        return data;
+      };
+      const row = await readWithTimeout("Active template", async (signal) => {
+        const preferred = await readOne(signal, selectedKey);
+        return preferred ?? (selectedKey ? null : readOne(signal, undefined, true));
+      });
+      if (current !== activeLoadId.current) return;
+      if (row) {
+        setSettings({ ...DEFAULTS, ...(row.value as CertificateTemplateSettings) });
+        setEditingKey(row.key);
+        setTemplateName(templateLabel(row.key));
+      } else if (selectedKey) {
+        throw new Error("Selected template not found.");
+      } else {
+        setSettings(DEFAULTS);
+        setEditingKey(null);
+        setTemplateName("");
+      }
+    } catch (cause) {
+      if (current === activeLoadId.current) setTemplateError(loadError(cause, "Certificate template"));
+    } finally {
+      if (current === activeLoadId.current) setLoading(false);
     }
-    setLoading(false);
+  }, [supabase]);
+
+  const loadTemplateList = useCallback(async () => {
+    setListLoading(true);
+    setListError(null);
+    try {
+      const { data, error } = await readWithTimeout("Template names", async (signal) =>
+        await supabase.from("system_settings")
+          .select("key,is_default,updated_at")
+          .like("key", `${TEMPLATE_KEY_PREFIX}%`)
+          .order("key").abortSignal(signal)
+      );
+      if (error) throw new Error(error.message);
+      setTemplates((data ?? []).map((row) => ({
+        key: row.key as string,
+        is_default: Boolean(row.is_default),
+        updated_at: (row.updated_at as string) ?? "",
+      })));
+    } catch (cause) {
+      setListError(loadError(cause, "Saved template list"));
+    } finally {
+      setListLoading(false);
+    }
   }, [supabase]);
 
   const loadSignatories = useCallback(async () => {
     setSigLoading(true);
-    const { data } = await supabase
-      .from("signatories")
-      .select("*")
-      .order("sort_order");
-    setSignatories((data as Signatory[]) ?? []);
-    setSigLoading(false);
+    setSignatoriesError(null);
+    try {
+      const { data, error } = await readWithTimeout("Signatories", async (signal) =>
+        await supabase.from("signatories").select("*").order("sort_order").abortSignal(signal)
+      );
+      if (error) throw new Error(error.message);
+      setSignatories((data as Signatory[]) ?? []);
+    } catch (cause) {
+      setSignatoriesError(loadError(cause, "Signatories"));
+    } finally {
+      setSigLoading(false);
+    }
   }, [supabase]);
 
   useEffect(() => {
-    load();
-    loadSignatories();
-  }, [load, loadSignatories]);
+    void load();
+    void loadTemplateList();
+    void loadSignatories();
+  }, [load, loadTemplateList, loadSignatories]);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -267,6 +336,10 @@ export default function CertificateManagerPage() {
       return;
     }
     const key = creating ? nameToKey(name) : editingKey;
+    if (creating && (listLoading || listError)) {
+      setError("Load the saved template list before creating a new template.");
+      return;
+    }
     if (creating && (key === TEMPLATE_KEY_PREFIX || templates.some((row) => row.key === key))) {
       setError("A template with that name already exists. Use a different name or edit the existing template.");
       return;
@@ -290,7 +363,7 @@ export default function CertificateManagerPage() {
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
-    await load(key);
+    await Promise.all([load(key), loadTemplateList()]);
   };
 
   const handleSetDefault = async (key: string) => {
@@ -318,7 +391,7 @@ export default function CertificateManagerPage() {
   setSetDefaultKey(null);
 
   if (!error) {
-    await load();
+    await Promise.all([load(), loadTemplateList()]);
   }
 };
 
@@ -338,19 +411,15 @@ export default function CertificateManagerPage() {
         setTemplateName("");
         setSettings(DEFAULTS);
       }
-      await load();
+      await Promise.all([load(), loadTemplateList()]);
     }
   };
 
   const handleEdit = (row: TemplateRow) => {
-    setEditingKey(row.key);
-    setTemplateName(templateLabel(row.key));
-    setSettings(row.settings);
     setSaved(false);
     setError(null);
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    void load(row.key);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleNew = () => {
@@ -624,7 +693,20 @@ export default function CertificateManagerPage() {
   }
 
   if (loading) {
-    return <CenteredAdminLoader label="Loading certificate templates…" />;
+    return <CenteredAdminLoader label="Loading certificate template…" />;
+  }
+  if (templateError) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div role="alert" className="w-full max-w-lg space-y-4 border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-7 text-center">
+          <h1 className={`${ebGaramond.className} text-3xl text-[#1E1114]`}>Certificate Template Manager</h1>
+          <p className="text-sm text-[#682037]">{templateError}</p>
+          <button type="button" onClick={() => void load()} className="min-h-11 bg-[#890022] px-5 py-2 text-sm font-semibold text-white">
+            Retry loading
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -673,6 +755,13 @@ export default function CertificateManagerPage() {
         </div>
       </div>
 
+      {signatoriesError && (
+        <div role="alert" className="flex items-center justify-between gap-3 border border-[#C9A5AF] bg-[#F8F1F3] px-4 py-3 text-sm text-[#682037]">
+          <span>{signatoriesError}</span>
+          <button type="button" onClick={() => void loadSignatories()}
+            className="shrink-0 border border-[#890022] px-3 py-2 font-semibold">Retry</button>
+        </div>
+      )}
       {error && (
         <div className="flex items-start gap-2 rounded-none border border-[#C9A5AF] bg-[#F8F1F3] px-4 py-3 text-sm text-[#682037]">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -1291,7 +1380,17 @@ export default function CertificateManagerPage() {
           <span className="text-xs text-muted-foreground">{templates.length} saved</span>
         </div>
 
-        {templates.length === 0 ? (
+        {listError ? (
+          <div role="alert" className="space-y-3 px-5 py-7 text-sm text-[#682037]">
+            <p>{listError}</p>
+            <button type="button" onClick={() => void loadTemplateList()}
+              className="border border-[#890022] px-4 py-2 font-semibold text-[#890022]">Retry list</button>
+          </div>
+        ) : listLoading ? (
+          <div role="status" className="flex items-center gap-2 px-5 py-7 text-sm text-[#66565A]">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading saved template names…
+          </div>
+        ) : templates.length === 0 ? (
           <div className="px-5 py-10 text-center">
             <FileText className="mx-auto h-8 w-8 text-muted-foreground/50" />
             <p className="mt-2 text-sm font-medium">No saved templates yet</p>
@@ -1324,9 +1423,7 @@ export default function CertificateManagerPage() {
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                      {row.settings.template_url ? "Custom background" : "No background image"} ·
-                      {" "}Liturgical year {row.settings.liturgical_year} ·
-                      {" "}Font: {row.settings.font_family?.split(",")[0] || "Georgia"}
+                      {isEditing ? "Currently selected" : "Select Edit to load full template"} · Updated {row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "unknown"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -1338,7 +1435,7 @@ export default function CertificateManagerPage() {
                     </button>
                     <button
                       onClick={() => handleSetDefault(row.key)}
-                      disabled={isDefault || setDefaultKey !== null}
+                      disabled={listLoading || isDefault || setDefaultKey !== null}
                       className="inline-flex items-center gap-1 rounded-none bg-[#890022] px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#75001D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {setDefaultKey === row.key ? (
