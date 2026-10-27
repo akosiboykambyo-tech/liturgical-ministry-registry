@@ -1,3 +1,26 @@
+## 2026-10-27 — NEXT OFFLINE RESTORE REHEARSAL: LOCAL CREATE DATABASE FAIL; SHUTDOWN UNCONFIRMED
+
+Operator ran the fixed `scripts/pr55-local-database-restore-rehearsal.ps1 -Run` in normal PowerShell. Exact original backup integrity/catalog and disk preflight **PASS**; `initdb` completed without reported error. The script advanced past `CHECK: Starting new local loopback-only PostgreSQL instance...` to the local `psql CREATE DATABASE` command, which exited nonzero:
+
+```text
+PASS: PostgreSQL 18 binaries present.
+PASS: Original PostgreSQL archive SHA256 and required catalog entries verified.
+PASS: At least 2 GiB free for disposable restore.
+CHECK: Initializing new disposable local PostgreSQL cluster...
+CHECK: Starting new local loopback-only PostgreSQL instance...
+FAIL: Local database-only rehearsal remains incomplete; no production/staging changes made.
+WARNING: Local trial server shutdown not confirmed. Do not delete its data directory.
+Local disposable database creation failed.
+```
+
+**Private trial diagnostics directory:** `$HOME\COWL-DOK-PRIVATE-BACKUPS\PR55-LOCAL-RESTORE-REHEARSALS\trial-20261027-113010-9f6d1401`.
+
+No `CHECK: Restoring full archive` message or pg_restore invocation occurred, so **no archive data has been restored**. The reasons for failure of the local `psql CREATE DATABASE` and the `pg_ctl stop` failure are **not yet established**. Treat the PG18 server as **potentially still running**, do NOT rerun restore, delete the trial data directory, stop all PostgreSQL services/processes, or publish private logs. Next diagnostic must inspect the trial's `postmaster.pid` vs its actual localhost listener/process and classify the trial's private `create-db-private.log` without revealing sensitive log data. Once the exact instance is identified, arrange **targeted** graceful shutdown and correct the cause before retry.
+
+Release remains **NO-GO**, PR #55 **DRAFT/UNMERGED**; both encrypted production archives and previously verified USB copies remain unaffected.
+
+---
+
 ## 2026-10-27 — DISPOSABLE LOCAL POSTGRESQL SERVER SHUT DOWN: PASS
 
 Operator ran fail-closed targeted shutdown of the stuck *disposable* PostgreSQL rehearsal instance. The script matched the unique trial data directory against `postmaster.pid`, its PostgreSQL process, and the `127.0.0.1:61047` listener; `pg_ctl -D <verified trial data dir> -m fast -w stop` exited successfully. Post-stop `Get-NetTCPConnection` verified port **61047 was no longer listening**.
