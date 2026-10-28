@@ -58,3 +58,10 @@ test("history queries remain separate", () => {
 test("member-wide verification remains a separate release gate", () => {
   assert.match(verify, /\.update\(\{ status: newStatus \}\)/);
 });
+
+test("renewal UI uses shared date-only validity helper and prevents manual overrides", () => {
+  assert.match(importer, /import \{ expirationOneYearAfter \} from/);
+  assert.match(importer, /return expirationOneYearAfter\(renewalDate\)/);
+  assert.match(importer, /nextRenewalDate !== expectedNextRenewalDate/);
+  assert.match(importer, /readOnly/);
+});

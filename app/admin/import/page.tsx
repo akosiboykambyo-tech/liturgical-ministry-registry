@@ -1,6 +1,7 @@
 "use client";
 
 import { normalizeApprovedMinistries } from "@/lib/registration-ministry-validation";
+import { expirationOneYearAfter } from "@/lib/registration-validity";
 import { useEffect, useState, useRef, useCallback, useContext } from "react";
 import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification-workspace-context";
 import Link from "next/link";
@@ -176,10 +177,13 @@ function getRenewalReviewLabel(item: RenewalReviewItem): string {
 }
 
 function getDefaultNextRenewalDate(renewalDate: string): string {
-  const date = new Date(`${renewalDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  date.setFullYear(date.getFullYear() + 1);
-  return date.toISOString().slice(0, 10);
+  try {
+    // Use the shared date-only calculation, avoiding local timezone drift and
+    // ensuring leap-day renewals follow the established registry policy.
+    return expirationOneYearAfter(renewalDate);
+  } catch {
+    return "";
+  }
 }
 
 export default function CsvImportPage() {
@@ -626,9 +630,10 @@ export default function CsvImportPage() {
       return;
     }
 
-    if (nextRenewalDate < renewalDate) {
+    const expectedNextRenewalDate = getDefaultNextRenewalDate(renewalDate);
+    if (!expectedNextRenewalDate || nextRenewalDate !== expectedNextRenewalDate) {
       setRenewalActionError(
-        "The next renewal date cannot be earlier than the renewal date."
+        "Expiration must be exactly one calendar year after renewal. Check the renewal date."
       );
       return;
     }
@@ -1827,9 +1832,13 @@ export default function CsvImportPage() {
                       value={nextRenewalDate}
                       min={renewalDate || undefined}
                       disabled={renewalProcessing}
-                      onChange={(e) => setNextRenewalDate(e.target.value)}
+                      readOnly
+                      aria-readonly="true"
                       className="mt-2 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Automatically calculated as one calendar year after the renewal date.
+                    </p>
                   </div>
                 </div>
 
