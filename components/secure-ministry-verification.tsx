@@ -63,7 +63,7 @@ export default function SecureMinistryVerification() {
           document_url: row.document_url,
         });
       }
-      setMembers([...grouped.values()]);
+      setMembers(Array.from(grouped.values()));
       setReachedLimit(records.length === MAX_PENDING);
     } catch (cause) {
       setMembers([]);
