@@ -49,3 +49,10 @@ test("HTTP probe is pinned to isolated staging and validates both roles",()=>{
   assert.match(source,/NO registry writes requested/);
   assert.doesNotMatch(source,/\.from\("members"\)\.insert|DELETE FROM|UPDATE public\.members/);
 });
+
+test("real JWT probe also covers the separate pending-letter authorization RPC",()=>{
+  assert.match(source,/registry_attach_ministry_letter_v1/);
+  assert.match(source,/ungranted letter attachment/);
+  assert.match(source,/granted admin invalid letter attachment/);
+  assert.match(source,/anonymous letter attachment/);
+});

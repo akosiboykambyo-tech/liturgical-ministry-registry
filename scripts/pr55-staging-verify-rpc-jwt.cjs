@@ -102,6 +102,19 @@ async function run() {
     "POST", invalidInput, admin.token);
   expectRpcFailure("granted administrator invalid request", granted, "22023");
 
+  // The separate pending-letter attach endpoint must share the same
+  // administrator-only boundary; all arguments below are intentionally invalid.
+  const invalidLetter = { p_member_id: null, p_membership_id: null, p_document_path: "" };
+  const letterAnon = await request("/rest/v1/rpc/registry_attach_ministry_letter_v1",
+    "POST", invalidLetter);
+  expectRpcFailure("anonymous letter attachment", letterAnon, "42501");
+  const letterNonadmin = await request("/rest/v1/rpc/registry_attach_ministry_letter_v1",
+    "POST", invalidLetter, nonadmin.token);
+  expectRpcFailure("ungranted letter attachment", letterNonadmin, "42501");
+  const letterAdmin = await request("/rest/v1/rpc/registry_attach_ministry_letter_v1",
+    "POST", invalidLetter, admin.token);
+  expectRpcFailure("granted admin invalid letter attachment", letterAdmin, "22023");
+
   const adminRows = await request("/rest/v1/member_ministries?select=id&limit=1",
     "GET", undefined, admin.token);
   if (adminRows.status !== 200 || !Array.isArray(adminRows.data) ||
