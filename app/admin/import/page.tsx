@@ -256,6 +256,9 @@ export default function CsvImportPage() {
     duplicatesRouted: number;
   } | null>(null);
   const [overrideIdempotency, setOverrideIdempotency] = useState(false);
+  const [importFailure, setImportFailure] = useState<string | null>(null);
+  const [importBlocked, setImportBlocked] = useState(false);
+  const importInFlightRef = useRef(false);
 
   // Staging state
   const [pendingMerges, setPendingMerges] = useState<StagedDuplicate[]>([]);
@@ -269,6 +272,13 @@ export default function CsvImportPage() {
   } | null>(null);
 
   const handleFile = useCallback(async (file: File) => {
+    if (processing) return;
+    if (pendingMerges.length) {
+      setParseError("Resolve or document the temporary duplicate review queue before importing another CSV.");
+      return;
+    }
+    setImportFailure(null);
+    setImportBlocked(false);
     setParseError(null);
     setResults([]);
     setProgress(null);
@@ -334,7 +344,7 @@ export default function CsvImportPage() {
       },
       error: (err) => setParseError(err.message),
     });
-  }, []);
+  }, [pendingMerges.length, processing]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -688,12 +698,23 @@ export default function CsvImportPage() {
   // STAGING + IMPORT FLOW
   // ============================================================
   const runImport = async () => {
-    if (rows.length === 0) return;
+    if (!rows.length || processing || importInFlightRef.current || importBlocked) return;
+    if (pendingMerges.length) {
+      setImportFailure("Resolve the existing temporary duplicate queue before starting another import.");
+      return;
+    }
+    importInFlightRef.current = true;
     setProcessing(true);
+    setImportFailure(null);
     setResults([]);
     setActionError(null);
     setMergeSummary(null);
 
+    let writesStarted = false;
+    let batchId: string | null = null;
+    const knownResults: RowResult[] = [];
+    let knownDuplicateCount = 0;
+    try {
     const incomingRecords: IncomingRecord[] = rows.map((r) => ({
       first_name: r.first_name,
       last_name: r.last_name,
@@ -715,6 +736,7 @@ export default function CsvImportPage() {
       serviceYear
     );
     const { unique, duplicates } = stagingResult;
+    knownDuplicateCount = duplicates.length;
 
     // Idempotency check — warn if this exact file was already imported
     if (stagingResult.alreadyImported && !overrideIdempotency) {
@@ -729,6 +751,11 @@ export default function CsvImportPage() {
       return;
     }
 
+    // Hold duplicates for review even if a subsequent batch write fails.
+    if (duplicates.length) {
+      setPendingMerges(duplicates);
+      setCurrentIndex(0);
+    }
     setProgress({
       current: unique.length,
       total: incomingRecords.length,
@@ -737,7 +764,7 @@ export default function CsvImportPage() {
     await new Promise((r) => setTimeout(r, 0));
 
     // Step 2: Record the import batch for idempotency tracking
-    const { data: batchRecord } = await supabase
+    const { data: batchRecord, error: batchError } = await supabase
       .from("import_batches")
       .insert({
         file_hash: fileHash,
@@ -750,10 +777,14 @@ export default function CsvImportPage() {
       .select("id")
       .single();
 
-    const batchId = (batchRecord as { id: string } | null)?.id;
+    if (batchError || !batchRecord?.id) {
+      throw new Error(`Unable to record the import batch: ${batchError?.message ?? "Missing batch ID"}`);
+    }
+    batchId = (batchRecord as { id: string }).id;
+    writesStarted = true;
 
     // Step 3: Insert unique records immediately (auto-generates UIDs)
-    const out: RowResult[] = [];
+    const out: RowResult[] = knownResults;
     const batchCount = Math.ceil(unique.length / BATCH_SIZE);
     for (let b = 0; b < batchCount; b++) {
       const batchStart = b * BATCH_SIZE;
@@ -791,6 +822,9 @@ export default function CsvImportPage() {
         }
       }
 
+      if (batchResults.length !== slice.length) {
+        throw new Error("The batch response was incomplete; confirm created members before retrying.");
+      }
       setProgress({
         current: batchStart + slice.length,
         total: unique.length,
@@ -800,7 +834,7 @@ export default function CsvImportPage() {
 
     // Step 4: Update the import batch record
     if (batchId) {
-      await supabase
+      const { error: finishError } = await supabase
         .from("import_batches")
         .update({
           unique_inserted: out.filter((r) => r.status === "created").length,
@@ -808,6 +842,7 @@ export default function CsvImportPage() {
           completed_at: new Date().toISOString(),
         })
         .eq("id", batchId);
+      if (finishError) throw new Error(`Import ran but batch history could not be finalized: ${finishError.message}`);
     }
 
     setResults(out);
@@ -829,6 +864,32 @@ export default function CsvImportPage() {
       setPendingMerges(duplicates);
       setCurrentIndex(0);
       changeTab("pending");
+    }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Unexpected import error.";
+      const created = knownResults.filter((r) => r.status === "created").length;
+      const rejected = knownResults.filter((r) => r.status === "error").length;
+      if (writesStarted) {
+        setImportBlocked(true);
+        setImportFailure(
+          `Import stopped after database writes may have begun: ${message} ` +
+          `Known results: ${created} created, ${rejected} rejected; other outcomes may be unknown. ` +
+          `Do not retry this CSV until registry records and batch ${batchId ?? "history"} are reconciled.`
+        );
+      } else {
+        setImportFailure(`Import stopped before member creation: ${message}`);
+      }
+      if (knownResults.length) setResults(knownResults);
+      if (knownResults.length || knownDuplicateCount) {
+        setSummary({
+          created, duplicates: knownDuplicateCount, errors: rejected,
+          total: knownResults.length + knownDuplicateCount,
+        });
+      }
+    } finally {
+      setProcessing(false);
+      setProgress(null);
+      importInFlightRef.current = false;
     }
   };
 
