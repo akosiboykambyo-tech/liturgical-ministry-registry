@@ -51,3 +51,51 @@ export async function verifySelectedMinistries(
   }
   return result as SecureVerificationResult;
 }
+
+export async function attachPendingMinistryLetter(
+  memberId: string, membershipId: string, file: File
+): Promise<void> {
+  if (!secureMinistryVerificationEnabled) {
+    throw new Error("Secure recommendation letter intake is disabled.");
+  }
+  if (!UUID.test(memberId) || !UUID.test(membershipId)) {
+    throw new Error("A valid member and ministry assignment must be selected.");
+  }
+  const extensions: Record<string, string> = {
+    "application/pdf": "pdf",
+    "image/png": "png",
+    "image/jpeg": "jpg",
+  };
+  const extension = extensions[file.type];
+  if (!extension || file.size < 1 || file.size > 5 * 1024 * 1024) {
+    throw new Error("Upload a nonempty PDF, PNG or JPEG recommendation letter up to 5 MB.");
+  }
+  const path = `verification/${memberId}/${membershipId}/${crypto.randomUUID()}.${extension}`;
+  const storage = getSupabaseBrowserClient().storage.from("member-documents");
+  const uploaded = await storage.upload(path, file, {
+    upsert: false, contentType: file.type,
+  });
+  if (uploaded.error) {
+    throw new Error(`Private document upload failed: ${uploaded.error.message}`);
+  }
+  const { data, error } = await getSupabaseBrowserClient().rpc(
+    "registry_attach_ministry_letter_v1", {
+      p_member_id: memberId,
+      p_membership_id: membershipId,
+      p_document_path: path,
+    }
+  );
+  if (error || !data || typeof data !== "object" || Array.isArray(data) ||
+      data.attached !== true || data.member_id !== memberId ||
+      data.membership_id !== membershipId) {
+    // Upload and DB linkage are separate services; remove only the immutable
+    // newly-created object after a definite attach failure.
+    const removed = await storage.remove([path]);
+    const uncertainty = removed.error
+      ? " The uploaded file may remain unlinked; contact an administrator before retrying."
+      : " The unlinked upload was cleaned up.";
+    throw new Error(
+      "The database did not confirm attaching the recommendation letter." + uncertainty
+    );
+  }
+}

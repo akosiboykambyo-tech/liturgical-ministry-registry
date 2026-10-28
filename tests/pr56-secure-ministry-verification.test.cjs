@@ -25,7 +25,7 @@ test("secure assignment chooser starts with nothing selected", () => {
   assert.match(secure,/ids\.length !== selected\.size/);
 });
 test("secure page requires ministry-specific document and exposes record review", () => {
-  assert.match(secure,/disabled=\{submitting \|\| !assignment\.document_url\}/);
+  assert.match(secure,/uploadingId !== null \|\| !assignment\.document_url/);
   assert.match(secure,/No ministry recommendation letter on file/);
   assert.match(secure,/href=\{\`\/admin\/members\/\$\{active\.member\.id\}\`\}/);
 });
@@ -60,4 +60,14 @@ test("legacy editing entry points fail closed when secure mode is enabled", () =
   assert.match(drawer, /Direct member and assignment edits are paused/);
   assert.match(drawer, /Legacy upload also renews the ministry without secure approval/);
   assert.match(drawer, /Direct document changes are disabled/);
+});
+
+test("secure letter attachment uses private immutable Storage then dedicated no-renewal RPC", () => {
+  assert.match(actions,/\.storage\.from\("member-documents"\)/);
+  assert.match(actions,/storage\.upload\(path, file/);
+  assert.match(actions,/upsert: false/);
+  assert.match(actions,/registry_attach_ministry_letter_v1/);
+  assert.match(actions,/p_document_path: path/);
+  assert.match(actions,/storage\.remove\(\[path\]\)/);
+  assert.match(secure,/No verification or renewal was applied/);
 });

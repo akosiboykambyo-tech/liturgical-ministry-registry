@@ -6,7 +6,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { shortMinistry } from "@/lib/constants";
-import { verifySelectedMinistries } from "@/lib/secure-ministry-verification";
+import { verifySelectedMinistries, attachPendingMinistryLetter } from "@/lib/secure-ministry-verification";
 
 type MemberDetails = {
   id: string; uid: string; first_name: string; last_name: string;
@@ -33,6 +33,8 @@ export default function SecureMinistryVerification() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [reachedLimit, setReachedLimit] = useState(false);
 
   const reload = useCallback(async () => {
@@ -91,10 +93,31 @@ export default function SecureMinistryVerification() {
     setSelected(new Set()); // Explicit selection; no default auto-approval.
     setError(null);
     setNotice(null);
+    setUploadNotice(null);
+  };
+
+  const uploadPendingLetter = async (assignment: PendingAssignment, file: File) => {
+    if (!active || submitting || uploadingId ||
+        assignment.member_id !== active.member.id || assignment.document_url) {
+      setError("Reopen the member to upload a letter to the correct pending ministry.");
+      return;
+    }
+    setError(null);
+    setUploadNotice(null);
+    setUploadingId(assignment.id);
+    try {
+      await attachPendingMinistryLetter(active.member.id, assignment.id, file);
+      await reload();
+      setUploadNotice(`Recommendation letter attached to ${assignment.ministry}. No verification or renewal was applied.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to attach the recommendation letter.");
+    } finally {
+      setUploadingId(null);
+    }
   };
 
   const confirm = async () => {
-    if (!active || submitting || selected.size === 0) return;
+    if (!active || submitting || uploadingId || selected.size === 0) return;
     const ids = active.assignments
       .filter((assignment) => selected.has(assignment.id))
       .map((assignment) => assignment.id);
@@ -192,31 +215,48 @@ export default function SecureMinistryVerification() {
             </Link>
             <div className="space-y-2">
               {active.assignments.map((assignment) => (
-                <label key={assignment.id} className="flex cursor-pointer items-start gap-3 border border-[#E6DADC] p-3">
-                  <input type="checkbox" checked={selected.has(assignment.id)}
-                    disabled={submitting || !assignment.document_url}
-                    onChange={(event) => setSelected((current) => {
-                      const next = new Set(current);
-                      if (event.target.checked) next.add(assignment.id);
-                      else next.delete(assignment.id);
-                      return next;
-                    })} className="mt-1 accent-[#890022]" />
-                  <span className="text-sm font-medium">{assignment.ministry}<span className="block text-xs font-normal text-[#66545A]">
-                    {assignment.document_url ? "Recommendation letter on file" : "No ministry recommendation letter on file — upload before approval"}
-                  </span></span>
-                </label>
+                <div key={assignment.id} className="border border-[#E6DADC] p-3">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input type="checkbox" checked={selected.has(assignment.id)}
+                      disabled={submitting || uploadingId !== null || !assignment.document_url}
+                      onChange={(event) => setSelected((current) => {
+                        const next = new Set(current);
+                        if (event.target.checked) next.add(assignment.id);
+                        else next.delete(assignment.id);
+                        return next;
+                      })} className="mt-1 accent-[#890022]" />
+                    <span className="text-sm font-medium">{assignment.ministry}
+                      <span className="block text-xs font-normal text-[#66545A]">
+                        {assignment.document_url ? "Recommendation letter on file" : "No ministry recommendation letter on file — upload before approval"}
+                      </span>
+                    </span>
+                  </label>
+                  {!assignment.document_url && (
+                    <label className="mt-2 inline-flex cursor-pointer items-center gap-2 border border-[#890022] bg-white px-3 py-1.5 text-xs font-semibold text-[#890022] focus-within:ring-2 focus-within:ring-[#890022]">
+                      {uploadingId === assignment.id ? "Uploading…" : "Upload letter"}
+                      <input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                        className="sr-only" disabled={submitting || uploadingId !== null}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadPendingLetter(assignment, file);
+                          event.target.value = "";
+                        }} />
+                    </label>
+                  )}
+                </div>
               ))}
             </div>
+            {uploadNotice && <p role="status" className="border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">{uploadNotice}</p>}
             {error && <p role="alert" className="border border-[#C69BA6] bg-[#FBF1F3] p-3 text-sm text-[#7B1834]">{error}</p>}
             <p className="text-xs text-[#66545A]">
               Unselected ministries stay pending. No approval occurs until you confirm.
             </p>
             <div className="flex flex-wrap justify-end gap-2">
               <button type="button" onClick={() => { setActiveId(null); setSelected(new Set()); }}
-                disabled={submitting} className="border border-[#D9C9CF] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">
+                disabled={submitting || uploadingId !== null} className="border border-[#D9C9CF] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">
                 Cancel
               </button>
-              <button type="button" onClick={() => void confirm()} disabled={submitting || selected.size === 0}
+              <button type="button" onClick={() => void confirm()} disabled={submitting || uploadingId !== null || selected.size === 0}
                 className="bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
                 {submitting ? "Verifying…" : `Verify ${selected.size} selected`}
               </button>

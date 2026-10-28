@@ -26,3 +26,11 @@ node --test tests/pr56-secure-ministry-verification.test.cjs
 ```
 
 **No DB change, secret, production deployment or flag activation was made by this integration.**
+
+## October 28 staging integration extension
+
+- Isolated staging now has persistent `registry_verify_ministries_v1` and `registry_attach_ministry_letter_v1` RPCs, with an administrator-only private `member-documents` Storage bucket. See PR55 staged install records. This **does not** imply equivalent production migration.
+- New gated Verification UI uploads an immutable PDF, PNG or JPEG (up to 5 MiB) under `verification/<member>/<membership>/<newUUID>.<ext>`; a separate authorized RPC attaches it to **one Pending Verification assignment** without changing verification or expiry. File upload failures and attach failures display an error; unlinked newly uploaded objects are cleaned up when possible.
+- Only after the exact assignment has a stored letter can the administrator explicitly select and verify it. No bulk shortcuts or legacy auto-renewing upload are enabled in secure mode.
+- Staging database rollback test confirmed positive attachment, wrong-path and nonadmin denial, and no status/expiry changes; staging test membership/Storage object fixtures were rolled back. **Actual Storage HTTP/JWT upload and real frontend browser tests remain unrun.**
+- The `NEXT_PUBLIC_SECURE_MINISTRY_VERIFICATION` build-time flag remains unset. Do not enable it in production.
