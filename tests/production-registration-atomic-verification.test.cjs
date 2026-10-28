@@ -46,3 +46,7 @@ test("unapproved direct function calls are denied by privilege revocation", () =
 test("a renewal requires an existing verified assignment and uploaded letter", () => {
   assert.match(sql,/mm\.status NOT IN \('New','Renewed'\) OR mm\.document_url IS NULL/);
 });
+
+test("New verification also requires a recorded recommendation letter", () => {
+  assert.match(sql, /p_status = 'New' AND \(mm\.status <> 'Pending Verification' OR mm\.document_url IS NULL\)/);
+});
