@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { quickVerifyMember } from "@/lib/verify-actions";
+import SecureMinistryVerification from "@/components/secure-ministry-verification";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { StatusBadge } from "@/components/status-badge";
 import { shortMinistry, MINISTRIES, PARISHES } from "@/lib/constants";
 import { Member } from "@/lib/types";
@@ -41,6 +43,14 @@ const EMPTY_FILTERS: Filters = {
 };
 
 export default function QuickScanMatrixPage() {
+  return secureMinistryVerificationEnabled
+    ? <SecureMinistryVerification />
+    : <LegacyQuickScanMatrixPage />;
+}
+
+// Keep the legacy UI unchanged until the secure RPC has been separately
+// installed, granted to approved administrators, and fully tested.
+function LegacyQuickScanMatrixPage() {
   const supabase = getSupabaseBrowserClient();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
