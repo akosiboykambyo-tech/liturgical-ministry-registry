@@ -1,0 +1,35 @@
+name: PR56 Verification workspace offline gates
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/admin/verification/**"
+      - "app/admin/import/**"
+      - "app/admin/verify/**"
+      - "app/admin/renewal-reviews/**"
+      - "lib/verification-workspace-context.tsx"
+      - "lib/verify-actions.ts"
+      - "tests/pr56-verification-workspace.test.cjs"
+      - ".github/workflows/pr56-verification-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: TypeScript
+        run: npm run typecheck
+      - name: PR56 workspace source checks
+        run: node --test tests/pr56-verification-workspace.test.cjs
+      - name: Registration offline tests
+        run: npm run test:registration

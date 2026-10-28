@@ -257,6 +257,7 @@ export default function CsvImportPage() {
   } | null>(null);
   const [overrideIdempotency, setOverrideIdempotency] = useState(false);
   const [importFailure, setImportFailure] = useState<string | null>(null);
+  const [importConfirmed, setImportConfirmed] = useState(false);
   const [importBlocked, setImportBlocked] = useState(false);
   const importInFlightRef = useRef(false);
 
@@ -279,6 +280,7 @@ export default function CsvImportPage() {
     }
     setImportFailure(null);
     setImportBlocked(false);
+    setImportConfirmed(false);
     setParseError(null);
     setResults([]);
     setProgress(null);
@@ -698,7 +700,7 @@ export default function CsvImportPage() {
   // STAGING + IMPORT FLOW
   // ============================================================
   const runImport = async () => {
-    if (!rows.length || processing || importInFlightRef.current || importBlocked) return;
+    if (!rows.length || processing || importInFlightRef.current || importBlocked || !importConfirmed) return;
     if (pendingMerges.length) {
       setImportFailure("Resolve the existing temporary duplicate queue before starting another import.");
       return;
@@ -858,6 +860,7 @@ export default function CsvImportPage() {
     setFileName("");
     setFileHash("");
     setOverrideIdempotency(false);
+    setImportConfirmed(false);
 
     // Step 5: Route duplicates to pendingMerges queue
     if (duplicates.length > 0) {
@@ -896,6 +899,17 @@ export default function CsvImportPage() {
   // ============================================================
   // RECONCILIATION ACTIONS
   // ============================================================
+  // Switching tabs retains the queue; navigation/reload does not.
+  useEffect(() => {
+    if (pendingMerges.length === 0) return;
+    const preventAccidentalExit = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", preventAccidentalExit);
+    return () => window.removeEventListener("beforeunload", preventAccidentalExit);
+  }, [pendingMerges.length]);
+
   const currentDuplicate = pendingMerges[currentIndex];
 
   const resolveMerge = async () => {
@@ -1240,6 +1254,16 @@ export default function CsvImportPage() {
       )}
       {activeTab === "import" && (
         <>
+          {importFailure && (
+            <div role="alert" className="border border-[#C69BA6] border-l-[4px] border-l-[#890022] bg-[#FBF1F3] p-4 text-sm leading-6 text-[#5C2634]">
+              <strong className="block">Import requires attention</strong>
+              {importFailure}
+              {pendingMerges.length > 0 && (
+                <button type="button" onClick={() => changeTab("pending")}
+                  className="mt-2 block font-semibold underline">Review temporary duplicate cases</button>
+              )}
+            </div>
+          )}
           {/* Idempotency warning */}
           {idempotencyWarning && (
             <div className="rounded-none border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
@@ -1298,7 +1322,7 @@ export default function CsvImportPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className="text-sm font-semibold text-foreground">
-                    Staging Complete
+                    {importFailure ? "Partial Import Results" : "Import Completed"}
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Inserted{" "}
@@ -1496,9 +1520,22 @@ export default function CsvImportPage() {
                     </p>
                   )}
                 </div>
+                <label className="flex items-start gap-2 border border-[#E6DADB] bg-[#F8F1F3] p-3 text-sm leading-5 text-[#5D3540]">
+                  <input type="checkbox" className="mt-1 accent-[#890022]"
+                    checked={importConfirmed} disabled={processing || importBlocked}
+                    onChange={(event) => setImportConfirmed(event.target.checked)} />
+                  <span>I understand that this action creates Pending Verification member records immediately. It is not a read-only preview. Duplicate cases remain temporary until reviewed.</span>
+                </label>
+                {importBlocked && (
+                  <p role="alert" className="text-sm font-semibold text-[#890022]">
+                    This file is locked after an uncertain import. Reconcile existing members and batch history before uploading a new file.
+                  </p>
+                )}
                 <div className="flex items-center justify-end gap-2">
                   <button
+                    disabled={processing}
                     onClick={() => {
+                      setImportConfirmed(false);
                       setRows([]);
                       setFileName("");
                       setFileHash("");
@@ -1509,16 +1546,16 @@ export default function CsvImportPage() {
                   </button>
                   <button
                     onClick={runImport}
-                    disabled={processing}
+                    disabled={processing || !importConfirmed || importBlocked || pendingMerges.length > 0}
                     className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
                   >
                     {processing ? (
                       <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Staging...
+                        <Loader2 className="h-4 w-4 animate-spin" /> Importing...
                       </>
                     ) : (
                       <>
-                        <Layers className="h-4 w-4" /> Stage & Import{" "}
+                        <Layers className="h-4 w-4" /> Import{" "}
                         {rows.length.toLocaleString()} Members
                       </>
                     )}
@@ -2364,10 +2401,10 @@ export default function CsvImportPage() {
           <div>
             <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <GitMerge className="h-6 w-6 text-primary" />
-              Registration Import — Pending Duplicate Merges
+              Registration Import — Temporary Duplicate Review
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Only duplicates held during new-member registration imports appear here. Renewal CSV rows marked Needs Review are separate staging results, not saved to this queue.
+              These duplicate cases are held only in this browser session. Switching Verification tabs preserves them, but leaving or refreshing loses them. They are not saved to the database. Resolve or document them before leaving. Renewal review cases use a separate queue.
             </p>
           </div>
 
