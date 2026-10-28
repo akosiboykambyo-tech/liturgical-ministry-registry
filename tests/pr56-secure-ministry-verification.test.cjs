@@ -50,3 +50,14 @@ test("secure screen offers no old bulk approvals or client-side status updates",
   assert.doesNotMatch(secure,/\.update\(\{\s*status/);
   assert.match(secure,/Renewals with recommendation letters are handled in the Renewals tab/);
 });
+
+test("legacy editing entry points fail closed when secure mode is enabled", () => {
+  const verifyActions = read("lib/verify-actions.ts");
+  const memberPage = read("app/admin/members/[id]/page.tsx");
+  const drawer = read("components/member-detail-drawer.tsx");
+  assert.match(verifyActions, /if \(secureMinistryVerificationEnabled\)/);
+  assert.match(memberPage, /Legacy member editing is locked/);
+  assert.match(drawer, /Direct member and assignment edits are paused/);
+  assert.match(drawer, /Legacy upload also renews the ministry without secure approval/);
+  assert.match(drawer, /Direct document changes are disabled/);
+});

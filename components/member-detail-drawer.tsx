@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import {
   STATUS_VALUES,
   getExpirationStatus,
@@ -297,6 +298,10 @@ export function MemberDetailDrawer({
 
   const handleSave = async () => {
     if (!member) return;
+    if (secureMinistryVerificationEnabled) {
+      setError("Direct member and assignment edits are paused in secure verification mode. Use the Verification workspace.");
+      return;
+    }
 
     const firstName = editFirstName.trim().normalize("NFC");
     const lastName = editLastName.trim().normalize("NFC");
@@ -386,6 +391,10 @@ export function MemberDetailDrawer({
   };
 
   const handleUpload = async (file: File) => {
+    if (secureMinistryVerificationEnabled) {
+      setError("Legacy upload also renews the ministry without secure approval. This action is disabled until the secure letter workflow is installed.");
+      return;
+    }
     if (
       !member ||
       !membershipTableAvailable ||
@@ -480,6 +489,10 @@ export function MemberDetailDrawer({
   };
 
   const handleDeleteDocument = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setError("Direct document changes are disabled during secure verification rollout.");
+      return;
+    }
     if (!selectedMembership?.id || !selectedMembership.document_url) return;
 
     setError(null);
@@ -600,6 +613,12 @@ export function MemberDetailDrawer({
           </div>
         ) : (
           <div className="flex flex-col h-full">
+            {secureMinistryVerificationEnabled && (
+              <p role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs text-amber-950">
+                Read-only during secure rollout. Approve selected assignments in Verification;
+                legacy editing and document-renewal shortcuts are disabled.
+              </p>
+            )}
             {/* Header */}
             <SheetHeader className="border-b border-[#E3D8DA] bg-white px-5 pb-4 pt-7 sm:px-6">
               <SheetTitle className={`${ebGaramond.className} pr-10 text-[32px] leading-tight font-medium tracking-normal text-[#211018]`}>

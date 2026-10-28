@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { updateMemberStatus } from "@/lib/verify-actions";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { StatusBadge } from "@/components/status-badge";
 import { MINISTRIES, STATUS_VALUES } from "@/lib/constants";
 import { MinistryMultiSelect } from "@/components/ministry-multi-select";
@@ -102,6 +103,10 @@ export default function MemberDetailPage() {
 
   const handleSave = async () => {
     if (!member) return;
+    if (secureMinistryVerificationEnabled) {
+      setError("Legacy member editing is locked while secure verification is enabled. Use the assignment-level Verification workspace.");
+      return;
+    }
 
     const firstName = editFirstName.trim().normalize("NFC");
     const lastName = editLastName.trim().normalize("NFC");
@@ -253,6 +258,7 @@ export default function MemberDetailPage() {
             <label className="text-sm font-medium">Status</label>
             <select
               value={status}
+              disabled={secureMinistryVerificationEnabled}
               onChange={(e) => setStatus(e.target.value as MemberStatus)}
               className="w-full rounded-none border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
