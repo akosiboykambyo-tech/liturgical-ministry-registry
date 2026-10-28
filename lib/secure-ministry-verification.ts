@@ -88,14 +88,12 @@ export async function attachPendingMinistryLetter(
   if (error || !data || typeof data !== "object" || Array.isArray(data) ||
       data.attached !== true || data.member_id !== memberId ||
       data.membership_id !== membershipId) {
-    // Upload and DB linkage are separate services; remove only the immutable
-    // newly-created object after a definite attach failure.
-    const removed = await storage.remove([path]);
-    const uncertainty = removed.error
-      ? " The uploaded file may remain unlinked; contact an administrator before retrying."
-      : " The unlinked upload was cleaned up.";
+    // The RPC might have COMMITTED even if its HTTP response is missing or
+    // malformed. Do NOT delete the uploaded object based on ambiguous results:
+    // it could already be referenced by the membership record.
     throw new Error(
-      "The database did not confirm attaching the recommendation letter." + uncertainty
+      "Letter attachment could not be confirmed. The uploaded private file was retained. " +
+      "Reload the registry and check the assignment before retrying or requesting cleanup."
     );
   }
 }

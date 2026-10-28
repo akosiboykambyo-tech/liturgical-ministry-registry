@@ -68,6 +68,7 @@ test("secure letter attachment uses private immutable Storage then dedicated no-
   assert.match(actions,/upsert: false/);
   assert.match(actions,/registry_attach_ministry_letter_v1/);
   assert.match(actions,/p_document_path: path/);
-  assert.match(actions,/storage\.remove\(\[path\]\)/);
+  assert.doesNotMatch(actions,/storage\.remove\(\[path\]\)/);
+  assert.match(actions,/The uploaded private file was retained/);
   assert.match(secure,/No verification or renewal was applied/);
 });
