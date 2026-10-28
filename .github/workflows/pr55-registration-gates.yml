@@ -7,6 +7,7 @@ on:
       - 'tests/production-registration-*.test.cjs'
       - 'tests/registration-matching.test.cjs'
       - 'docs/sql/registration-*.sql'
+      - 'docs/sql/pr55-*.sql'
       - 'lib/registration-matching.ts'
       - 'lib/production-registration-preflight.ts'
       - '.github/workflows/pr55-registration-gates.yml'
