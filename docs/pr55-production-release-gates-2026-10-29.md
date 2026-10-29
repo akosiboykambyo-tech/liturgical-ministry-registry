@@ -22,3 +22,13 @@ Alternative paths are:
 Before any production mutation, require (a) fresh restore-tested protected backup with 37 current Storage blobs accounted for, (b) approved admin Auth identity and role grant, (c) explicit one-day expiry disposition, (d) replacement/accepted freeze of legacy member Add/Edit/Delete/CSV/renewal actions, (e) executed real-JWT grant and permission tests on a production-faithful restored isolate, and (f) signed deployment and rollback plan. All are still open.
 
 Latest PR55 and PR56 changes remain draft/unmerged with production feature flag disabled. **NO-GO.**
+
+## October 29 follow-up — operator corrected the expiration
+
+The operator corrected the previously short September 19, 2026 renewal to expiration **September 19, 2027**. A subsequent **read-only production SQL** check found **0** mismatched one-year Renewed assignments, so the prior one-day anomaly is **resolved**. Neither assistant nor migrations edited the record.
+
+A separate production discrepancy remains: **Ministry of Liturgical Music** is already `Renewed` with renewal_date **November 7, 2026**, a future date as of October 29, 2026. The future status requires an explicit review of the actual renewal event; do not backdate, renew again or reverify automatically.
+
+Both Renewed assignments have no per-ministry `document_url`. The single existing member-level `members.document_url` points to a real file in the private `member-documents` bucket. The file's content and ministry coverage have not been reviewed, so it cannot silently serve as ministry-level proof. The member list's original orange warning was triggered by absent ministry links, not the corrected expiration. PR56 commit `8d2cb75` makes this distinction explicit and correctly labels upcoming **registration** expiration. The production application has **not** received that change.
+
+The 11-item read-only release-gate SQL now checks future-dated Renewed assignments and missing ministry-level evidence in addition to annual validity. Date mismatch gate passes, while both new evidence/future-date gates remain blocked. Recovery and production administrator authorization remain open. Do not click the legacy drawer's letter upload as a remedy: it automatically rewrites renewal and expiration dates.

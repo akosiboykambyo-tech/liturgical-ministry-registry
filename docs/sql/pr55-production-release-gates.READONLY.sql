@@ -50,6 +50,22 @@ SELECT 'historical-annual-validity',
  THEN 'BLOCKED: historical Renewed assignment needs adjudication'
  ELSE 'PASS: renewed assignment dates match one-year rule' END
 UNION ALL
+SELECT 'future-dated-renewal',
+ CASE WHEN EXISTS (
+  SELECT 1 FROM public.member_ministries
+  WHERE status='Renewed'
+  AND renewal_date > (now() AT TIME ZONE 'Asia/Manila')::date)
+ THEN 'BLOCKED: renewed assignment has a future renewal date'
+ ELSE 'PASS: no future-dated Renewed assignments' END
+UNION ALL
+SELECT 'ministry-letter-evidence',
+ CASE WHEN EXISTS (
+   SELECT 1 FROM public.member_ministries
+   WHERE status IN ('New','Renewed')
+   AND NULLIF(btrim(document_url),'') IS NULL)
+ THEN 'BLOCKED: active ministry missing individual recommendation-letter link'
+ ELSE 'PASS: active ministry letter paths present' END
+UNION ALL
 SELECT 'storage-recovery',
  'NEEDS CERTIFICATION: '||(SELECT count(*)::text FROM storage.objects)||
  ' Storage objects require an encrypted file-level recovery test'
