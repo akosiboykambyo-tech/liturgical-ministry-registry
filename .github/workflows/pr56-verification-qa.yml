@@ -20,6 +20,7 @@ on:
       - "tests/pr56-staging-letter-review-browser.test.cjs"
       - "tests/pr56-legacy-direct-write-guards.test.cjs"
       - "tests/pr56-import-and-add-member-guards.test.cjs"
+      - "tests/pr56-legacy-document-warning.test.cjs"
       - "app/admin/members/**"
       - "tests/pr56-verification-workspace.test.cjs"
       - ".github/workflows/pr56-verification-qa.yml"
@@ -52,5 +53,7 @@ jobs:
         run: node --test tests/pr56-legacy-direct-write-guards.test.cjs
       - name: Add member and CSV import secure-mode guards
         run: node --test tests/pr56-import-and-add-member-guards.test.cjs
+      - name: Legacy letter warning evidence and expiry labeling
+        run: node --test tests/pr56-legacy-document-warning.test.cjs
       - name: Registration offline tests
         run: npm run test:registration

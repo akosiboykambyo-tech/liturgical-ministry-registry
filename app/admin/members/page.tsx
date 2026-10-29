@@ -932,10 +932,19 @@ export default function MembersListPage() {
                   const needsVerification = memberships.some(
                     (membership) => membership.status === "Pending Verification"
                   );
-                  const needsLetter = memberships.some(
-                    (membership) => !membership.document_url
-                  );
-                  const letterExpiringSoon = memberships.some((membership) => {
+                  const missingLetterMinistries = memberships
+                    .filter((membership) => !membership.document_url)
+                    .map((membership) => shortMinistry(membership.ministry));
+                  const needsLetter = missingLetterMinistries.length > 0;
+                  // Legacy documents are stored at member level, not linked to
+                  // individual assignments. Don't present this as proof that
+                  // a new letter must be uploaded or suppress the warning.
+                  const letterWarning = needsLetter
+                    ? m.document_url
+                      ? `Ministry letter not linked: ${missingLetterMinistries.join(", ")} (older member-level letter exists; review coverage before linking)`
+                      : `Ministry recommendation letter missing: ${missingLetterMinistries.join(", ")}`
+                    : null;
+                  const registrationExpiringSoon = memberships.some((membership) => {
                     if (!membership.document_url || !membership.expiration_date) return false;
                     const expirationDate = new Date(`${membership.expiration_date}T00:00:00`);
                     return expirationDate >= today && expirationDate <= in30Days;
@@ -963,18 +972,18 @@ export default function MembersListPage() {
                           className="text-left font-semibold text-[#47242d] hover:text-[#9a2548] hover:underline"
                         >
                           {m.first_name} {m.last_name}
-                        {(needsVerification || needsLetter || letterExpiringSoon) && (
+                        {(needsVerification || needsLetter || registrationExpiringSoon) && (
                           <span
                             className="ml-2 inline-flex align-middle text-amber-600"
                             title={[
                               needsVerification ? "Verification Needed" : null,
-                              needsLetter ? "Recommendation Letter Needed" : null,
-                              letterExpiringSoon ? "Letter Expiring Soon" : null,
+                              letterWarning,
+                              registrationExpiringSoon ? "Registration Expiring Soon" : null,
                             ].filter(Boolean).join(" - ")}
                             aria-label={[
                               needsVerification ? "Verification Needed" : null,
-                              needsLetter ? "Recommendation Letter Needed" : null,
-                              letterExpiringSoon ? "Letter Expiring Soon" : null,
+                              letterWarning,
+                              registrationExpiringSoon ? "Registration Expiring Soon" : null,
                             ].filter(Boolean).join(", ")}
                           >
                             <CircleAlert className="h-4 w-4" aria-hidden="true" />
