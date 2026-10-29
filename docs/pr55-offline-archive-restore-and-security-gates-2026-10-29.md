@@ -34,3 +34,23 @@ Supabase production security advisors still flag WARN: anon execution of public.
 ## Unresolved release gates
 
 Fresh production database/Auth export from the correct live project; real Storage object bytes and manifest (not just storage.objects metadata); offline restored current backup, accountable roles/privileges, and rollback proof; explicit real-admin verification and grant decision; required corrections or review for future-dated renewal and missing ministry-level letter links; secure legacy write-path cutover or documented freeze; real permission tests, PR56 UI and operator-approved release/merge. Security remains **NO-GO** until completed. Supabase guidance: https://supabase.com/docs/guides/self-hosting/restore-from-platform and https://supabase.com/docs/guides/platform/backups .
+
+
+## Operator result — full historical archive schema/data restore, 2026-10-29
+
+The operator ran `scripts/pr55-offline-archive-restore-rehearsal.sh` against the SHA256-verified October 26 archive in a **separate, offline PostgreSQL 17 container**. Reported unredacted-but-nonpersonal command output:
+
+```text
+PASS: exact archive checksum and D: disk-space preflight
+PASS: public.members restored; rows=7971
+PASS: public.member_ministries restored; rows=8009
+PASS: auth.users restored; rows=1
+PASS: storage.objects restored; rows=154
+PASS: archive schema and data restored with no-owner/no-acl; four core-table row counts verified.
+LIMIT: not a proof of Storage object bytes, live Auth service, roles/ACLs, or a current production recovery point.
+CLEANUP: removing disposable container and Docker volume; original archive untouched.
+```
+
+**Assessment:** The strict archive schema-and-data restore PASSED for four verified core relations. Cleanup ran according to the script's output, although independent post-cleanup Docker inventory has not been supplied. Restoration intentionally skipped owner and ACL recreation, so this **does not certify a faithful permissions/roles restore**, live Supabase Auth operation, or the actual private Storage file bytes. The archive contains pre-October-27 reset data (7,971 historical members, 8,009 historical assignments, 154 historical Storage metadata entries), which must **never** be mistaken for the current production state. At the time of the 2026-10-29 read-only production check, current production had **1 member, 2 assignments, 1 Auth user, 37 Storage metadata entries** (36 certificate-templates / 36,863,212 metadata bytes and 1 member-document / 171,973 metadata bytes). Do not restore this old snapshot to live production.
+
+**Next authorized, operator-local gates:** Obtain a fresh, password-protected production logical archive and verify its SHA256; encrypt and maintain a second separate copy. Export and verify the actual 37 current Storage file bytes via S3 or CLI and protect the files (the legacy `scripts/pr55-package-storage-backup.ps1` expects 154 different historical objects and must not be used here). Rehearse the **fresh** data restore with updated hash and compare same-time counts, then establish Auth and roles/ACL faithfulness and private Storage download. Review real-admin identity, future-dated renewal/letter linkage, secure CRUD path, RLS/privileged functions, and final rollback before proposing an explicit production change/merge. PR55 and PR56 remain draft/NO-GO. No live database writes or new billable resources were made as part of this rehearsal.
