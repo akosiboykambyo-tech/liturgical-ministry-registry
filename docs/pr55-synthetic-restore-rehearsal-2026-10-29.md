@@ -11,3 +11,17 @@ The runner refuses other container/network configurations. It creates two random
 Official Supabase migration guidance cautions that raw pg_dump archives can contain internal objects and reserved roles and be difficult to restore; the earlier Oct 26 archive is stale and must be inspected for format and schema before an approved fresh recovery export. Storage object bytes must be separately recovered. https://supabase.com/docs/guides/self-hosting/restore-from-platform and https://supabase.com/docs/guides/platform/backups
 
 Production release remains NO-GO. No production writes or copying of real backup documents is authorized by the synthetic rehearsal.
+
+
+## Operator execution evidence — 2026-10-29
+The operator ran the script from WSL Ubuntu against the isolated PG17 scratch container. The reported output was:
+
+```text
+PASS: isolated PG17 with production-matching extension versions
+CREATE TABLE
+INSERT 0 2
+PASS: synthetic custom backup restored and verified; temporary fixture databases will be removed
+LIMIT: no live Auth, member data, private letters, or recovery backup was restored
+```
+
+**Result: synthetic custom-format pg_dump/pg_restore rehearsal PASSED.** The script's exit trap is intended to drop the two synthetic databases; the supplied output did not independently confirm the post-cleanup inventory. Before certifying cleanup, run a read-only query counting databases with the `pr55_fixture_source_` and `pr55_fixture_target_` prefixes. The previously encountered shell CRLF failure was locally corrected, and the PR55 branch now includes `.gitattributes` with `*.sh text eol=lf` and `*.bash text eol=lf` (commit `8a479bb`). The real October 26 backup is still stale; production database, Auth, and Storage restoration are **not certified**.
