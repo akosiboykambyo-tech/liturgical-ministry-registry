@@ -26,8 +26,8 @@ function failClosed(msg) {
  console.error("REFUSED: "+msg);
  process.exit(2);
 }
-if (args.length!==1 || !["--validate-config","--run"].includes(args[0]))
- failClosed("specify exactly --validate-config or --run");
+if (args.length!==1 || !["--validate-config","--run","--cleanup-only"].includes(args[0]))
+ failClosed("specify exactly --validate-config, --run or --cleanup-only");
 if (env.PR55_ALLOW_POSITIVE_E2E!==OPT_IN)
  failClosed("explicit isolated staging synthetic-write consent is required");
 if (required.some(name=>!env[name]))
@@ -53,6 +53,96 @@ async function signIn(client,email,password,label){
  console.log("PASS: "+label+" authenticated");
  return data.user.id;
 }
+async function cleanupOnly(){
+ const admin=client();
+ let targetPath=null;
+ try {
+  await signIn(admin,env.PR55_STAGING_AUTH_EMAIL,
+   env.PR55_STAGING_AUTH_PASSWORD,"staging administrator");
+  // No new fixtures or member updates. Match exactly the synthetic E2E
+  // marker; reject ambiguous inventories before executing any DELETE.
+  const found=await admin.from("members")
+   .select("id,first_name,last_name,parish,notes")
+   .eq("first_name","PR55E2E")
+   .eq("last_name","Synthetic")
+   .eq("parish","Staging Test Parish")
+   .like("notes","PR55E2E test-only nonce: %")
+   .limit(3);
+  if(found.error || !Array.isArray(found.data))
+   throw Error("Cannot inspect synthetic staging fixtures");
+  if(found.data.length!==1)
+   throw Error("Expected exactly one leftover synthetic E2E member; found "+
+     found.data.length+". Refusing automatic cleanup.");
+  const member=found.data[0];
+  const memberId=member.id;
+  const match=/^PR55E2E test-only nonce: ([0-9a-f-]{36})$/i.exec(member.notes||"");
+  if(!match || !UUID_PATTERN.test(memberId) || !UUID_PATTERN.test(match[1]))
+   throw Error("Synthetic fixture marker or member ID failed strict validation");
+  const nonce=match[1];
+  const assignments=await admin.from("member_ministries")
+   .select("id,member_id,ministry,status,document_url")
+   .eq("member_id",memberId);
+  if(assignments.error || !Array.isArray(assignments.data) ||
+     assignments.data.length!==2)
+   throw Error("Expected exactly two synthetic ministry assignments");
+  const first=assignments.data.find(row=>
+   row.ministry==="Ministry of Lectors and Commentators");
+  const second=assignments.data.find(row=>
+   row.ministry==="Ministry of Liturgical Music");
+  if(!first || !second || first.id===second.id ||
+     first.member_id!==memberId || second.member_id!==memberId ||
+     first.status!=="New" || second.status!=="Pending Verification" ||
+     second.document_url!==null || !UUID_PATTERN.test(first.id))
+   throw Error("Synthetic membership inventory has unexpected state; no deletion attempted");
+  const folder="verification/"+memberId+"/"+first.id;
+  const pattern=new RegExp('^verification/'+memberId+'/'+first.id+'/[a-f0-9-]{36}[.]pdf$', 'i');
+  if(typeof first.document_url!=="string" || !pattern.test(first.document_url))
+   throw Error("Synthetic letter path failed strict member/assignment check");
+  targetPath=first.document_url;
+  const storage=admin.storage.from("member-documents");
+  const listed=await storage.list(folder,{limit:20});
+  const filename=targetPath.slice(folder.length+1);
+  if(listed.error || !Array.isArray(listed.data) ||
+     listed.data.length!==1 || listed.data[0].name!==filename)
+   throw Error("Synthetic private Storage inventory did not match the single linked PDF");
+
+  // The guarded RPC checks a matching nonce, synthetic identity, locked
+  // member, and exactly two named assignments before deletion.
+  let done;
+  try {
+   done=await admin.rpc("pr55_e2e_finish_v1",{
+    p_member_id:memberId,p_nonce:nonce
+   });
+  } catch (_error) {
+   throw Error("Synthetic DB cleanup request failed; storage was retained");
+  }
+  if(done.error || done.data?.cleaned!==true)
+   throw Error("Synthetic DB cleanup not confirmed; storage was retained");
+  console.log("PASS: removed the leftover synthetic member and two assignments");
+
+  let removed;
+  try { removed=await storage.remove([targetPath]); }
+  catch (_error) { removed={error:true}; }
+  if(removed.error){
+   console.error("CLEANUP REQUIRED: synthetic private path "+targetPath);
+   throw Error("Storage API deletion did not complete; remove only the printed test path");
+  }
+  const post=await storage.list(folder,{limit:20});
+  if(post.error || !Array.isArray(post.data) || post.data.length!==0){
+   console.error("CLEANUP REQUIRED: synthetic private path "+targetPath);
+   throw Error("Storage removal response was not confirmed by a fresh folder listing");
+  }
+  console.log("PASS: removed the leftover synthetic PDF through the Storage API");
+  const check=await admin.from("members").select("id").eq("id",memberId);
+  if(check.error || !Array.isArray(check.data) || check.data.length!==0)
+   throw Error("Synthetic member deletion was not confirmed by read-back");
+  console.log("PASS: cleanup-only completed; no new member or verification was created");
+ } finally {
+  try { await admin.auth.signOut(); } catch (_error) {}
+ }
+}
+const UUID_PATTERN=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function pdfFixture(){
  const contents="BT /F1 12 Tf 30 100 Td (PR55 SYNTHETIC TEST LETTER - NO PERSONAL DATA) Tj ET\n";
  const objects=[
@@ -100,6 +190,13 @@ async function main(){
   const otherId=await signIn(nonadmin,env.PR55_STAGING_NONADMIN_AUTH_EMAIL,
    env.PR55_STAGING_NONADMIN_AUTH_PASSWORD,"staging non-administrator");
   assert.notEqual(aid,otherId);
+  const pendingOld=await admin.from("members")
+   .select("id",{count:"exact",head:true})
+   .eq("first_name","PR55E2E")
+   .eq("last_name","Synthetic")
+   .like("notes","PR55E2E test-only nonce: %");
+  if(pendingOld.error || pendingOld.count!==0)
+   throw Error("Uncleaned synthetic E2E fixture detected. Run --cleanup-only before another positive test.");
 
   const negative=await nonadmin.rpc("pr55_e2e_begin_v1",{p_nonce:randomUUID()});
   if(!negative.error || negative.error.code!=="42501")
@@ -170,35 +267,46 @@ async function main(){
  }catch(error){
   primaryError=error;
  }finally{
+  let databaseCleaned=!fixture;
   if(fixture){
-   const done=await admin.rpc("pr55_e2e_finish_v1",{
-    p_member_id:fixture.member_id,p_nonce:nonce
-   }).catch(()=>({data:null,error:true}));
+   let done;
+   try {
+    // PostgREST builders are Promise-like but do not implement .catch().
+    done=await admin.rpc("pr55_e2e_finish_v1",{
+     p_member_id:fixture.member_id,p_nonce:nonce
+    });
+   } catch (_error) { done={data:null,error:true}; }
    if(done.error || done.data?.cleaned!==true){
     cleanupErrors.push("synthetic database fixture cleanup unconfirmed");
     console.error("CLEANUP REQUIRED: synthetic staging member "+fixture.member_id);
    }else{
+    databaseCleaned=true;
     console.log("PASS: cleaned synthetic member and both assignments");
    }
   }
-  if(storagePath){
-   const removed=await admin.storage.from("member-documents")
-    .remove([storagePath]).catch(()=>({error:true}));
+  if(storagePath && databaseCleaned){
+   let removed;
+   try {
+    removed=await admin.storage.from("member-documents").remove([storagePath]);
+   } catch (_error) { removed={error:true}; }
    if(removed.error){
     cleanupErrors.push("private synthetic Storage object cleanup unconfirmed");
     console.error("CLEANUP REQUIRED: synthetic private path "+storagePath);
    }else{
     console.log("PASS: cleaned synthetic Storage object");
    }
+  }else if(storagePath){
+   cleanupErrors.push("private test PDF retained because member cleanup was not confirmed");
+   console.error("CLEANUP REQUIRED: synthetic private path "+storagePath);
   }
-  await admin.auth.signOut().catch(()=>{});
-  await nonadmin.auth.signOut().catch(()=>{});
+  try { await admin.auth.signOut(); } catch (_error) {}
+  try { await nonadmin.auth.signOut(); } catch (_error) {}
  }
  if(primaryError) throw primaryError;
  if(cleanupErrors.length)throw Error("staging cleanup incomplete; manual reconciliation required");
  console.log("PASS: positive isolated staging HTTP/Storage/RPC E2E complete; synthetic fixture removed");
 }
-main().catch(err=>{
+(args[0]==="--cleanup-only" ? cleanupOnly() : main()).catch(err=>{
  const message=err instanceof Error?err.message:"Unknown error";
  // Messages never contain tokens, passwords, publishable keys, or Auth emails.
  console.error("FAIL: "+message);

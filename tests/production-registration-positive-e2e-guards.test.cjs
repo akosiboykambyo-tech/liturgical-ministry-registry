@@ -64,3 +64,19 @@ test("script always attempts both database and Storage cleanup",()=>{
  assert.match(script,/\.remove\(\[storagePath\]\)/);
  assert.match(script,/CLEANUP REQUIRED/);
 });
+
+test("cleanup-only refuses to create another member and validates exact synthetic fixture",()=>{
+ assert.match(script,/--cleanup-only/);
+ assert.match(script,/Expected exactly one leftover synthetic E2E member/);
+ assert.match(script,/Synthetic membership inventory has unexpected state/);
+ assert.match(script,/Synthetic letter path failed strict member\/assignment check/);
+ assert.match(script,/Synthetic private Storage inventory did not match the single linked PDF/);
+ assert.match(script,/if\(pendingOld\.error \|\| pendingOld\.count!==0\)/);
+ assert.match(script,/\(args\[0\]==="--cleanup-only" \? cleanupOnly\(\) : main\(\)\)/);
+});
+test("all PostgREST cleanup requests are awaited inside try/catch and Storage is retained if DB cleanup fails",()=>{
+ assert.doesNotMatch(script,/admin\.rpc\([^;]+?\)\.catch\(/s);
+ assert.match(script,/done=await admin\.rpc\("pr55_e2e_finish_v1"/);
+ assert.match(script,/if\(storagePath && databaseCleaned\)/);
+ assert.match(script,/try \{ await admin\.auth\.signOut\(\); \}/);
+});
