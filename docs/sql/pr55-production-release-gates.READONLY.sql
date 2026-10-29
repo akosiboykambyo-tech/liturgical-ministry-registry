@@ -9,7 +9,12 @@ UNION ALL
 SELECT 'admin-identity-candidate',
  CASE WHEN (SELECT count(*) FROM auth.users)=1 AND
  (SELECT count(*) FROM auth.users
-  WHERE id='cde53777-3994-4b99-b1c7-7a7c9b0f0864'::uuid)=1
+  WHERE id IN (
+  SELECT u.id FROM auth.users u JOIN pg_policies p
+    ON p.schemaname='public' AND p.tablename='members'
+   AND p.policyname='registry_admin_members'
+  WHERE p.qual LIKE '%'||u.id::text||'%'
+ ))=1
  THEN 'CANDIDATE: single real Auth user matches existing fixed-UUID policy; ownership approval outstanding'
  ELSE 'BLOCKED: fixed-policy Auth identity mismatch or multiple users' END
 UNION ALL
