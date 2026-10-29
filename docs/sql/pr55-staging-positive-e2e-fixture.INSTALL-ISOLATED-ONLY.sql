@@ -61,8 +61,6 @@ RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=''
 AS $fn$
 DECLARE
  v_admin uuid := auth.uid();
- v_uid text;
- v_expected text;
  v_count integer;
  v_member_count integer;
 BEGIN
@@ -77,10 +75,13 @@ BEGIN
  IF p_member_id IS NULL OR p_nonce IS NULL THEN
    RAISE EXCEPTION 'Missing synthetic fixture identifiers' USING ERRCODE='22023';
  END IF;
- v_expected := 'PR55E2E-' || replace(p_nonce::text,'-','');
- SELECT uid INTO v_uid FROM public.members WHERE id=p_member_id
- AND notes = 'PR55E2E test-only nonce: '||p_nonce::text FOR UPDATE;
- IF v_uid IS DISTINCT FROM v_expected THEN
+ -- Staging UID triggers replace the provided UID. Lock an exact
+ -- synthetic test-only member identity using the nonce marker instead.
+ PERFORM 1 FROM public.members WHERE id=p_member_id
+ AND notes='PR55E2E test-only nonce: '||p_nonce::text
+ AND first_name='PR55E2E' AND last_name='Synthetic'
+ AND parish='Staging Test Parish' FOR UPDATE;
+ IF NOT FOUND THEN
    RAISE EXCEPTION 'Cleanup refused: not the matching synthetic fixture'
      USING ERRCODE='42501';
  END IF;
@@ -96,7 +97,10 @@ BEGIN
  END IF;
  DELETE FROM public.member_ministries WHERE member_id=p_member_id;
  GET DIAGNOSTICS v_count = ROW_COUNT;
- DELETE FROM public.members WHERE id=p_member_id AND uid=v_expected;
+ DELETE FROM public.members WHERE id=p_member_id
+ AND notes='PR55E2E test-only nonce: '||p_nonce::text
+ AND first_name='PR55E2E' AND last_name='Synthetic'
+ AND parish='Staging Test Parish';
  GET DIAGNOSTICS v_member_count = ROW_COUNT;
  IF v_count <> 2 OR v_member_count <> 1 THEN
    RAISE EXCEPTION 'Fixture cleanup incomplete' USING ERRCODE='55000';

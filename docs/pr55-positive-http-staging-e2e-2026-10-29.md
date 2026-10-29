@@ -30,3 +30,11 @@ The script explicitly refuses to start if the publishable key, either staging Au
 ## Release limits
 
 A synthetic HTTP/Storage positive E2E is **not** a production GO decision. Production renewal batch constraints, legacy direct-write closure, admin migration authorization, audited recovery and full restore rehearsal are independently required. No PR merges or production deployment were performed.
+
+## Staging installation completed (October 29, 2026)
+
+- Applied `pr55_staging_positive_http_e2e_fixture_20261029` to isolated staging project only, installing the admin-grant-guarded `pr55_e2e_begin_v1` and `pr55_e2e_finish_v1` helpers.
+- Initial cleanup rehearsal revealed the existing staging `registration_staging_assign_uid` trigger rewrites supplied member UIDs. The original cleanup required that supplied UID and therefore rejected its own fixture; the test was rolled back.
+- Applied the corrective migration `pr55_staging_positive_e2e_uid_guard_fix_20261029` so cleanup requires the locked synthetic member UUID, exact nonce in `notes`, name, parish, and exactly the two designated ministries. It never deletes a member solely because of a loose UID prefix.
+- After the patch, a transaction with real Postgres role `authenticated` and a staging admin claim successfully created and cleaned the synthetic member/assignments. An ungranted role was denied creation and cleanup. Transaction rolled back with no persistent fixtures.
+- **Credential-backed real HTTP/Storage positive test still awaits operator invocation.** The earlier real HTTP/JWT denial-only tests passed and do not need repeating. Temporary helper RPCs remain installed **only in staging** for this positive test and must be dropped after successful cleanup and independent verification.

@@ -42,7 +42,9 @@ test("fixture actions require an active revocable admin grant and restrict clean
  assert.match(sql,/CREATE FUNCTION public\.pr55_e2e_finish_v1/);
  assert.ok((sql.match(/a\.active AND a\.revoked_at IS NULL FOR SHARE/g)||[]).length===2);
  assert.match(sql,/DELETE FROM public\.member_ministries WHERE member_id=p_member_id/);
- assert.match(sql,/uid=v_expected/);
+ assert.match(sql,/notes='PR55E2E test-only nonce: '/);
+ assert.match(sql,/first_name='PR55E2E'/);
+ assert.doesNotMatch(sql,/uid=v_expected/);
  assert.match(sql,/REVOKE ALL ON FUNCTION public\.pr55_e2e_begin_v1\(uuid\)/);
 });
 test("real HTTP test uploads synthetic PDF, attaches, verifies and tests RLS",()=>{
