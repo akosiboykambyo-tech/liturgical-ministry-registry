@@ -32,3 +32,8 @@ The current production `check_renewal_admin_access` checks a fixed JWT email; th
 **Next barriers:** review the existing short-validity production record and policy for backdated renewals, install/seed/audit the revocable production administrator allowlist and close legacy direct write privileges, certify a full production-fidelity restore rehearsal, validate a production-schema exact migration and roll-forward/rollback under formal approval, and only then choose when to enable the frontend feature.
 
 Do not merge either draft PR or change `cowl-dok.online` / production Supabase as part of this staging test.
+
+## Reversible staging guard and independent SQL rehearsal
+
+- The file `docs/sql/pr55-staging-one-year-ministry-guard.ROLLBACK-ISOLATED-ONLY.sql` contains a guarded, exact-signature trigger/function removal with **no CASCADE**. Running it inside `BEGIN ... ROLLBACK` succeeded and confirmed the function was absent inside the transaction; rollback preserved the deployed staging guard.
+- The initial source and safety tests, registration suite, TypeScript, and Vercel passed on PR55 commit `55f4067`. Production review SQL has not been executed.
