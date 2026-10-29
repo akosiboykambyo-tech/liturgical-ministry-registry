@@ -2,6 +2,7 @@
 
 import { normalizeApprovedMinistries } from "@/lib/registration-ministry-validation";
 import { expirationOneYearAfter } from "@/lib/registration-validity";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { useEffect, useState, useRef, useCallback, useContext } from "react";
 import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification-workspace-context";
 import Link from "next/link";
@@ -574,6 +575,10 @@ export default function CsvImportPage() {
   };
 
   const saveStagedReviewCases = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setReviewQueueError("Saving renewal review cases requires an approved secure administrator workflow.");
+      return;
+    }
     if (!renewalStaging || reviewQueueSaved !== null || reviewQueueSaving) return;
     setReviewQueueSaving(true);
     setReviewQueueError(null);
@@ -607,6 +612,10 @@ export default function CsvImportPage() {
   };
 
   const processRenewalBatch = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setRenewalActionError("Processing renewal batches requires an approved secure administrator workflow.");
+      return;
+    }
     if (!renewalStaging) return;
 
     const selectedIds = renewalStaging.renewable
@@ -705,6 +714,10 @@ export default function CsvImportPage() {
   // STAGING + IMPORT FLOW
   // ============================================================
   const runImport = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setImportFailure("Importing member records requires an approved secure administrator workflow.");
+      return;
+    }
     if (!rows.length || processing || importInFlightRef.current || importBlocked || !importConfirmed) return;
     if (pendingMerges.length) {
       setImportFailure("Resolve the existing temporary duplicate queue before starting another import.");
@@ -918,6 +931,10 @@ export default function CsvImportPage() {
   const currentDuplicate = pendingMerges[currentIndex];
 
   const resolveMerge = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setActionError("Merging member records requires an approved secure administrator workflow.");
+      return;
+    }
     if (!currentDuplicate || !currentDuplicate.existing) return;
     setActionLoading(true);
     setActionError(null);
@@ -1002,6 +1019,10 @@ export default function CsvImportPage() {
   };
 
   const resolveKeepSeparate = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setActionError("Creating separate member records requires an approved secure administrator workflow.");
+      return;
+    }
     if (!currentDuplicate) return;
     setActionLoading(true);
     setActionError(null);
