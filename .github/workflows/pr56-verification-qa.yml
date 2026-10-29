@@ -13,6 +13,8 @@ on:
       - "lib/secure-ministry-verification.ts"
       - "components/secure-ministry-verification.tsx"
       - "tests/pr56-secure-ministry-verification.test.cjs"
+      - "tests/pr56-staging-browser-readonly.test.cjs"
+      - "scripts/pr56-staging-browser-readonly.cjs"
       - "tests/pr56-verification-workspace.test.cjs"
       - ".github/workflows/pr56-verification-qa.yml"
 
@@ -36,5 +38,7 @@ jobs:
         run: node --test tests/pr56-verification-workspace.test.cjs
       - name: Secure ministry integration source checks
         run: node --test tests/pr56-secure-ministry-verification.test.cjs
+      - name: Isolated staging browser smoke safety checks (offline only)
+        run: node --test tests/pr56-staging-browser-readonly.test.cjs
       - name: Registration offline tests
         run: npm run test:registration
