@@ -56,3 +56,10 @@ test("real JWT probe also covers the separate pending-letter authorization RPC",
   assert.match(source,/granted admin invalid letter attachment/);
   assert.match(source,/anonymous letter attachment/);
 });
+
+test("sign-in diagnostics distinguish administrator and non-administrator without exposing secrets",()=>{
+  assert.match(source,/login\(adminEmail, adminPassword, "administrator"\)/);
+  assert.match(source,/login\(nonEmail, nonPassword, "non-administrator"\)/);
+  assert.match(source,/staging Auth sign-in rejected \(HTTP /);
+  assert.doesNotMatch(source,/JSON\.stringify\(r\.data\)|console\.log\(email\)|console\.log\(password\)/);
+});

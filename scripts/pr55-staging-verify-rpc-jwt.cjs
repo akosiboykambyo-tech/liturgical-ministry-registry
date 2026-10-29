@@ -64,12 +64,17 @@ async function request(path, method, body, token) {
   try { parsed = JSON.parse(raw); } catch { /* non-JSON is an error */ }
   return { status: response.status, code: parsed?.code || null, data: parsed };
 }
-async function login(email, password) {
+async function login(email, password, roleLabel) {
   const r = await request("/auth/v1/token?grant_type=password", "POST", { email, password });
   if (r.status !== 200 || typeof r.data?.access_token !== "string") {
-    throw new Error("staging Auth sign-in failed (" + r.status + "); check local credentials");
+    // Report role and numeric status only: never echo raw Auth errors or user input.
+    throw new Error(roleLabel + " staging Auth sign-in rejected (HTTP " + r.status +
+      "). Check that this account exists in Ministry-Registry-Test > Authentication > Users.");
   }
-  if (!r.data.user?.id) throw new Error("staging Auth token lacked user identity");
+  if (!r.data.user?.id) {
+    throw new Error(roleLabel + " staging Auth response missing a user identity (HTTP " + r.status + ")");
+  }
+  console.log("PASS: " + roleLabel + " staging Auth sign-in");
   return { token: r.data.access_token, id: r.data.user.id };
 }
 const invalidInput = {
@@ -85,8 +90,8 @@ function expectRpcFailure(label, response, code) {
   console.log("PASS: " + label + " denied/validated as expected (" + code + ")");
 }
 async function run() {
-  const admin = await login(adminEmail, adminPassword);
-  const nonadmin = await login(nonEmail, nonPassword);
+  const admin = await login(adminEmail, adminPassword, "administrator");
+  const nonadmin = await login(nonEmail, nonPassword, "non-administrator");
   assert.notEqual(admin.id, nonadmin.id, "staging identities must be distinct");
   console.log("PASS: two distinct real Supabase Auth staging JWTs obtained");
 
