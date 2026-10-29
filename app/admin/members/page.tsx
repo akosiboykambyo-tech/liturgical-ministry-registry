@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { StatusBadge } from "@/components/status-badge";
 import { MemberDetailDrawer } from "@/components/member-detail-drawer";
@@ -611,6 +612,10 @@ export default function MembersListPage() {
 
   const handleSaveEdit = async () => {
     if (!editTarget) return;
+    if (secureMinistryVerificationEnabled) {
+      toast({ title: "Secure mode", description: "Legacy direct member editing is paused until an authorized database RPC is available.", variant: "destructive" });
+      return;
+    }
     const first = editFirst.trim();
     const last = editLast.trim();
     const parish = editParish.trim();
@@ -643,6 +648,10 @@ export default function MembersListPage() {
   // --- Delete a record created by user error ---
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    if (secureMinistryVerificationEnabled) {
+      toast({ title: "Secure mode", description: "Legacy member deletion is paused. Use an audited administrator procedure.", variant: "destructive" });
+      return;
+    }
     setDeleting(true);
     // Remove any linked document first (best-effort).
     if (deleteTarget.document_url) {

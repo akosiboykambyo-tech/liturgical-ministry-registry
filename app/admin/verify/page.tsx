@@ -242,6 +242,7 @@ function LegacyQuickScanMatrixPage() {
   const clearSelection = () => setSelectedIds(new Set());
 
   const handleMassUpload = async (file: File) => {
+    if (secureMinistryVerificationEnabled) return; // Fail closed if a stale legacy handler is invoked.
     if (selectedIds.size === 0) return;
     setMassUploading(true);
 

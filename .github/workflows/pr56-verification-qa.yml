@@ -18,6 +18,8 @@ on:
       - "scripts/pr56-staging-letter-review-browser.cjs"
       - "docs/sql/pr56-staging-letter-review-fixture.INSTALL-ISOLATED-ONLY.sql"
       - "tests/pr56-staging-letter-review-browser.test.cjs"
+      - "tests/pr56-legacy-direct-write-guards.test.cjs"
+      - "app/admin/members/**"
       - "tests/pr56-verification-workspace.test.cjs"
       - ".github/workflows/pr56-verification-qa.yml"
 
@@ -45,5 +47,7 @@ jobs:
         run: node --test tests/pr56-staging-browser-readonly.test.cjs
       - name: Synthetic private-letter browser safety checks (offline)
         run: node --test tests/pr56-staging-letter-review-browser.test.cjs
+      - name: Legacy direct-write feature gate safety checks
+        run: node --test tests/pr56-legacy-direct-write-guards.test.cjs
       - name: Registration offline tests
         run: npm run test:registration

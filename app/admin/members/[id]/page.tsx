@@ -150,6 +150,10 @@ export default function MemberDetailPage() {
   };
 
   const handleUpload = async (file: File) => {
+    if (secureMinistryVerificationEnabled) {
+      setError("Legacy member-wide document upload is paused in secure mode. Attach letters to a specific ministry in Verification.");
+      return;
+    }
     if (!member) return;
     setUploading(true);
     setError(null);
@@ -176,6 +180,10 @@ export default function MemberDetailPage() {
   };
 
   const handleDeleteDocument = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setError("Legacy member-wide document deletion is paused in secure mode. Request an audited document removal.");
+      return;
+    }
     if (!member?.document_url) return;
     await supabase.storage.from("member-documents").remove([member.document_url]);
     await supabase
