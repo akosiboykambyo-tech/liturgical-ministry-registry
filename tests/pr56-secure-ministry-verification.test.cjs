@@ -25,7 +25,7 @@ test("secure assignment chooser starts with nothing selected", () => {
   assert.match(secure,/ids\.length !== selected\.size/);
 });
 test("secure page requires ministry-specific document and exposes record review", () => {
-  assert.match(secure,/uploadingId !== null \|\| !assignment\.document_url/);
+  assert.match(secure,/!assignment\.document_url \|\| !reviewedIds\.has\(assignment\.id\)/);
   assert.match(secure,/No ministry recommendation letter on file/);
   assert.match(secure,/href=\{\`\/admin\/members\/\$\{active\.member\.id\}\`\}/);
 });
@@ -71,4 +71,16 @@ test("secure letter attachment uses private immutable Storage then dedicated no-
   assert.doesNotMatch(actions,/storage\.remove\(\[path\]\)/);
   assert.match(actions,/The uploaded private file was retained/);
   assert.match(secure,/No verification or renewal was applied/);
+});
+
+test("minister-specific private recommendation letter can be inspected before approval", () => {
+  assert.match(actions,/getPendingMinistryLetterReviewUrl/);
+  assert.match(actions,/\.createSignedUrl\(documentPath, 300\)/);
+  assert.match(actions,/Invalid private recommendation-letter path/);
+  assert.match(secure,/Open recommendation letter \(new tab\)/);
+  assert.match(secure,/target="_blank" rel="noopener noreferrer"/);
+  assert.match(secure,/!reviewedIds\.has\(assignment\.id\)/);
+  assert.match(secure,/!reviewedIds\.has\(id\)/);
+  assert.match(secure,/setReviewedIds\(new Set\(\)\)/);
+  assert.match(secure,/Refresh secure link/);
 });

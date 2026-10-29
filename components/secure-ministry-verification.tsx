@@ -6,7 +6,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { shortMinistry } from "@/lib/constants";
-import { verifySelectedMinistries, attachPendingMinistryLetter } from "@/lib/secure-ministry-verification";
+import { verifySelectedMinistries, attachPendingMinistryLetter, getPendingMinistryLetterReviewUrl } from "@/lib/secure-ministry-verification";
 
 type MemberDetails = {
   id: string; uid: string; first_name: string; last_name: string;
@@ -35,6 +35,9 @@ export default function SecureMinistryVerification() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+  const [reviewUrls, setReviewUrls] = useState<Record<string, string>>({});
+  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
+  const [signingId, setSigningId] = useState<string | null>(null);
   const [reachedLimit, setReachedLimit] = useState(false);
 
   const reload = useCallback(async () => {
@@ -94,6 +97,38 @@ export default function SecureMinistryVerification() {
     setError(null);
     setNotice(null);
     setUploadNotice(null);
+    setReviewUrls({});
+    setReviewedIds(new Set());
+    setSigningId(null);
+  };
+
+  const prepareReviewLink = async (assignment: PendingAssignment) => {
+    if (!active || !assignment.document_url || submitting || uploadingId ||
+        signingId || assignment.member_id !== active.member.id ||
+        !active.assignments.some((row) => row.id === assignment.id)) {
+      setError("Reopen the member before reviewing this ministry letter.");
+      return;
+    }
+    setSigningId(assignment.id);
+    setError(null);
+    try {
+      const url = await getPendingMinistryLetterReviewUrl(assignment.document_url);
+      setReviewUrls((old) => ({ ...old, [assignment.id]: url }));
+      setReviewedIds((old) => {
+        const next = new Set(old);
+        next.delete(assignment.id); // A new link must be opened and reviewed.
+        return next;
+      });
+      setSelected((old) => {
+        const next = new Set(old);
+        next.delete(assignment.id);
+        return next;
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to prepare the private letter.");
+    } finally {
+      setSigningId(null);
+    }
   };
 
   const uploadPendingLetter = async (assignment: PendingAssignment, file: File) => {
@@ -107,6 +142,16 @@ export default function SecureMinistryVerification() {
     setUploadingId(assignment.id);
     try {
       await attachPendingMinistryLetter(active.member.id, assignment.id, file);
+      setReviewUrls((old) => {
+        const next = { ...old };
+        delete next[assignment.id];
+        return next;
+      });
+      setReviewedIds((old) => {
+        const next = new Set(old);
+        next.delete(assignment.id);
+        return next;
+      });
       await reload();
       setUploadNotice(`Recommendation letter attached to ${assignment.ministry}. No verification or renewal was applied.`);
     } catch (cause) {
@@ -117,11 +162,11 @@ export default function SecureMinistryVerification() {
   };
 
   const confirm = async () => {
-    if (!active || submitting || uploadingId || selected.size === 0) return;
+    if (!active || submitting || uploadingId || signingId || selected.size === 0) return;
     const ids = active.assignments
       .filter((assignment) => selected.has(assignment.id))
       .map((assignment) => assignment.id);
-    if (ids.length !== selected.size || ids.some((id) => !active.assignments.find((a) => a.id === id)?.document_url)) {
+    if (ids.length !== selected.size || ids.some((id) => !active.assignments.find((a) => a.id === id)?.document_url || !reviewedIds.has(id))) {
       setError("Selection changed. Reopen this record before approving.");
       return;
     }
@@ -134,6 +179,8 @@ export default function SecureMinistryVerification() {
       );
       setActiveId(null);
       setSelected(new Set());
+      setReviewUrls({});
+      setReviewedIds(new Set());
       await reload();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Verification could not be completed.");
@@ -206,7 +253,7 @@ export default function SecureMinistryVerification() {
               </p>
             </header>
             <p className="text-sm">
-              Select only the ministry assignments whose recommendation letters have been reviewed.
+              Open and inspect each ministry's private recommendation letter before selecting it for approval.
               The server will record a <strong>New</strong> verification valid for one calendar year.
             </p>
             <Link href={`/admin/members/${active.member.id}`}
@@ -218,7 +265,7 @@ export default function SecureMinistryVerification() {
                 <div key={assignment.id} className="border border-[#E6DADC] p-3">
                   <label className="flex cursor-pointer items-start gap-3">
                     <input type="checkbox" checked={selected.has(assignment.id)}
-                      disabled={submitting || uploadingId !== null || !assignment.document_url}
+                      disabled={submitting || uploadingId !== null || signingId !== null || !assignment.document_url || !reviewedIds.has(assignment.id)}
                       onChange={(event) => setSelected((current) => {
                         const next = new Set(current);
                         if (event.target.checked) next.add(assignment.id);
@@ -231,6 +278,25 @@ export default function SecureMinistryVerification() {
                       </span>
                     </span>
                   </label>
+                  {assignment.document_url && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => void prepareReviewLink(assignment)}
+                        disabled={submitting || uploadingId !== null || signingId !== null}
+                        className="border border-[#890022] px-3 py-1.5 text-xs font-semibold text-[#890022] disabled:opacity-50">
+                        {signingId === assignment.id ? "Preparing…" : reviewUrls[assignment.id] ? "Refresh secure link" : "Prepare secure letter link"}
+                      </button>
+                      {reviewUrls[assignment.id] && (
+                        <a href={reviewUrls[assignment.id]} target="_blank" rel="noopener noreferrer"
+                          onClick={() => setReviewedIds((old) => new Set(old).add(assignment.id))}
+                          className="px-2 py-1.5 text-xs font-semibold text-[#890022] underline">
+                          Open recommendation letter (new tab)
+                        </a>
+                      )}
+                      {reviewedIds.has(assignment.id) && (
+                        <span className="text-xs text-[#66545A]">Opened for review — select only after inspection</span>
+                      )}
+                    </div>
+                  )}
                   {!assignment.document_url && (
                     <label className="mt-2 inline-flex cursor-pointer items-center gap-2 border border-[#890022] bg-white px-3 py-1.5 text-xs font-semibold text-[#890022] focus-within:ring-2 focus-within:ring-[#890022]">
                       {uploadingId === assignment.id ? "Uploading…" : "Upload letter"}
@@ -252,11 +318,11 @@ export default function SecureMinistryVerification() {
               Unselected ministries stay pending. No approval occurs until you confirm.
             </p>
             <div className="flex flex-wrap justify-end gap-2">
-              <button type="button" onClick={() => { setActiveId(null); setSelected(new Set()); }}
-                disabled={submitting || uploadingId !== null} className="border border-[#D9C9CF] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">
+              <button type="button" onClick={() => { setActiveId(null); setSelected(new Set()); setReviewUrls({}); setReviewedIds(new Set()); }}
+                disabled={submitting || uploadingId !== null || signingId !== null} className="border border-[#D9C9CF] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">
                 Cancel
               </button>
-              <button type="button" onClick={() => void confirm()} disabled={submitting || uploadingId !== null || selected.size === 0}
+              <button type="button" onClick={() => void confirm()} disabled={submitting || uploadingId !== null || signingId !== null || selected.size === 0}
                 className="bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
                 {submitting ? "Verifying…" : `Verify ${selected.size} selected`}
               </button>

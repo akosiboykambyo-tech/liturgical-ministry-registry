@@ -97,3 +97,25 @@ export async function attachPendingMinistryLetter(
     );
   }
 }
+
+/** Authorize document inspection through private Supabase Storage. The URL is
+ * short-lived; it never changes membership status or exposes a public bucket. */
+export async function getPendingMinistryLetterReviewUrl(
+  documentPath: string
+): Promise<string> {
+  if (!secureMinistryVerificationEnabled) {
+    throw new Error("Secure ministry document review is disabled.");
+  }
+  if (!documentPath || documentPath.length > 512 ||
+      documentPath.startsWith("/") || documentPath.includes("..") ||
+      documentPath.includes("://")) {
+    throw new Error("Invalid private recommendation-letter path.");
+  }
+  const { data, error } = await getSupabaseBrowserClient().storage
+    .from("member-documents")
+    .createSignedUrl(documentPath, 300);
+  if (error || !data?.signedUrl) {
+    throw new Error("Private recommendation letter cannot be opened. Confirm your administrator access and Storage permissions.");
+  }
+  return data.signedUrl;
+}

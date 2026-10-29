@@ -34,3 +34,9 @@ node --test tests/pr56-secure-ministry-verification.test.cjs
 - Only after the exact assignment has a stored letter can the administrator explicitly select and verify it. No bulk shortcuts or legacy auto-renewing upload are enabled in secure mode.
 - Staging database rollback test confirmed positive attachment, wrong-path and nonadmin denial, and no status/expiry changes; staging test membership/Storage object fixtures were rolled back. **Actual Storage HTTP/JWT upload and real frontend browser tests remain unrun.**
 - The `NEXT_PUBLIC_SECURE_MINISTRY_VERIFICATION` build-time flag remains unset. Do not enable it in production.
+
+## October 29 — private recommendation letter inspection before approval
+
+The isolated staging positive HTTP Auth/Storage/RPC test and fixture cleanup passed on October 29, but the gated UI still required a direct ministry-specific inspection link. This change adds a **Prepare secure letter link** action per Pending Verification assignment; it calls Storage `createSignedUrl(path, 300)` (five-minute link), then renders an `Open recommendation letter (new tab)` link. The checkbox is disabled until the operator opens the link. Opening is a UI acknowledgment **not proof of actually reading the document**; the server still enforces the letter's presence and administrator grant. Refreshing the signed link clears the UI acknowledgment/selection so an expired or replaced link is not silently reused.
+
+No public bucket policy, external link, admin RPC, or legacy edit route was changed. The new control is accessible only when the default-off secure frontend flag is enabled. A missing/unavailable private letter fails closed.
