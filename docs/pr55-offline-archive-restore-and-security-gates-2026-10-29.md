@@ -81,3 +81,18 @@ CLEANUP: removing disposable container and Docker volume; original archive untou
 ```
 
 **Evidence and limit:** The current production logical archive was restored successfully into a disposable PostgreSQL 17 container with a readonly source mount and no network, without live production changes. The cleanup stage was reached; container/volume removal was not independently enumerated afterward. **Database structure and row counts for four core relations PASS; full-fidelity disaster recovery remains NO-GO.** The operator has not yet provided successful encryption/verification outputs, a separately protected backup copy, actual Storage object bytes, global role/grant restoration, working Auth-service login, or an end-to-end rollback test. These are not to be marked completed based on the database restore alone. The stale October 26 archive must not be substituted as a live recovery snapshot.
+
+
+## Operator private Storage export verified — 2026-10-30
+
+Operator reported a read-only `rclone copy` from Supabase S3 remote `dcowl` into a private, timestamped local directory on Drive C:. A subsequent `rclone check --download` for **each bucket** reported `0 differences found` and respectively `1 matching files` for member-documents and `36 matching files` for certificate-templates. Local inventory and fresh source S3 count/byte inventory also matched:
+
+| Bucket | Downloaded object count | Verified bytes |
+| --- | ---: | ---: |
+| member-documents | 1 | 171,973 |
+| certificate-templates | 36 | 36,863,212 |
+| **Total** | **37** | **37,035,185** |
+
+The operator's local script generated a private file-level SHA-256 manifest; no names, contents, sensitive paths or hashes are copied into GitHub. This establishes that the **37 current Storage object bytes were downloaded and matched the S3 source at verification time**, independently of the 37 `storage.objects` database records. It does **not** prove that the exported files have been encrypted, retained on a second independent device/offsite, or restored to a working Supabase Storage service. Similarly, an encrypted database archive file was reported present, but its authenticated decryption/verification result has not been supplied; do not mark it certified.
+
+Remaining critical release gates: operator securely encrypts/independently verifies and separately protects both database and Storage backups; tests restoring the fresh database with roles/grants and Auth service, replays private Storage bytes with matching manifest, validates secure access and rollback; remediates approved security and legacy write-path issues; explicitly authorizes production security cutover and merge. No production modification or release permission is implied by the successful read-only Storage export. PR55/PR56 remain drafts and production release remains NO-GO.
