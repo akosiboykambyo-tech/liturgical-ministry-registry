@@ -63,3 +63,21 @@ The operator ran `scripts/pr55-production-readonly-backup.cjs --connection-check
 **This is currently an exported plaintext, local-only, database/Auth metadata archive—not a certified current recovery snapshot.** Encryption + passphrase retention, a separately protected second copy, strict isolated restore verification of the fresh archive, role/ACL/Auth parity, and all 37 *actual* Storage blob bytes remain incomplete. The restored October 26 archive's historical counts must not be treated as current production counts. Keep the original October 30 archive until restore and encrypted-copy certification is finished, never commit raw backup files or credentials.
 
 **Next:** operator-local `scripts/pr55-protect-local-backup.cjs --encrypt` then `--verify` with private env variables set from exact new file and SHA256 and a unique 20+ character encryption passphrase; then use `scripts/pr55-offline-archive-restore-rehearsal.sh` on the **new** archive and its exact checksum. After that, export current Storage blob bytes and compare count/size/hash manifest per bucket. Production remains **NO-GO**.
+
+
+## Operator current October 30 archive restore PASS
+
+The operator executed `scripts/pr55-offline-archive-restore-rehearsal.sh` against the **fresh 2026-10-30 production archive**, rather than the stale 2026-10-26 archive. The script reported:
+
+```text
+PASS: exact archive checksum and D: disk-space preflight
+PASS: public.members restored; rows=1
+PASS: public.member_ministries restored; rows=2
+PASS: auth.users restored; rows=1
+PASS: storage.objects restored; rows=37
+PASS: archive schema and data restored with no-owner/no-acl; four core-table row counts verified.
+LIMIT: not a proof of Storage object bytes, live Auth service, roles/ACLs, or a current production recovery point.
+CLEANUP: removing disposable container and Docker volume; original archive untouched.
+```
+
+**Evidence and limit:** The current production logical archive was restored successfully into a disposable PostgreSQL 17 container with a readonly source mount and no network, without live production changes. The cleanup stage was reached; container/volume removal was not independently enumerated afterward. **Database structure and row counts for four core relations PASS; full-fidelity disaster recovery remains NO-GO.** The operator has not yet provided successful encryption/verification outputs, a separately protected backup copy, actual Storage object bytes, global role/grant restoration, working Auth-service login, or an end-to-end rollback test. These are not to be marked completed based on the database restore alone. The stale October 26 archive must not be substituted as a live recovery snapshot.
