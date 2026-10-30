@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/pr55-*.cjs'
+      - 'scripts/pr55-*.ps1'
       - 'tests/production-registration-*.test.cjs'
       - 'tests/registration-matching.test.cjs'
       - 'docs/sql/registration-*.sql'
@@ -45,3 +46,24 @@ jobs:
 
 # No staging credentials, Vercel secrets, database migrations, API calls,
 # session tests or production deployments are executed from this workflow.
+
+  powershell-parse:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout source only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Parse offline protection script; do not execute or access private backups
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          $path = Join-Path $PWD 'scripts/pr55-protect-current-recovery-set.ps1'
+          [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw 'PowerShell syntax errors'
+          }
+          Write-Output 'PASS: PowerShell backup-protection script parses; no data or credentials accessed'
