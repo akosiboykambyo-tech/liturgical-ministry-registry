@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import SeasonGridWorkspace from "@/components/season-grid-workspace";
 import Link from "next/link";
 import { ClipboardCheck, FileCheck2, GitMerge, History, RefreshCw, Upload, Users } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
@@ -94,7 +95,7 @@ function RegistrationImportHistory() {
   );
 }
 
-export default function VerificationWorkspacePage() {
+function LegacyVerificationWorkspacePage() {
   const [tab, setTab] = useState<WorkspaceTab>("registrations");
   const [reviewView, setReviewView] = useState<ReviewView>("approvals");
 
@@ -223,4 +224,12 @@ export default function VerificationWorkspacePage() {
       {tab === "reviews" && reviewView === "renewal" && <RenewalReviewsPage />}
     </div>
   );
+}
+
+
+// The new workflow remains disabled until private season RPC authorization is approved.
+export default function VerificationWorkspacePage() {
+  return process.env.NEXT_PUBLIC_SEASON_GRID_ENABLED === "enabled"
+    ? <SeasonGridWorkspace />
+    : <LegacyVerificationWorkspacePage />;
 }
