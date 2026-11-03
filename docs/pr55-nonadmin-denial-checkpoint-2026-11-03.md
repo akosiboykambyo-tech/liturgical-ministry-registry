@@ -37,3 +37,9 @@ The runner uses local environment credentials if present, otherwise prompts for 
 - Production currently has only the single granted Auth user, so testing a separate real production nonadministrator requires a separately planned and approved identity. Do **not** revoke production's sole administrator.
 - A SQL JWT-claim simulation does not prove that the HTTP gateway validates a signed JWT. The new local runner closes that gap only once its operator execution succeeds.
 - Legacy CRUD/import replacements, Auth+Storage recovery, and other PR55 release gates remain open; keep PR55 draft and live production UI unchanged.
+
+
+## Revocation rehearsal (3 November 2026)
+
+An additional staging-only transaction temporarily marked its sole staging administrator grant inactive and recorded a revocation timestamp. While still inside that uncommitted transaction, `SET LOCAL ROLE authenticated` and the same test identity were used to verify that `registration_is_admin()` returned false, ministry rows became invisible, and `registry_verify_ministries_v1` denied with SQLSTATE 42501. The transaction then **ROLLED BACK**, and an independent post-rollback count confirmed the one active staging administrator grant was restored. No production grant was touched. This is transaction-scoped SQL simulation, not HTTP token revocation or session invalidation.
+
