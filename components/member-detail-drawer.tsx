@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import {
   STATUS_VALUES,
   getExpirationStatus,
@@ -32,6 +33,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { attachSignatureCompositions, SIGNATURE_LAYOUT_KEY_PREFIX } from "@/lib/signature-layout";
 import {
   CertificateDesign,
   type CertificateDesignHandle,
@@ -185,12 +187,16 @@ export function MemberDetailDrawer({
 
     // Load certificate signatories using the same source as the
     // Certificate Template Manager.
-    const { data: signatoryRows } = await supabase
-      .from("signatories")
-      .select("*")
-      .order("sort_order");
+    const [signatoryResult, layoutResult] = await Promise.all([
+      supabase.from("signatories").select("*").order("sort_order"),
+      supabase.from("system_settings").select("key,value")
+        .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`),
+    ]);
 
-    setCertificateSignatories((signatoryRows as Signatory[]) ?? []);
+    setCertificateSignatories(attachSignatureCompositions(
+      (signatoryResult.data as Signatory[]) ?? [],
+      layoutResult.error ? [] : (layoutResult.data ?? [])
+    ));
 
     const { data: logs } = await supabase
       .from("audit_logs")
@@ -292,6 +298,10 @@ export function MemberDetailDrawer({
 
   const handleSave = async () => {
     if (!member) return;
+    if (secureMinistryVerificationEnabled) {
+      setError("Direct member and assignment edits are paused in secure verification mode. Use the Verification workspace.");
+      return;
+    }
 
     const firstName = editFirstName.trim().normalize("NFC");
     const lastName = editLastName.trim().normalize("NFC");
@@ -381,6 +391,10 @@ export function MemberDetailDrawer({
   };
 
   const handleUpload = async (file: File) => {
+    if (secureMinistryVerificationEnabled) {
+      setError("Legacy upload also renews the ministry without secure approval. This action is disabled until the secure letter workflow is installed.");
+      return;
+    }
     if (
       !member ||
       !membershipTableAvailable ||
@@ -475,6 +489,10 @@ export function MemberDetailDrawer({
   };
 
   const handleDeleteDocument = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setError("Direct document changes are disabled during secure verification rollout.");
+      return;
+    }
     if (!selectedMembership?.id || !selectedMembership.document_url) return;
 
     setError(null);
@@ -595,6 +613,12 @@ export function MemberDetailDrawer({
           </div>
         ) : (
           <div className="flex flex-col h-full">
+            {secureMinistryVerificationEnabled && (
+              <p role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs text-amber-950">
+                Read-only during secure rollout. Approve selected assignments in Verification;
+                legacy editing and document-renewal shortcuts are disabled.
+              </p>
+            )}
             {/* Header */}
             <SheetHeader className="border-b border-[#E3D8DA] bg-white px-5 pb-4 pt-7 sm:px-6">
               <SheetTitle className={`${ebGaramond.className} pr-10 text-[32px] leading-tight font-medium tracking-normal text-[#211018]`}>

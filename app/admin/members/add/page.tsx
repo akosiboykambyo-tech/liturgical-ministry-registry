@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useRouter } from "next/navigation";
 import { importSingleMember } from "@/lib/duplicate-check";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { validateRegistrationIntake } from "@/lib/registration-intake-validation";
 import { normalizeApprovedMinistries } from "@/lib/registration-ministry-validation";
 import { PARISHES } from "@/lib/constants";
@@ -40,6 +41,10 @@ export default function AddMemberPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (secureMinistryVerificationEnabled) {
+      setError("Member registration through this older screen is unavailable in secure mode; use an audited intake workflow.");
+      return;
+    }
     setError(null);
     setSuccess(null);
     setDupeMatch(null);

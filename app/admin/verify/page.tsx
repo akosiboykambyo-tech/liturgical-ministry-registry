@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { quickVerifyMember } from "@/lib/verify-actions";
+import SecureMinistryVerification from "@/components/secure-ministry-verification";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { StatusBadge } from "@/components/status-badge";
 import { shortMinistry, MINISTRIES, PARISHES } from "@/lib/constants";
 import { Member } from "@/lib/types";
@@ -40,6 +43,14 @@ const EMPTY_FILTERS: Filters = {
 };
 
 export default function QuickScanMatrixPage() {
+  return secureMinistryVerificationEnabled
+    ? <SecureMinistryVerification />
+    : <LegacyQuickScanMatrixPage />;
+}
+
+// Keep the legacy UI unchanged until the secure RPC has been separately
+// installed, granted to approved administrators, and fully tested.
+function LegacyQuickScanMatrixPage() {
   const supabase = getSupabaseBrowserClient();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -231,6 +242,7 @@ export default function QuickScanMatrixPage() {
   const clearSelection = () => setSelectedIds(new Set());
 
   const handleMassUpload = async (file: File) => {
+    if (secureMinistryVerificationEnabled) return; // Fail closed if a stale legacy handler is invoked.
     if (selectedIds.size === 0) return;
     setMassUploading(true);
 
@@ -379,9 +391,7 @@ export default function QuickScanMatrixPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
+        <CenteredAdminLoader label="Loading members awaiting verification…" />
       ) : filtered.length === 0 ? (
         <div className="border border-dashed border-border py-16 text-center">
           <Inbox className="mx-auto h-10 w-10 text-muted-foreground/50" />

@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import type { MemberStatus, Member } from "@/lib/types";
 
 /**
@@ -13,6 +14,9 @@ export async function quickVerifyMember(
   memberId: string,
   newStatus: "New" | "Renewed"
 ): Promise<{ member: Member | null; error: string | null }> {
+  if (secureMinistryVerificationEnabled) {
+    return { member: null, error: "Member-wide verification is disabled. Use assignment-level Verification." };
+  }
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("members")
@@ -38,6 +42,9 @@ export async function updateMemberStatus(
   memberId: string,
   status: MemberStatus
 ): Promise<{ member: Member | null; error: string | null }> {
+  if (secureMinistryVerificationEnabled) {
+    return { member: null, error: "Direct member status changes are disabled in secure mode. Use Verification." };
+  }
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("members")

@@ -1,7 +1,10 @@
 "use client";
 
 import { normalizeApprovedMinistries } from "@/lib/registration-ministry-validation";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { expirationOneYearAfter } from "@/lib/registration-validity";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
+import { useEffect, useState, useRef, useCallback, useContext } from "react";
+import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification-workspace-context";
 import Link from "next/link";
 import Papa from "papaparse";
 import { ebGaramond } from "@/app/fonts";
@@ -83,7 +86,7 @@ interface Progress {
   phase: string;
 }
 
-type Tab = "import" | "renewal" | "history" | "pending";
+type Tab = CsvImportTab;
 
 type RenewalHistoryBatch = RecommendationRenewalBatch & {
   memberships: RecommendationRenewalMembership[];
@@ -175,13 +178,18 @@ function getRenewalReviewLabel(item: RenewalReviewItem): string {
 }
 
 function getDefaultNextRenewalDate(renewalDate: string): string {
-  const date = new Date(`${renewalDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  date.setFullYear(date.getFullYear() + 1);
-  return date.toISOString().slice(0, 10);
+  try {
+    // Use the shared date-only calculation, avoiding local timezone drift and
+    // ensuring leap-day renewals follow the established registry policy.
+    return expirationOneYearAfter(renewalDate);
+  } catch {
+    return "";
+  }
 }
 
 export default function CsvImportPage() {
+  const { embedded = false, workspaceTab, onWorkspaceTabChange } =
+    useContext(CsvImportWorkspaceContext);
   const supabase = getSupabaseBrowserClient();
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>("");
@@ -193,14 +201,24 @@ export default function CsvImportPage() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("import");
-  // Backwards-compatible entry points while renewal processing is consolidated.
+  const [activeTab, setActiveTab] = useState<Tab>(workspaceTab ?? "import");
+  // Reuse the existing batch processor in the four-tab Verification workspace.
+  // Keeping the component mounted across tabs preserves staged duplicate reviews.
   useEffect(() => {
+    if (workspaceTab) {
+      setActiveTab(workspaceTab);
+      return;
+    }
     const requested = new URLSearchParams(window.location.search).get("tab");
     if (requested === "renewal" || requested === "history" || requested === "pending") {
       setActiveTab(requested);
     }
-  }, []);
+  }, [workspaceTab]);
+
+  const changeTab = (next: Tab) => {
+    setActiveTab(next);
+    onWorkspaceTabChange?.(next);
+  };
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -243,6 +261,10 @@ export default function CsvImportPage() {
     duplicatesRouted: number;
   } | null>(null);
   const [overrideIdempotency, setOverrideIdempotency] = useState(false);
+  const [importFailure, setImportFailure] = useState<string | null>(null);
+  const [importConfirmed, setImportConfirmed] = useState(false);
+  const [importBlocked, setImportBlocked] = useState(false);
+  const importInFlightRef = useRef(false);
 
   // Staging state
   const [pendingMerges, setPendingMerges] = useState<StagedDuplicate[]>([]);
@@ -256,6 +278,14 @@ export default function CsvImportPage() {
   } | null>(null);
 
   const handleFile = useCallback(async (file: File) => {
+    if (processing) return;
+    if (pendingMerges.length) {
+      setParseError("Resolve or document the temporary duplicate review queue before importing another CSV.");
+      return;
+    }
+    setImportFailure(null);
+    setImportBlocked(false);
+    setImportConfirmed(false);
     setParseError(null);
     setResults([]);
     setProgress(null);
@@ -321,7 +351,7 @@ export default function CsvImportPage() {
       },
       error: (err) => setParseError(err.message),
     });
-  }, []);
+  }, [pendingMerges.length, processing]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -545,6 +575,10 @@ export default function CsvImportPage() {
   };
 
   const saveStagedReviewCases = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setReviewQueueError("Saving renewal review cases requires an approved secure administrator workflow.");
+      return;
+    }
     if (!renewalStaging || reviewQueueSaved !== null || reviewQueueSaving) return;
     setReviewQueueSaving(true);
     setReviewQueueError(null);
@@ -578,6 +612,10 @@ export default function CsvImportPage() {
   };
 
   const processRenewalBatch = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setRenewalActionError("Processing renewal batches requires an approved secure administrator workflow.");
+      return;
+    }
     if (!renewalStaging) return;
 
     const selectedIds = renewalStaging.renewable
@@ -601,9 +639,10 @@ export default function CsvImportPage() {
       return;
     }
 
-    if (nextRenewalDate < renewalDate) {
+    const expectedNextRenewalDate = getDefaultNextRenewalDate(renewalDate);
+    if (!expectedNextRenewalDate || nextRenewalDate !== expectedNextRenewalDate) {
       setRenewalActionError(
-        "The next renewal date cannot be earlier than the renewal date."
+        "Expiration must be exactly one calendar year after renewal. Check the renewal date."
       );
       return;
     }
@@ -675,12 +714,27 @@ export default function CsvImportPage() {
   // STAGING + IMPORT FLOW
   // ============================================================
   const runImport = async () => {
-    if (rows.length === 0) return;
+    if (secureMinistryVerificationEnabled) {
+      setImportFailure("Importing member records requires an approved secure administrator workflow.");
+      return;
+    }
+    if (!rows.length || processing || importInFlightRef.current || importBlocked || !importConfirmed) return;
+    if (pendingMerges.length) {
+      setImportFailure("Resolve the existing temporary duplicate queue before starting another import.");
+      return;
+    }
+    importInFlightRef.current = true;
     setProcessing(true);
+    setImportFailure(null);
     setResults([]);
     setActionError(null);
     setMergeSummary(null);
 
+    let writesStarted = false;
+    let batchId: string | null = null;
+    const knownResults: RowResult[] = [];
+    let knownDuplicateCount = 0;
+    try {
     const incomingRecords: IncomingRecord[] = rows.map((r) => ({
       first_name: r.first_name,
       last_name: r.last_name,
@@ -702,6 +756,7 @@ export default function CsvImportPage() {
       serviceYear
     );
     const { unique, duplicates } = stagingResult;
+    knownDuplicateCount = duplicates.length;
 
     // Idempotency check — warn if this exact file was already imported
     if (stagingResult.alreadyImported && !overrideIdempotency) {
@@ -716,6 +771,11 @@ export default function CsvImportPage() {
       return;
     }
 
+    // Hold duplicates for review even if a subsequent batch write fails.
+    if (duplicates.length) {
+      setPendingMerges(duplicates);
+      setCurrentIndex(0);
+    }
     setProgress({
       current: unique.length,
       total: incomingRecords.length,
@@ -724,7 +784,7 @@ export default function CsvImportPage() {
     await new Promise((r) => setTimeout(r, 0));
 
     // Step 2: Record the import batch for idempotency tracking
-    const { data: batchRecord } = await supabase
+    const { data: batchRecord, error: batchError } = await supabase
       .from("import_batches")
       .insert({
         file_hash: fileHash,
@@ -737,10 +797,14 @@ export default function CsvImportPage() {
       .select("id")
       .single();
 
-    const batchId = (batchRecord as { id: string } | null)?.id;
+    if (batchError || !batchRecord?.id) {
+      throw new Error(`Unable to record the import batch: ${batchError?.message ?? "Missing batch ID"}`);
+    }
+    batchId = (batchRecord as { id: string }).id;
+    writesStarted = true;
 
     // Step 3: Insert unique records immediately (auto-generates UIDs)
-    const out: RowResult[] = [];
+    const out: RowResult[] = knownResults;
     const batchCount = Math.ceil(unique.length / BATCH_SIZE);
     for (let b = 0; b < batchCount; b++) {
       const batchStart = b * BATCH_SIZE;
@@ -778,6 +842,9 @@ export default function CsvImportPage() {
         }
       }
 
+      if (batchResults.length !== slice.length) {
+        throw new Error("The batch response was incomplete; confirm created members before retrying.");
+      }
       setProgress({
         current: batchStart + slice.length,
         total: unique.length,
@@ -787,7 +854,7 @@ export default function CsvImportPage() {
 
     // Step 4: Update the import batch record
     if (batchId) {
-      await supabase
+      const { error: finishError } = await supabase
         .from("import_batches")
         .update({
           unique_inserted: out.filter((r) => r.status === "created").length,
@@ -795,6 +862,7 @@ export default function CsvImportPage() {
           completed_at: new Date().toISOString(),
         })
         .eq("id", batchId);
+      if (finishError) throw new Error(`Import ran but batch history could not be finalized: ${finishError.message}`);
     }
 
     setResults(out);
@@ -810,21 +878,63 @@ export default function CsvImportPage() {
     setFileName("");
     setFileHash("");
     setOverrideIdempotency(false);
+    setImportConfirmed(false);
 
     // Step 5: Route duplicates to pendingMerges queue
     if (duplicates.length > 0) {
       setPendingMerges(duplicates);
       setCurrentIndex(0);
-      setActiveTab("pending");
+      changeTab("pending");
+    }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Unexpected import error.";
+      const created = knownResults.filter((r) => r.status === "created").length;
+      const rejected = knownResults.filter((r) => r.status === "error").length;
+      if (writesStarted) {
+        setImportBlocked(true);
+        setImportFailure(
+          `Import stopped after database writes may have begun: ${message} ` +
+          `Known results: ${created} created, ${rejected} rejected; other outcomes may be unknown. ` +
+          `Do not retry this CSV until registry records and batch ${batchId ?? "history"} are reconciled.`
+        );
+      } else {
+        setImportFailure(`Import stopped before member creation: ${message}`);
+      }
+      if (knownResults.length) setResults(knownResults);
+      if (knownResults.length || knownDuplicateCount) {
+        setSummary({
+          created, duplicates: knownDuplicateCount, errors: rejected,
+          total: knownResults.length + knownDuplicateCount,
+        });
+      }
+    } finally {
+      setProcessing(false);
+      setProgress(null);
+      importInFlightRef.current = false;
     }
   };
 
   // ============================================================
   // RECONCILIATION ACTIONS
   // ============================================================
+  // Switching tabs retains the queue; navigation/reload does not.
+  useEffect(() => {
+    if (pendingMerges.length === 0) return;
+    const preventAccidentalExit = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", preventAccidentalExit);
+    return () => window.removeEventListener("beforeunload", preventAccidentalExit);
+  }, [pendingMerges.length]);
+
   const currentDuplicate = pendingMerges[currentIndex];
 
   const resolveMerge = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setActionError("Merging member records requires an approved secure administrator workflow.");
+      return;
+    }
     if (!currentDuplicate || !currentDuplicate.existing) return;
     setActionLoading(true);
     setActionError(null);
@@ -909,6 +1019,10 @@ export default function CsvImportPage() {
   };
 
   const resolveKeepSeparate = async () => {
+    if (secureMinistryVerificationEnabled) {
+      setActionError("Creating separate member records requires an approved secure administrator workflow.");
+      return;
+    }
     if (!currentDuplicate) return;
     setActionLoading(true);
     setActionError(null);
@@ -1088,6 +1202,8 @@ export default function CsvImportPage() {
 
   return (
     <div className="w-full space-y-5 pb-16 text-[#1E1114]">
+      {!embedded && (
+        <>
       <div>
         <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
           Bulk Registration Import &amp; Legacy Renewals
@@ -1102,7 +1218,7 @@ export default function CsvImportPage() {
       {/* Tab bar */}
       <div className="grid grid-cols-2 gap-0 border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-1 sm:flex sm:flex-wrap">
         <button
-          onClick={() => setActiveTab("import")}
+          onClick={() => changeTab("import")}
           className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "import"
               ? "bg-[#890022] text-white"
@@ -1118,7 +1234,7 @@ export default function CsvImportPage() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab("renewal")}
+          onClick={() => changeTab("renewal")}
           className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "renewal"
               ? "bg-[#890022] text-white"
@@ -1129,7 +1245,7 @@ export default function CsvImportPage() {
           Renewal Import
         </button>
         <button
-          onClick={() => setActiveTab("history")}
+          onClick={() => changeTab("history")}
           className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "history"
               ? "bg-[#890022] text-white"
@@ -1140,7 +1256,7 @@ export default function CsvImportPage() {
           Renewal History
         </button>
         <button
-          onClick={() => setActiveTab("pending")}
+          onClick={() => changeTab("pending")}
           className={`inline-flex items-center justify-center gap-1.5 border-0 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
             activeTab === "pending"
               ? "bg-[#890022] text-white"
@@ -1160,8 +1276,20 @@ export default function CsvImportPage() {
       {/* ============================================================ */}
       {/* IMPORT TAB */}
       {/* ============================================================ */}
+        </>
+      )}
       {activeTab === "import" && (
         <>
+          {importFailure && (
+            <div role="alert" className="border border-[#C69BA6] border-l-[4px] border-l-[#890022] bg-[#FBF1F3] p-4 text-sm leading-6 text-[#5C2634]">
+              <strong className="block">Import requires attention</strong>
+              {importFailure}
+              {pendingMerges.length > 0 && (
+                <button type="button" onClick={() => changeTab("pending")}
+                  className="mt-2 block font-semibold underline">Review temporary duplicate cases</button>
+              )}
+            </div>
+          )}
           {/* Idempotency warning */}
           {idempotencyWarning && (
             <div className="rounded-none border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
@@ -1220,7 +1348,7 @@ export default function CsvImportPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className="text-sm font-semibold text-foreground">
-                    Staging Complete
+                    {importFailure ? "Partial Import Results" : "Import Completed"}
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Inserted{" "}
@@ -1253,7 +1381,7 @@ export default function CsvImportPage() {
                   </p>
                   {summary.duplicates > 0 && (
                     <button
-                      onClick={() => setActiveTab("pending")}
+                      onClick={() => changeTab("pending")}
                       className="mt-3 inline-flex items-center gap-1.5 rounded-none bg-[#890022] px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
                     >
                       <GitMerge className="h-3.5 w-3.5" />
@@ -1418,9 +1546,22 @@ export default function CsvImportPage() {
                     </p>
                   )}
                 </div>
+                <label className="flex items-start gap-2 border border-[#E6DADB] bg-[#F8F1F3] p-3 text-sm leading-5 text-[#5D3540]">
+                  <input type="checkbox" className="mt-1 accent-[#890022]"
+                    checked={importConfirmed} disabled={processing || importBlocked}
+                    onChange={(event) => setImportConfirmed(event.target.checked)} />
+                  <span>I understand that this action creates Pending Verification member records immediately. It is not a read-only preview. Duplicate cases remain temporary until reviewed.</span>
+                </label>
+                {importBlocked && (
+                  <p role="alert" className="text-sm font-semibold text-[#890022]">
+                    This file is locked after an uncertain import. Reconcile existing members and batch history before uploading a new file.
+                  </p>
+                )}
                 <div className="flex items-center justify-end gap-2">
                   <button
+                    disabled={processing}
                     onClick={() => {
+                      setImportConfirmed(false);
                       setRows([]);
                       setFileName("");
                       setFileHash("");
@@ -1431,16 +1572,16 @@ export default function CsvImportPage() {
                   </button>
                   <button
                     onClick={runImport}
-                    disabled={processing}
+                    disabled={processing || !importConfirmed || importBlocked || pendingMerges.length > 0}
                     className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-sm"
                   >
                     {processing ? (
                       <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Staging...
+                        <Loader2 className="h-4 w-4 animate-spin" /> Importing...
                       </>
                     ) : (
                       <>
-                        <Layers className="h-4 w-4" /> Stage & Import{" "}
+                        <Layers className="h-4 w-4" /> Import{" "}
                         {rows.length.toLocaleString()} Members
                       </>
                     )}
@@ -1712,9 +1853,13 @@ export default function CsvImportPage() {
                       value={nextRenewalDate}
                       min={renewalDate || undefined}
                       disabled={renewalProcessing}
-                      onChange={(e) => setNextRenewalDate(e.target.value)}
+                      readOnly
+                      aria-readonly="true"
                       className="mt-2 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Automatically calculated as one calendar year after the renewal date.
+                    </p>
                   </div>
                 </div>
 
@@ -2286,10 +2431,10 @@ export default function CsvImportPage() {
           <div>
             <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <GitMerge className="h-6 w-6 text-primary" />
-              Registration Import — Pending Duplicate Merges
+              Registration Import — Temporary Duplicate Review
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Only duplicates held during new-member registration imports appear here. Renewal CSV rows marked Needs Review are separate staging results, not saved to this queue.
+              These duplicate cases are held only in this browser session. Switching Verification tabs preserves them, but leaving or refreshing loses them. They are not saved to the database. Resolve or document them before leaving. Renewal review cases use a separate queue.
             </p>
           </div>
 

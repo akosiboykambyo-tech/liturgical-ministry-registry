@@ -28,7 +28,7 @@ export function isCurrentMembership(membership: PublicStatusMembership) {
 
   return (
     (membership.status === "New" || membership.status === "Renewed") &&
-    expiration !== "expired"
+    membership.expiration_date !== null && expiration !== "expired"
   );
 }
 
@@ -41,31 +41,21 @@ export function getMembershipPublicStatus(
 } {
   const expiration = getExpirationStatus(membership.expiration_date);
 
+  // Explicit administrative decisions outrank expiry. A missing expiry is not proof of validity.
+  if (membership.status === "Pending Verification") {
+    return { kind: "pending", label: "Pending review", validity: "—" };
+  }
+  if (membership.status === "Inactive") {
+    return { kind: "inactive", label: "Not currently active", validity: "—" };
+  }
+  if (!membership.expiration_date) {
+    return { kind: "pending", label: "Pending review", validity: "—" };
+  }
   if (expiration === "expired") {
     return {
       kind: "ended",
       label: `Registration ended ${formatPublicDate(membership.expiration_date)}`,
-      validity: `Registration ended ${formatPublicDate(
-        membership.expiration_date
-      )}`,
-    };
-  }
-
-  if (membership.status === "Pending Verification") {
-    return {
-      kind: "pending",
-      label: "Pending review",
-      validity: membership.expiration_date
-        ? `Valid until ${formatPublicDate(membership.expiration_date)}`
-        : "—",
-    };
-  }
-
-  if (membership.status === "Inactive") {
-    return {
-      kind: "inactive",
-      label: "Not currently active",
-      validity: "—",
+      validity: `Registration ended ${formatPublicDate(membership.expiration_date)}`,
     };
   }
 

@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { StatusBadge } from "@/components/status-badge";
 import { MemberDetailDrawer } from "@/components/member-detail-drawer";
 import {
@@ -610,6 +612,10 @@ export default function MembersListPage() {
 
   const handleSaveEdit = async () => {
     if (!editTarget) return;
+    if (secureMinistryVerificationEnabled) {
+      toast({ title: "Secure mode", description: "Legacy direct member editing is paused until an authorized database RPC is available.", variant: "destructive" });
+      return;
+    }
     const first = editFirst.trim();
     const last = editLast.trim();
     const parish = editParish.trim();
@@ -642,6 +648,10 @@ export default function MembersListPage() {
   // --- Delete a record created by user error ---
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    if (secureMinistryVerificationEnabled) {
+      toast({ title: "Secure mode", description: "Legacy member deletion is paused. Use an audited administrator procedure.", variant: "destructive" });
+      return;
+    }
     setDeleting(true);
     // Remove any linked document first (best-effort).
     if (deleteTarget.document_url) {
@@ -868,9 +878,7 @@ export default function MembersListPage() {
 
       {/* Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
+        <CenteredAdminLoader label="Loading member records…" />
       ) : members.length === 0 ? (
         <div className="border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
           {isActiveSearch || activeFilterCount > 0
@@ -924,10 +932,19 @@ export default function MembersListPage() {
                   const needsVerification = memberships.some(
                     (membership) => membership.status === "Pending Verification"
                   );
-                  const needsLetter = memberships.some(
-                    (membership) => !membership.document_url
-                  );
-                  const letterExpiringSoon = memberships.some((membership) => {
+                  const missingLetterMinistries = memberships
+                    .filter((membership) => !membership.document_url)
+                    .map((membership) => shortMinistry(membership.ministry));
+                  const needsLetter = missingLetterMinistries.length > 0;
+                  // Legacy documents are stored at member level, not linked to
+                  // individual assignments. Don't present this as proof that
+                  // a new letter must be uploaded or suppress the warning.
+                  const letterWarning = needsLetter
+                    ? m.document_url
+                      ? `Ministry letter not linked: ${missingLetterMinistries.join(", ")} (older member-level letter exists; review coverage before linking)`
+                      : `Ministry recommendation letter missing: ${missingLetterMinistries.join(", ")}`
+                    : null;
+                  const registrationExpiringSoon = memberships.some((membership) => {
                     if (!membership.document_url || !membership.expiration_date) return false;
                     const expirationDate = new Date(`${membership.expiration_date}T00:00:00`);
                     return expirationDate >= today && expirationDate <= in30Days;
@@ -955,18 +972,18 @@ export default function MembersListPage() {
                           className="text-left font-semibold text-[#47242d] hover:text-[#9a2548] hover:underline"
                         >
                           {m.first_name} {m.last_name}
-                        {(needsVerification || needsLetter || letterExpiringSoon) && (
+                        {(needsVerification || needsLetter || registrationExpiringSoon) && (
                           <span
                             className="ml-2 inline-flex align-middle text-amber-600"
                             title={[
                               needsVerification ? "Verification Needed" : null,
-                              needsLetter ? "Recommendation Letter Needed" : null,
-                              letterExpiringSoon ? "Letter Expiring Soon" : null,
+                              letterWarning,
+                              registrationExpiringSoon ? "Registration Expiring Soon" : null,
                             ].filter(Boolean).join(" - ")}
                             aria-label={[
                               needsVerification ? "Verification Needed" : null,
-                              needsLetter ? "Recommendation Letter Needed" : null,
-                              letterExpiringSoon ? "Letter Expiring Soon" : null,
+                              letterWarning,
+                              registrationExpiringSoon ? "Registration Expiring Soon" : null,
                             ].filter(Boolean).join(", ")}
                           >
                             <CircleAlert className="h-4 w-4" aria-hidden="true" />
