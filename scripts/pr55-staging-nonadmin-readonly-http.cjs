@@ -33,7 +33,7 @@ if (process.argv.includes("--validate-config")) {
   console.log("PASS: staging test configuration recognized; NO requests performed.");
   process.exit(0);
 }
-if (process.argv.length !== 2 || process.argv[1] !== "--run") {
+if (process.argv.length !== 3 || process.argv[2] !== "--run") {
   console.error("REFUSED: use --validate-config or --run.");
   process.exit(2);
 }
