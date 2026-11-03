@@ -41,6 +41,8 @@ jobs:
         run: npm run test:registration
       - name: Run PR55 offline safety and compatibility tests
         run: npm run test:production-registration
+      - name: Check staging HTTP test syntax without credentials or network
+        run: node --check scripts/pr55-staging-nonadmin-readonly-http.cjs
       - name: Check types
         run: npm run typecheck
 
