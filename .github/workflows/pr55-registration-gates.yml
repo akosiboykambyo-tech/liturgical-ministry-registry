@@ -62,7 +62,7 @@ jobs:
         run: |
           $tokens = $null
           $errors = $null
-          $paths = @('scripts/pr55-protect-current-recovery-set.ps1', 'scripts/pr55-verify-encrypted-recovery-copy.ps1')
+          $paths = @('scripts/pr55-protect-current-recovery-set.ps1', 'scripts/pr55-verify-encrypted-recovery-copy.ps1', 'scripts/pr55-run-staging-nonadmin-readonly.ps1')
           foreach ($relative in $paths) {
             $errors = $null
             $path = Join-Path $PWD $relative
