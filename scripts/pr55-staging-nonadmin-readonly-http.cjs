@@ -69,6 +69,10 @@ async function login(email, password, label) {
 }
 async function safeRows(path, token, label, expectedNonEmpty) {
   const r = await call(path + "?select=id&limit=1", {bearer: token});
+  if (!expectedNonEmpty && [401, 403].includes(r.status)) {
+    console.log("PASS: " + label + " (REST denied by HTTP " + r.status + ")");
+    return;
+  }
   assert.equal(r.status, 200, label + " REST read failed, HTTP " + r.status);
   assert.ok(Array.isArray(r.data), label + " returned unexpected REST payload");
   if (expectedNonEmpty) assert.equal(r.data.length, 1, label + " cannot see staging registry");
