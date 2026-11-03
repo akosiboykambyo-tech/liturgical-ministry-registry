@@ -175,10 +175,16 @@ function getRenewalReviewLabel(item: RenewalReviewItem): string {
 }
 
 function getDefaultNextRenewalDate(renewalDate: string): string {
-  const date = new Date(`${renewalDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  date.setFullYear(date.getFullYear() + 1);
-  return date.toISOString().slice(0, 10);
+  // Match PostgreSQL calendar-year arithmetic, including leap-day clamping.
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(renewalDate)) return "";
+  const date = new Date(`${renewalDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== renewalDate) {
+    return "";
+  }
+  const year = date.getUTCFullYear() + 1;
+  const month = date.getUTCMonth();
+  const day = Math.min(date.getUTCDate(), new Date(Date.UTC(year, month + 1, 0)).getUTCDate());
+  return new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
 }
 
 export default function CsvImportPage() {
