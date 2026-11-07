@@ -162,11 +162,11 @@ CREATE TABLE public."renewal_review_items" (
   "reason" text NOT NULL,
   "candidates" jsonb NOT NULL DEFAULT '[]'::jsonb,
   "status" text NOT NULL DEFAULT 'open'::text,
-  "open_case_key" text DEFAULT 
+  "open_case_key" text GENERATED ALWAYS AS (
 CASE
     WHEN (status = 'open'::text) THEN ((((((((lower(btrim(first_name)) || '|'::text) || lower(btrim(last_name))) || '|'::text) || lower(btrim(parish))) || '|'::text) || lower(btrim(ministry))) || '|'::text) || reason)
     ELSE NULL::text
-END,
+END) STORED,
   "resolution" text,
   "resolution_notes" text,
   "created_by" uuid NOT NULL,
