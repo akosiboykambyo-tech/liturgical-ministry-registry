@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { REFERENCE_RECEIPT } from "@/lib/financial-stewardship-receipt-preview";
+import { MINISTRIES, PARISHES } from "@/lib/constants";
 
 export type BookletState = "curia_stock" | "awaiting_cowl_ack" | "cowl_custody";
 export type ReceiptState = "available" | "issued" | "voided" | "missing";
@@ -16,7 +17,25 @@ export type ReceiptBookletDemo = {
   history: BookletEvent[];
 };
 
-const STORE_KEY = "cowl-dok-demo-booklets-v2";
+export type FinancialCollectionDemo = {
+  id: string; bookletId: string; serial: string; parish: string; parishPrinted: string;
+  ministry: string; ministryPrinted: string; renewalYear: string; date: string;
+  participants: number; feeCentavos: number; amountCentavos: number;
+  purpose: string; printedCode: string; paymentMethod: "cash" | "check" | "other";
+  collectedBy: string; remittanceId: string | null;
+};
+export type FinancialRemittanceDemo = {
+  id: string; collectionIds: string[]; totalCentavos: number; duplicateCount: number;
+  preparedBy: string; submittedDate: string; status: "pending" | "confirmed" | "discrepancy";
+  curiaCountCentavos?: number; verifiedCollectionIds?: string[];
+  curiaOfficer?: string; curiaReference?: string; reviewedDate?: string; discrepancyReason?: string;
+};
+export type DemoFinancialState = {
+  version: 3; booklets: ReceiptBookletDemo[];
+  collections: FinancialCollectionDemo[]; remittances: FinancialRemittanceDemo[];
+};
+const STORE_KEY = "cowl-dok-financial-demo-v3";
+const LEGACY_KEY = "cowl-dok-demo-booklets-v2";
 const SYNC_EVENT = "cowl-dok-demo-booklets-changed";
 export const SAMPLE_BOOKLETS: ReceiptBookletDemo[] = [
   {
@@ -88,42 +107,68 @@ function isBookletArray(value: unknown): value is ReceiptBookletDemo[] {
     typeof b.acknowledgedDate === "string" && Array.isArray(b.usage) &&
     Array.isArray(b.exceptions) && Array.isArray(b.history));
 }
-function load(): ReceiptBookletDemo[] {
+function seedState(booklets = cloneSeed()): DemoFinancialState {
+  return { version: 3, booklets, collections: [], remittances: [] };
+}
+function isFinancialState(value: unknown): value is DemoFinancialState {
+  if (!value || typeof value !== "object") return false;
+  const state = value as Partial<DemoFinancialState>;
+  return state.version === 3 && isBookletArray(state.booklets) &&
+    Array.isArray(state.collections) && state.collections.length <= 300 &&
+    Array.isArray(state.remittances) && state.remittances.length <= 100 &&
+    state.collections.every(c => c && typeof c.id === "string" && typeof c.serial === "string" &&
+      typeof c.bookletId === "string" && Number.isSafeInteger(c.amountCentavos)) &&
+    state.remittances.every(m => m && typeof m.id === "string" && Array.isArray(m.collectionIds) &&
+      Number.isSafeInteger(m.totalCentavos));
+}
+function load(): DemoFinancialState {
   try {
     const stored = localStorage.getItem(STORE_KEY);
     if (stored) {
       const parsed: unknown = JSON.parse(stored);
-      if (isBookletArray(parsed)) return parsed;
+      if (isFinancialState(parsed)) return parsed;
     }
-  } catch { /* No storage, browser privacy mode or invalid local data. */ }
-  return cloneSeed();
+    // Preserve any previously simulated Phase 2 booklet handovers on this browser.
+    const previous = localStorage.getItem(LEGACY_KEY);
+    if (previous) {
+      const parsed: unknown = JSON.parse(previous);
+      if (isBookletArray(parsed)) return seedState(parsed);
+    }
+  } catch { /* Browser privacy restrictions or invalid local state: use seed. */ }
+  return seedState();
 }
-
-type Result = { ok: boolean; error?: string };
-type Transition = (items: ReceiptBookletDemo[]) => { result: Result; next: ReceiptBookletDemo[] };
+export type Result = { ok: boolean; error?: string };
+type BookletTransition = (items: ReceiptBookletDemo[]) => { result: Result; next: ReceiptBookletDemo[] };
+type StateTransition = (current: DemoFinancialState) => { result: Result; next: DemoFinancialState };
 
 export function useReceiptBookletDemo() {
-  const [booklets, setBooklets] = useState<ReceiptBookletDemo[]>(cloneSeed);
+  const [state, setState] = useState<DemoFinancialState>(seedState);
+  const { booklets, collections, remittances } = state;
   const [storageReady, setStorageReady] = useState(false);
   useEffect(() => {
-    setBooklets(load()); setStorageReady(true);
-    const changed = () => setBooklets(load());
+    setState(load()); setStorageReady(true);
+    const changed = () => setState(load());
     window.addEventListener("storage", changed);
     window.addEventListener(SYNC_EVENT, changed);
     return () => { window.removeEventListener("storage", changed); window.removeEventListener(SYNC_EVENT, changed); };
   }, []);
 
-  const transact = useCallback((operation: Transition): Result => {
-    const current = load(); // Recheck on each action, including other-tab changes.
+  const transactState = useCallback((operation: StateTransition): Result => {
+    const current = load(); // Recheck whenever another tab might have updated local state.
     const { result, next } = operation(current);
-    if (!result.ok) { setBooklets(current); return result; }
+    if (!result.ok) { setState(current); return result; }
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(next));
-    } catch { return { ok: false, error: "Browser storage is unavailable. The mock change could not be shared with the other portal." }; }
-    setBooklets(next);
+    } catch { return { ok: false, error: "Browser storage is unavailable. Mock changes cannot be shared between portals." }; }
+    setState(next);
     window.dispatchEvent(new Event(SYNC_EVENT));
     return result;
   }, []);
+  const transact = useCallback((operation: BookletTransition): Result =>
+    transactState(current => {
+      const { result, next } = operation(current.booklets);
+      return { result, next: result.ok ? { ...current, booklets: next } : current };
+    }), [transactState]);
 
   const register = useCallback((draft: {
     id: string; series: string; first: string; last: string; officer: string; date: string;
@@ -200,9 +245,11 @@ export function useReceiptBookletDemo() {
   }), [transact]);
 
   const reset = useCallback((): Result => {
-    try { localStorage.removeItem(STORE_KEY); } catch { return { ok: false, error: "Could not reset the browser-local demonstration." }; }
-    setBooklets(cloneSeed()); window.dispatchEvent(new Event(SYNC_EVENT)); return { ok: true };
+    try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(LEGACY_KEY); }
+    catch { return { ok: false, error: "Could not reset the browser-local demonstration." }; }
+    setState(seedState()); window.dispatchEvent(new Event(SYNC_EVENT)); return { ok: true };
   }, []);
 
-  return { booklets, storageReady, register, assign, acknowledge, issue, flag, reset };
+  return { booklets, collections, remittances, storageReady, register, assign,
+    acknowledge, issue, flag, recordCollection, submitRemittance, reviewRemittance, reset };
 }
