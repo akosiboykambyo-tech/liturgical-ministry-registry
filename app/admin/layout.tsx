@@ -90,7 +90,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }));
   groups.push({
     items: [{
-      id: "public-website", href: "/", label: "Public Website",
+      id: "public-website", href: "/", label: "Public Website", external: true,
       icon: ExternalLink,
     }],
   });
