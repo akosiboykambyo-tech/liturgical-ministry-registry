@@ -133,6 +133,8 @@ export default function MemberDetailPage() {
     } finally {
       setSaving(false);
     }
+  };
+
   const cancelNameEdit = () => {
     if (!member) return;
     setEditFirstName(member.first_name);
