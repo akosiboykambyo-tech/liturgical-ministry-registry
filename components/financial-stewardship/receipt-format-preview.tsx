@@ -3,13 +3,13 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSearch, RotateCcw, ShieldCheck } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
-import { MINISTRIES } from "@/lib/constants";
+import { MINISTRIES, PARISHES } from "@/lib/constants";
 import {
   parsePesoAmountToCentavos, REFERENCE_RECEIPT,
 } from "@/lib/financial-stewardship-receipt-preview";
 
 type Draft = {
-  serial: string; receiptDate: string; receivedFrom: string;
+  serial: string; receiptDate: string; receivedFrom: string; receivedFromPrinted: string;
   ministryOnPaper: string; ministryInRegistry: string;
   renewalYear: string; purpose: string; printedDescription: string;
   participantCount: string; feePesos: string; amountPesos: string;
@@ -19,6 +19,7 @@ const DEFAULT: Draft = {
   serial: REFERENCE_RECEIPT.serial,
   receiptDate: REFERENCE_RECEIPT.receiptDate,
   receivedFrom: REFERENCE_RECEIPT.receivedFrom,
+  receivedFromPrinted: "SAN BARTOLOME PARISH",
   ministryOnPaper: REFERENCE_RECEIPT.ministryOnPaper,
   ministryInRegistry: REFERENCE_RECEIPT.ministryInRegistry,
   renewalYear: REFERENCE_RECEIPT.renewalYear,
@@ -87,8 +88,17 @@ export default function ReceiptFormatPreview() {
             <Field id="receipt-reference-number" title="Exact printed official receipt no." value={draft.serial} onChange={v => edit("serial", v)}
               note="Text, never a number. Keep leading zeros; no automatic sequence." />
             <Field id="receipt-reference-date" title="Date written on the receipt" type="date" value={draft.receiptDate} onChange={v => edit("receiptDate", v)} />
-            <Field id="receipt-reference-from" title="Received from (paying parish)" value={draft.receivedFrom} onChange={v => edit("receivedFrom", v)} />
+            <div className="min-w-0">
+              <label htmlFor="receipt-reference-from" className={labelCss}>Paying parish (COWL-DOK registry)</label>
+              <select id="receipt-reference-from" value={draft.receivedFrom} onChange={event => edit("receivedFrom", event.target.value)} className={inputCss}>
+                <option value="" disabled>Select a registered parish</option>
+                {PARISHES.map(parish => <option key={parish} value={parish}>{parish}</option>)}
+              </select>
+              <p className="mt-1 text-xs leading-5 text-[#706268]">Select the parish from the registry list to prevent spelling or naming errors.</p>
+            </div>
             <Field id="receipt-reference-year" title="Renewal / service year" value={draft.renewalYear} onChange={v => edit("renewalYear", v)} />
+            <div className="sm:col-span-2"><Field id="receipt-reference-from-printed" title="Received from (exact wording on physical receipt)" value={draft.receivedFromPrinted} onChange={v => edit("receivedFromPrinted", v)}
+              note="Retain the wording printed or written on the actual Curia receipt, even when it differs from the registry's canonical parish name." /></div>
             <div className="sm:col-span-2"><Field id="receipt-reference-ministry-paper" title="Ministry wording as printed / written" value={draft.ministryOnPaper} onChange={v => edit("ministryOnPaper", v)} /></div>
             <div className="min-w-0 sm:col-span-2">
               <label htmlFor="receipt-reference-ministry-registry" className={labelCss}>Linked COWL-DOK ministry (canonical name)</label>
@@ -134,7 +144,8 @@ export default function ReceiptFormatPreview() {
           </div>
           <dl className="mt-5 space-y-3 text-sm">
             {[
-              ["Received from", draft.receivedFrom || "—"],
+              ["Paying parish (registry)", draft.receivedFrom || "—"],
+              ["Received from (printed)", draft.receivedFromPrinted || "—"],
               ["Ministry", draft.ministryInRegistry || "—"],
               ["Renewal year", draft.renewalYear || "—"],
               ["Printed CODE", draft.printedCode || "Not specified"],
