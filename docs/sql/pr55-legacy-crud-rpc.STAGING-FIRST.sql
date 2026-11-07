@@ -275,6 +275,20 @@ BEGIN
       END LOOP;
       PERFORM registry_private.registry_sync_member_mirror_v1(v_id);
     END IF;
+    IF p_data ? 'status' AND (p_data->>'status') IS DISTINCT FROM v_member.status THEN
+      v_status:=p_data->>'status';
+      IF v_status NOT IN ('Pending Verification','Inactive') THEN
+        RAISE EXCEPTION 'New/Renewed requires ministry-specific letter verification'
+          USING ERRCODE='22023';
+      END IF;
+      UPDATE public.member_ministries SET
+        status=v_status,
+        start_date=CASE WHEN v_status='Pending Verification' THEN NULL ELSE start_date END,
+        expiration_date=CASE WHEN v_status='Pending Verification' THEN NULL ELSE expiration_date END,
+        renewal_date=CASE WHEN v_status='Pending Verification' THEN NULL ELSE renewal_date END
+      WHERE member_id=v_id;
+      PERFORM registry_private.registry_sync_member_mirror_v1(v_id);
+    END IF;
     RETURN jsonb_build_object('member_id',v_id,'saved',true);
   END IF;
 
