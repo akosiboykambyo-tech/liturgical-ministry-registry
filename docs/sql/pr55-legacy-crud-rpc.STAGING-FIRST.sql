@@ -447,12 +447,10 @@ BEGIN
               WHERE NOT (m.x=ANY(v_valid_ministries))) THEN
       RAISE EXCEPTION 'Invalid duplicate ministry list' USING ERRCODE='22023';
     END IF;
-    INSERT INTO public.duplicate_flags(existing_member_id,incoming_first_name,
-      incoming_last_name,incoming_parish,incoming_ministries,incoming_data,resolved)
-    VALUES(v_id,left(p_data->>'incoming_first_name',160),
-      left(p_data->>'incoming_last_name',160),
-      left(p_data->>'incoming_parish',200),
-      v_ministries,p_data->'incoming_data',false)
+    -- Only the production-common columns are used: staging has extra legacy
+    -- descriptive fields that do NOT exist in production.
+    INSERT INTO public.duplicate_flags(existing_member_id,incoming_data,resolved)
+    VALUES(v_id,p_data->'incoming_data',false)
     RETURNING id INTO v_batch;
     RETURN jsonb_build_object('id',v_batch,'flagged',true);
   END IF;
