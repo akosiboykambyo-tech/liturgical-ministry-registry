@@ -8,7 +8,8 @@ import {
   ClipboardCheck, Clock3, FileText, Landmark, LayoutDashboard, Loader2,
   ReceiptText, RotateCcw, ShieldCheck, Wallet, X,
 } from "lucide-react";
-import { ebGaramond, inter } from "@/app/fonts";
+import { ebGaramond } from "@/app/fonts";
+import PortalShell, { type PortalNavGroup } from "@/components/portal-shell";
 import { useAuth } from "@/lib/auth-context";
 import BookletCustodyDemo from "@/components/financial-stewardship/booklet-custody-demo";
 import Phase3FinancialDemo from "@/components/financial-stewardship/phase3-financial-demo";
@@ -91,12 +92,6 @@ function Metric({ title, value, note, Icon }: { title: string; value: string; no
     <p className="mt-2 text-xs leading-5 text-[#706268]">{note}</p>
   </div>;
 }
-function Coat() {
-  return <svg viewBox="705 0 277 230" width="43" height="42" role="img" aria-label="Diocesan coat of arms" className="shrink-0 overflow-hidden">
-    <image href="/images/Asset_1.svg" x="0" y="0" width="1686.95" height="444.5" />
-  </svg>;
-}
-
 export default function CuriaPreviewPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -194,41 +189,44 @@ export default function CuriaPreviewPage() {
     <span className="sr-only">Checking preview sign-in</span>
   </div>;
 
-  return <div className={inter.className + " min-h-screen bg-[#FBF9F9] text-[#1E1114]"}>
-    <div className="lg:flex lg:min-h-screen">
-      <aside className="hidden bg-[#890022] text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[260px] lg:shrink-0 lg:flex-col">
-        <div className="flex items-center gap-3 border-b border-white/20 px-5 py-6">
-          <Coat />
-          <div><p className={ebGaramond.className + " text-[25px] leading-none"}>Curia Portal</p><p className="mt-1 text-xs text-white/80">COWL-DOK · Demonstration</p></div>
-        </div>
-        <nav aria-label="Curia preview navigation" className="flex-1 space-y-1 px-3 py-6">
-          {menu.map(({ key, label, Icon }) => <button key={key} type="button" onClick={() => { setSection(key); setSelectedId(null); setNotice(null); }}
-            aria-current={section === key ? "page" : undefined}
-            className={"flex min-h-12 w-full items-center gap-3 border-l-[3px] px-3 text-left text-sm font-semibold transition-colors " + (section === key ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15")}>
-            <Icon className="h-4 w-4" aria-hidden="true" />{label}
-          </button>)}
-        </nav>
-        <div className="border-t border-white/20 px-5 py-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/75">Preview access</p>
-          <p className="mt-2 text-xs leading-5 text-white/85">Signed-in tester only. Curia-specific permissions are not implemented.</p>
-          <Link href="/admin/financial-stewardship-preview" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-white underline underline-offset-4"><ArrowLeftRight className="h-4 w-4" /> COWL financial demo</Link>
-        </div>
-      </aside>
-
-      <div className="min-w-0 flex-1">
+  const groups: PortalNavGroup[] = [{
+    name: "Curia",
+    items: menu.map(({ key, label, Icon }) => ({
+      id: key,
+      label,
+      icon: Icon,
+      active: section === key,
+      onSelect: () => { setSection(key); setSelectedId(null); setNotice(null); },
+    })),
+  }];
+  return <PortalShell
+    title="Curia Portal" subtitle="COWL-DOK · Demonstration"
+    homeHref="/curia" navigationLabel="Curia navigation" groups={groups}
+    footer={<>
+      <p className="text-xs font-semibold uppercase tracking-wide text-white/75">Preview access</p>
+      <p className="mt-2 text-xs leading-5 text-white/85">Signed-in tester only. Curia-specific permissions are not implemented.</p>
+      <Link href="/admin/financial-stewardship-preview" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-white underline underline-offset-4">
+        <ArrowLeftRight className="h-4 w-4" /> COWL financial demo
+      </Link>
+    </>}
+    compactFooter={<Link href="/admin/financial-stewardship-preview" title="COWL financial demo" aria-label="COWL financial demo"
+      className="grid h-11 w-11 place-items-center rounded-sm text-white hover:bg-white/15">
+      <ArrowLeftRight className="h-[18px] w-[18px]" aria-hidden="true" />
+    </Link>}
+  >
         <header className="border-b border-[#E6DADC] bg-white px-4 py-4 sm:px-7 lg:px-10">
           <div className="mx-auto flex w-full max-w-[1450px] flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3 lg:hidden"><Coat /><div><p className={ebGaramond.className + " text-[25px] leading-none"}>Curia Portal</p><p className="text-xs text-[#6F6265]">COWL-DOK Preview</p></div></div>
-            <div className="hidden lg:block"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#890022]">Diocesan Curia</p><p className="text-sm text-[#655459]">Financial Stewardship · Remittance Accountability</p></div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#890022]">Diocesan Curia</p>
+              <p className="text-sm text-[#655459]">Financial Stewardship · Remittance Accountability</p>
+            </div>
             <div className="flex flex-wrap items-center gap-3">
               <span className="border border-[#DCCBA3] bg-[#FFF8E8] px-3 py-1.5 text-xs font-semibold text-[#765015]">SAMPLE DATA ONLY</span>
-              <button type="button" onClick={resetDemo} className="inline-flex min-h-9 items-center gap-2 border border-[#CEBEC3] bg-white px-3 text-xs font-semibold text-[#5F4A4F] hover:bg-[#FBF9F9]"><RotateCcw className="h-3.5 w-3.5" /> Reset remittance demo</button>
+              <button type="button" onClick={resetDemo} className="inline-flex min-h-9 items-center gap-2 border border-[#CEBEC3] bg-white px-3 text-xs font-semibold text-[#5F4A4F] hover:bg-[#FBF9F9]">
+                <RotateCcw className="h-3.5 w-3.5" /> Reset remittance demo
+              </button>
             </div>
           </div>
-          <nav aria-label="Curia mobile navigation" className="mx-auto mt-4 flex max-w-[1450px] gap-2 overflow-x-auto pb-1 lg:hidden">
-            {menu.map(({ key, label }) => <button key={key} type="button" onClick={() => { setSection(key); setSelectedId(null); setNotice(null); }}
-              className={"shrink-0 border px-3 py-2 text-xs font-semibold " + (section === key ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#4C3A3F]")}>{label}</button>)}
-          </nav>
         </header>
 
         <main className="mx-auto w-full max-w-[1450px] space-y-6 px-4 py-6 sm:px-7 lg:px-10 lg:py-9">
@@ -439,7 +437,5 @@ export default function CuriaPreviewPage() {
             <Link href="/admin/financial-stewardship-preview" className="inline-flex items-center gap-2 font-semibold text-[#0B5C5A] hover:underline"><ArrowLeftRight className="h-4 w-4" /> Return to COWL financial demo</Link>
           </footer>
         </main>
-      </div>
-    </div>
-  </div>;
+  </PortalShell>;
 }
