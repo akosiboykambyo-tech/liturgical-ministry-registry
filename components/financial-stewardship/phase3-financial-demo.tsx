@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle, ArrowLeftRight, Check, CheckCircle2, ChevronsUpDown,
-  ClipboardCheck, FileCheck2, HandCoins, Landmark, ReceiptText,
+  ClipboardCheck, FileCheck2, HandCoins, Landmark, ReceiptText, Search,
 } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import { MINISTRIES, PARISHES } from "@/lib/constants";
@@ -12,7 +12,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { parsePesoAmountToCentavos } from "@/lib/financial-stewardship-receipt-preview";
 import {
-  serialsInBooklet, serialState, useReceiptBookletDemo,
+  checkPrintedReceiptSerial, serialsInBooklet, serialState, useReceiptBookletDemo,
   type FinancialCollectionDemo, type FinancialRemittanceDemo,
 } from "@/lib/financial-stewardship-booklet-demo";
 
@@ -26,6 +26,12 @@ const LABEL = "mb-1.5 block text-xs font-semibold text-[#5F4A4F]";
 const money = (centavos: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(centavos / 100);
 const DATE = "2026-11-07";
 const FORM_PLACEHOLDER = "—";
+function readableDate(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Select a valid date";
+  const date = new Date(value + "T12:00:00Z");
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return "Select a valid date";
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(date);
+}
 
 function Field({ id, label, value, onChange, type = "text", note }: {
   id: string; label: string; value: string; onChange: (v: string) => void; type?: string; note?: string;
@@ -53,13 +59,51 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
   const handle = (result: { ok: boolean; error?: string }, success: string) =>
     setNotice({ ok: result.ok, message: result.ok ? success : result.error || "The simulated action was not accepted." });
 
-  const acknowledgedBooklets = booklets.filter(booklet => booklet.state === "cowl_custody");
-  const [bookletId, setBookletId] = useState("COWL-001");
-  const activeBooklet = acknowledgedBooklets.find(booklet => booklet.id === bookletId) || acknowledgedBooklets[0] || null;
-  const available = useMemo(() => activeBooklet
-    ? serialsInBooklet(activeBooklet).filter(serial => serialState(activeBooklet, serial) === "available")
-    : [], [activeBooklet]);
+  // The clerk starts from the number physically printed on the receipt.
+  // Booklet identity and availability are DERIVED; neither is auto-selected.
   const [serial, setSerial] = useState("");
+  const [serialOpen, setSerialOpen] = useState(false);
+  const [serialActiveIndex, setSerialActiveIndex] = useState(-1);
+  const [serialPhysicallyChecked, setSerialPhysicallyChecked] = useState(false);
+  const serialCheck = useMemo(() => checkPrintedReceiptSerial(booklets, serial), [booklets, serial]);
+  const availableBookletGroups = useMemo(() => booklets
+    .filter(booklet => booklet.state === "cowl_custody")
+    .map(booklet => ({
+      booklet,
+      serials: serialsInBooklet(booklet).filter(value => serialState(booklet, value) === "available"),
+    }))
+    .filter(group => group.serials.length > 0), [booklets]);
+  const suggestionGroups = availableBookletGroups.map(group => ({
+    booklet: group.booklet,
+    serials: group.serials.filter(value => value.includes(serial.trim())),
+  })).filter(group => group.serials.length > 0);
+  const serialSuggestions = suggestionGroups.flatMap(group =>
+    group.serials.map(value => ({ serial: value, bookletId: group.booklet.id })));
+  const serialStatus = (() => {
+    const b = serialCheck.booklet;
+    switch (serialCheck.status) {
+      case "empty": return "Enter the number exactly as printed, including leading zeros. No serial has been selected.";
+      case "invalid": return "Use the complete printed numeric serial (4–12 digits), without spaces or punctuation. Preserve leading zeros.";
+      case "outside_range": return "Outside any registered receipt booklet range. Check the printed digits and leading zeros.";
+      case "ambiguous": return "This serial exists in multiple booklet series. Ask Curia to identify the correct series before recording.";
+      case "not_in_custody": return b?.state === "awaiting_cowl_ack"
+        ? "Not in COWL custody: booklet handover has not yet been acknowledged."
+        : "Not in COWL custody: this booklet is still held by Curia.";
+      case "already_used": {
+        const existing = b?.usage.find(value => value.serial === serial);
+        return "Already used" + (existing ? " — linked to " + existing.collectionRef : "") + ". This serial cannot be recorded again.";
+      }
+      case "voided": return "Voided receipt. This printed number cannot be reused.";
+      case "missing": return "Reported missing. This printed number cannot be used.";
+      case "available": return "Available in acknowledged COWL custody. Confirm it matches the physical paper before recording.";
+    }
+  })();
+  function chooseSerial(next: string) {
+    setSerial(next);
+    setSerialPhysicallyChecked(false);
+    setSerialOpen(false);
+    setSerialActiveIndex(-1);
+  }
   const [parish, setParish] = useState("San Bartolome Parish");
   const [parishOpen, setParishOpen] = useState(false);
   const [parishPrinted, setParishPrinted] = useState("SAN BARTOLOME PARISH");
@@ -80,7 +124,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
   const receivedCentavos = parsePesoAmountToCentavos(received);
   const computed = count !== null && feeCentavos !== null ? count * feeCentavos : null;
   const amountMatches = Boolean(count && feeCentavos && receivedCentavos !== null && receivedCentavos === computed);
-  const eligibleCollection = storageReady && activeBooklet && available.includes(serial) && amountMatches &&
+  const eligibleCollection = storageReady && serialCheck.status === "available" && serialPhysicallyChecked && amountMatches &&
     PARISHES.some(p => p === parish) && MINISTRIES.some(m => m === ministry) &&
     collectedBy.trim().length > 2 && purpose.trim().length > 2;
 
@@ -161,24 +205,118 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
     {mode === "cowl" && <>
       <section className="border border-[#E6DADC] bg-white p-5 sm:p-6">
         <div className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-[#890022]" /><h3 className={ebGaramond.className + " text-[28px]"}>1. Record a sample collection</h3></div>
-        <p className="mt-2 text-xs leading-5 text-[#6F6265]">Only available serials from booklets already acknowledged by COWL are selectable. Official receipt numbers are never auto-generated.</p>
+        <p className="mt-2 text-xs leading-5 text-[#6F6265]">Start with the exact number printed on the physical receipt. The assigned booklet is identified automatically; no serial number is generated or preselected.</p>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="phase3-booklet" className={LABEL}>Curia-supplied booklet in COWL custody</label>
-            <select id="phase3-booklet" className={INPUT} value={activeBooklet?.id || ""}
-              onChange={event => { setBookletId(event.target.value); setSerial(""); }}>
-              {!acknowledgedBooklets.length && <option value="">No acknowledged booklets</option>}
-              {acknowledgedBooklets.map(b => <option key={b.id} value={b.id}>{b.id} · {b.first}–{b.last}</option>)}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="phase3-serial" className={LABEL}>Preprinted official receipt number</label>
-            <select id="phase3-serial" className={INPUT} value={available.includes(serial) ? serial : ""}
-              onChange={event => setSerial(event.target.value)}>
-              <option value="">Select unused serial</option>
-              {available.map(n => <option value={n} key={n}>{n}</option>)}
-            </select>
-            <p className="mt-1 text-xs text-[#6F6265]">{available.length} unused serial(s) available in selected booklet</p>
+          <div className="sm:col-span-2">
+            <label htmlFor="phase3-serial" className={LABEL}>Official receipt serial number — as printed on paper</label>
+            <div className="relative" onBlur={event => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSerialOpen(false);
+            }}>
+              <div className="relative flex">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[#7A666C]" />
+                <input id="phase3-serial" type="text" inputMode="numeric" autoComplete="off"
+                  spellCheck={false} maxLength={16} role="combobox" aria-autocomplete="list"
+                  aria-controls="phase3-serial-options" aria-expanded={serialOpen}
+                  aria-activedescendant={serialOpen && serialActiveIndex >= 0 ? "phase3-suggestion-" + serialActiveIndex : undefined}
+                  aria-describedby="phase3-serial-status"
+                  placeholder="Type printed serial, e.g. 000123"
+                  value={serial}
+                  onFocus={() => setSerialOpen(true)}
+                  onChange={event => {
+                    setSerial(event.target.value);
+                    setSerialPhysicallyChecked(false);
+                    setSerialActiveIndex(-1);
+                    setSerialOpen(true);
+                  }}
+                  onKeyDown={event => {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault(); setSerialOpen(true);
+                      setSerialActiveIndex(index => Math.min(index + 1, serialSuggestions.length - 1));
+                    } else if (event.key === "ArrowUp") {
+                      event.preventDefault(); setSerialOpen(true);
+                      setSerialActiveIndex(index => Math.max(0, index - 1));
+                    } else if (event.key === "Enter") {
+                      event.preventDefault();
+                      if (serialOpen && serialActiveIndex >= 0 && serialSuggestions[serialActiveIndex]) {
+                        chooseSerial(serialSuggestions[serialActiveIndex].serial);
+                      } else setSerialOpen(false);
+                    } else if (event.key === "Escape") {
+                      event.preventDefault(); setSerialOpen(false); setSerialActiveIndex(-1);
+                    }
+                  }}
+                  className="h-12 w-full min-w-0 border border-[#CDBFC3] bg-white pl-10 pr-12 font-mono text-base tracking-wide text-[#1E1114] outline-none focus:border-[#890022] focus:ring-1 focus:ring-[#890022]"
+                />
+                <button type="button" aria-label={serialOpen ? "Close available serial suggestions" : "Show available serial suggestions"}
+                  aria-expanded={serialOpen} onClick={() => { setSerialOpen(value => !value); setSerialActiveIndex(-1); }}
+                  className="absolute right-0 top-0 flex h-12 w-11 items-center justify-center border-l border-[#E6DADC] text-[#6F6265] hover:bg-[#FBF9F9]">
+                  <ChevronsUpDown className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+              {serialOpen && <div id="phase3-serial-options" role="listbox" aria-label="Available official receipt numbers"
+                className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-y-auto border border-[#D8C7CB] bg-white py-1 shadow-lg">
+                {!serialSuggestions.length && <p className="px-3 py-3 text-sm text-[#6F6265]">
+                  {availableBookletGroups.length
+                    ? "No unused matching serials. Check the validation message below for this printed number."
+                    : "No available receipt numbers in acknowledged COWL custody."}
+                </p>}
+                {suggestionGroups.map(group => <div key={group.booklet.id} role="group" aria-label={"Booklet " + group.booklet.id}>
+                  {availableBookletGroups.length > 1 && <p className="sticky top-0 border-y border-[#F0E8EA] bg-[#FBF9F9] px-3 py-2 text-xs font-bold text-[#76525C]">
+                    Booklet {group.booklet.id} · {group.booklet.first}–{group.booklet.last}
+                  </p>}
+                  {group.serials.map(value => {
+                    const index = serialSuggestions.findIndex(item => item.serial === value && item.bookletId === group.booklet.id);
+                    return <button type="button" key={value} id={"phase3-suggestion-" + index} role="option"
+                      aria-selected={serial === value} onMouseEnter={() => setSerialActiveIndex(index)}
+                      onClick={() => chooseSerial(value)}
+                      className={"flex min-h-10 w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[#F6EDEF] " +
+                        (index === serialActiveIndex ? "bg-[#F6EDEF] text-[#890022]" : "text-[#1E1114]")}>
+                      <span className="font-mono font-semibold tracking-wide">{value}</span>
+                      {availableBookletGroups.length === 1 && <span className="text-xs text-[#6F6265]">Booklet {group.booklet.id}</span>}
+                      {serial === value && <Check className="h-4 w-4 shrink-0 text-[#0B5C5A]" aria-hidden="true" />}
+                    </button>;
+                  })}
+                </div>)}
+              </div>}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-[#6F6265]">Booklet (derived)</span>
+              <span className={"inline-flex items-center border px-3 py-1 text-xs font-semibold " +
+                (serialCheck.booklet ? "border-[#CAD7D2] bg-[#EFF6F3] text-[#24564C]" : "border-[#E6DADC] bg-[#FBF9F9] text-[#706268]")}>
+                {serialCheck.booklet ? serialCheck.booklet.id : "Not identified"}
+              </span>
+              {serialCheck.booklet && <span className="text-xs text-[#6F6265]">Range: {serialCheck.booklet.first}–{serialCheck.booklet.last}</span>}
+            </div>
+            <div id="phase3-serial-status" role="status"
+              className={"mt-2 flex items-start gap-2 border px-3 py-2.5 text-sm leading-5 " +
+                (serialCheck.status === "available" ? "border-[#B8DCD3] bg-[#EFF9F4] text-[#145747]" :
+                  serialCheck.status === "empty" ? "border-[#E6DADC] bg-[#FBF9F9] text-[#6F6265]" :
+                  "border-[#E8C7AC] bg-[#FFF7EB] text-[#854916]")}>
+              {serialCheck.status === "available" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> :
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+              <div>
+                <strong>{serialCheck.status === "available" ? "Available" :
+                  serialCheck.status === "already_used" ? "Already used" :
+                  serialCheck.status === "not_in_custody" ? "Not in custody" :
+                  serialCheck.status === "outside_range" ? "Outside acknowledged range" :
+                  serialCheck.status === "invalid" ? "Incomplete or invalid number" :
+                  serialCheck.status === "ambiguous" ? "Ambiguous serial" :
+                  serialCheck.status === "voided" ? "Voided" :
+                  serialCheck.status === "missing" ? "Missing" : "Awaiting printed serial"}:</strong> {serialStatus}
+              </div>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[#6F6265]">
+              {availableBookletGroups.length === 1
+                ? "Unused numbers belong to " + availableBookletGroups[0].booklet.id + "; no separate booklet selection needed."
+                : availableBookletGroups.length > 1
+                  ? "Unused numbers are grouped by " + availableBookletGroups.length + " acknowledged COWL booklets."
+                  : "There are no unused serials in a COWL-acknowledged booklet. Resolve booklet custody in Phase 2 first."}
+            </p>
+            <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm leading-5">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[#890022]"
+                checked={serialPhysicallyChecked} disabled={serialCheck.status !== "available"}
+                onChange={event => setSerialPhysicallyChecked(event.target.checked)} />
+              <span>I checked that <strong>OR {serial || "—"}</strong> matches the physical paper receipt. The demo will not choose the next available number for me.</span>
+            </label>
           </div>
           <div className="min-w-0">
             <label htmlFor="phase3-parish" className={LABEL}>Paying parish (official registry name)</label>
