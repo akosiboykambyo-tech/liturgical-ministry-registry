@@ -233,57 +233,54 @@ export default function QuickScanMatrixPage() {
   const handleMassUpload = async (file: File) => {
     if (selectedIds.size === 0) return;
     setMassUploading(true);
-
     const selectedMembers = members.filter((m) => selectedIds.has(m.id));
-    const defaultExp = new Date();
-    defaultExp.setFullYear(defaultExp.getFullYear() + 1);
-    const newExpDate = defaultExp.toISOString().slice(0, 10);
-
     let successCount = 0;
     let failCount = 0;
-
+    const ext = file.name.split(".").pop()?.toLowerCase() || "pdf";
+    // Each assignment owns its own private letter; uploading does not approve it.
     for (const member of selectedMembers) {
-      const ext = file.name.split(".").pop();
-      const path = `${member.id}/recommendation-letter.${ext}`;
-
-      const { error: upErr } = await supabase.storage
-        .from("member-documents")
-        .upload(path, file, { upsert: true });
-      if (upErr) {
+      const { data: assignments, error: listError } = await supabase
+        .from("member_ministries")
+        .select("id")
+        .eq("member_id", member.id)
+        .eq("status", "Pending Verification");
+      if (listError || !assignments?.length) {
         failCount++;
         continue;
       }
-
-      const { error: dbErr } = await supabase
-        .from("members")
-        .update({
-          document_url: path,
-          expiration_date: newExpDate,
-        })
-        .eq("id", member.id);
-
-      if (dbErr) {
-        failCount++;
-      } else {
-        successCount++;
-        setMembers((prev) =>
-          prev.map((m) =>
-            m.id === member.id
-              ? { ...m, document_url: path, expiration_date: newExpDate }
-              : m
-          )
+      for (const assignment of assignments) {
+        const path = `verification/${member.id}/${assignment.id}/${crypto.randomUUID()}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("member-documents")
+          .upload(path, file, { upsert: false });
+        if (uploadError) {
+          failCount++;
+          continue;
+        }
+        const { error: attachError } = await supabase.rpc(
+          "registry_attach_ministry_letter_v1",
+          {
+            p_member_id: member.id,
+            p_membership_id: assignment.id,
+            p_document_path: path,
+          }
         );
+        if (attachError) {
+          // Only our newly uploaded object is removed, not any prior evidence.
+          await supabase.storage.from("member-documents").remove([path]);
+          failCount++;
+          continue;
+        }
+        successCount++;
       }
     }
 
     setMassUploading(false);
-
-    if (successCount > 0) {
-      pushToast("success", `Recommendation letter attached to ${successCount} member(s).`);
-    }
-    if (failCount > 0) {
-      pushToast("error", `Failed to attach letter for ${failCount} member(s).`);
-    }
+    if (successCount > 0)
+      pushToast("success", `Letter attached to ${successCount} ministry assignment(s). Verification is still required.`);
+    if (failCount > 0)
+      pushToast("error", `Failed to attach letter to ${failCount} assignment(s) or member(s).`);
+    void loadPending();
   };
 
   return (
@@ -317,7 +314,7 @@ export default function QuickScanMatrixPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Check off members as their physical recommendation letters arrive.
-            One-click approval instantly unlocks the public certificate download.
+            Approval requires a private recommendation letter on each ministry assignment. Pending ministries are verified individually.
           </p>
         </div>
         <div className="flex items-center gap-2">
