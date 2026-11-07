@@ -2,6 +2,24 @@
 -- until real HTTP/JWT + UI regressions pass and independent recovery is certified.
 -- This file defines scoped, audited write operations; it does NOT revoke old table grants.
 -- Existing Supabase registry_private.registration_administrators must already exist.
+DO $compatibility$
+BEGIN
+  -- No incomplete staging/prod deployment with missing historical dependencies.
+  IF to_regclass('registry_private.registration_administrators') IS NULL OR
+     to_regclass('public.members') IS NULL OR
+     to_regclass('public.member_ministries') IS NULL OR
+     to_regclass('public.import_batches') IS NULL OR
+     to_regclass('public.duplicate_flags') IS NULL OR
+     to_regclass('public.recommendation_renewal_memberships') IS NULL OR
+     to_regclass('public.certificate_downloads') IS NULL OR
+     to_regclass('public.name_correction_requests') IS NULL OR
+     to_regclass('public.public_reports') IS NULL THEN
+    RAISE EXCEPTION 'PR55 write cutover requires full production-compatible registry history schema'
+      USING ERRCODE='55000';
+  END IF;
+END
+$compatibility$;
+
 CREATE OR REPLACE FUNCTION registry_private.registry_sync_member_mirror_v1(p_member_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY INVOKER SET search_path = ''
 AS $mirror$
