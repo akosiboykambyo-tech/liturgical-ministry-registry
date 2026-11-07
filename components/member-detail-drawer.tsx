@@ -647,11 +647,14 @@ export function MemberDetailDrawer({
                                 className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               >
                                 {STATUS_VALUES.map((value) => (
-                                  <option key={value} value={value}>
+                                  <option key={value} value={value} disabled={(value === "New" || value === "Renewed") && value !== membership.status}>
                                     {value}
                                   </option>
                                 ))}
                               </select>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                New and Renewed approvals require a private recommendation letter. Validity dates are assigned automatically after approval.
+                              </p>
                             </div>
 
                             <div className="space-y-1.5">
@@ -668,7 +671,7 @@ export function MemberDetailDrawer({
                                     event.target.value
                                   )
                                 }
-                                disabled={!membershipTableAvailable}
+                                disabled={true} title="Validity dates are assigned by secure document-backed verification"
                                 className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               />
                             </div>
@@ -687,7 +690,7 @@ export function MemberDetailDrawer({
                                     event.target.value
                                   )
                                 }
-                                disabled={!membershipTableAvailable}
+                                disabled={true} title="Validity dates are assigned by secure document-backed verification"
                                 className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               />
                             </div>
@@ -706,7 +709,7 @@ export function MemberDetailDrawer({
                                     event.target.value
                                   )
                                 }
-                                disabled={!membershipTableAvailable}
+                                disabled={true} title="Validity dates are assigned by secure document-backed verification"
                                 className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               />
                             </div>
