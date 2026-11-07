@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import ReceiptFormatPreview from "@/components/financial-stewardship/receipt-format-preview";
+import BookletCustodyDemo from "@/components/financial-stewardship/booklet-custody-demo";
+import { bookletCounts, useReceiptBookletDemo } from "@/lib/financial-stewardship-booklet-demo";
 import { DEMO_RECEIPT_BREAKDOWNS } from "@/lib/financial-stewardship-receipt-preview";
 
 type Tab = "overview" | "collections" | "format" | "receipts" | "remittances";
@@ -96,6 +98,9 @@ export default function FinancialStewardshipPreviewPage() {
   const [query, setQuery] = useState("");
   const [stage, setStage] = useState<"all" | CollectionStage>("all");
   const [selected, setSelected] = useState<Collection | null>(null);
+  const { booklets: demoBooklets } = useReceiptBookletDemo();
+  const sampleBooklet = demoBooklets.find(item => item.id === "COWL-001");
+  const sampleCounts = sampleBooklet ? bookletCounts(sampleBooklet) : { total: 50, issued: 6, voided: 1, missing: 0, available: 43 };
   const filtered = useMemo(() => COLLECTIONS.filter((item) => {
     const match = !query.trim() || [item.id, item.parish, item.ministry, item.receipt, item.representative, item.remittance || ""]
       .join(" ").toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
@@ -164,15 +169,15 @@ export default function FinancialStewardshipPreviewPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-[#75656A]">Booklet COWL-001</p>
             <p className="mt-2 text-xl font-semibold tabular-nums">000101–000150</p>
             <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-              <div><p className="text-2xl font-semibold">6</p><p className="text-xs text-[#6F6265]">Issued</p></div>
-              <div><p className="text-2xl font-semibold">1</p><p className="text-xs text-[#6F6265]">Voided</p></div>
-              <div><p className="text-2xl font-semibold">43</p><p className="text-xs text-[#6F6265]">Unused</p></div>
+              <div><p className="text-2xl font-semibold">{sampleCounts.issued}</p><p className="text-xs text-[#6F6265]">Issued</p></div>
+              <div><p className="text-2xl font-semibold">{sampleCounts.voided}</p><p className="text-xs text-[#6F6265]">Voided</p></div>
+              <div><p className="text-2xl font-semibold">{sampleCounts.available}</p><p className="text-xs text-[#6F6265]">Unused</p></div>
             </div>
           </div>
           <button type="button" onClick={() => setTab("receipts")} className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#0B5C5A] hover:underline">View receipt ledger <ArrowRight className="h-4 w-4" /></button>
           <div className="mt-5 border-t border-[#E6DADC] pt-4">
             <p className="text-sm font-semibold">Duplicate-copy custody</p>
-            <p className="mt-1 text-sm text-[#6F6265]">3 confirmed surrendered · 2 submitted awaiting Curia confirmation · 1 held by COWL</p>
+            <p className="mt-1 text-sm text-[#6F6265]">Initially: 3 duplicates confirmed surrendered, 2 submitted, 1 held by COWL. The Phase 2 mock receipt issuance does not create new remittance entries.</p>
           </div>
         </section>
       </div>
@@ -205,34 +210,7 @@ export default function FinancialStewardshipPreviewPage() {
 
     {tab === "format" && <ReceiptFormatPreview />}
 
-    {tab === "receipts" && <div className="space-y-5">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Preprinted serials received" value="50" note="Curia-supplied sample booklet" Icon={BookOpenCheck} />
-        <Metric label="Issued with collections" value="6" note="Each attached to one sample collection" Icon={ReceiptText} />
-        <Metric label="Voided receipts" value="1" note="Preserved in the record; not reused" Icon={ClipboardList} />
-        <Metric label="Unused serials" value="43" note="Remaining in COWL booklet custody" Icon={ShieldCheck} />
-      </section>
-      <section className="overflow-hidden border border-[#E6DADC] bg-white">
-        <div className="p-5"><h2 className={ebGaramond.className + " text-[27px] font-medium"}>Physical receipt & duplicate-copy ledger</h2><p className="mt-1 text-sm text-[#6F6265]">Booklet COWL-001 · serial range 000101–000150 · issued by Curia (sample)</p></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[740px] text-left text-sm">
-          <thead className="border-y border-[#E6DADC] bg-[#FBF9F9] text-xs uppercase tracking-wide text-[#6F6265]"><tr>
-            <th className="px-4 py-3">Serial</th><th className="px-4 py-3">Receipt status</th><th className="px-4 py-3">Linked collection</th><th className="px-4 py-3">Duplicate-copy custody</th><th className="px-4 py-3">Remittance</th>
-          </tr></thead>
-          <tbody className="divide-y divide-[#EDE5E7]">
-            {COLLECTIONS.map((item) => <tr key={item.receipt}>
-              <td className="px-4 py-4 font-semibold tabular-nums">{item.receipt}</td>
-              <td className="px-4 py-4 text-[#145747]">Issued</td>
-              <td className="px-4 py-4">{item.id}</td>
-              <td className="px-4 py-4">{item.stage === "Curia confirmed" ? "Surrender confirmed" : item.stage === "Submitted to Curia" ? "Submitted; confirmation pending" : "Held by COWL"}</td>
-              <td className="px-4 py-4">{item.remittance || "—"}</td>
-            </tr>)}
-            <tr><td className="px-4 py-4 font-semibold tabular-nums">000107</td><td className="px-4 py-4 font-semibold text-[#890022]">Voided (sample)</td><td className="px-4 py-4">Not linked</td><td className="px-4 py-4">Retained pending Curia instructions</td><td className="px-4 py-4">—</td></tr>
-            <tr><td className="px-4 py-4 font-semibold tabular-nums">000108–000150</td><td className="px-4 py-4">Unused (43)</td><td className="px-4 py-4">—</td><td className="px-4 py-4">Held by COWL</td><td className="px-4 py-4">—</td></tr>
-          </tbody>
-        </table></div>
-      </section>
-      <p className="text-sm text-[#6F6265]">Receipt inventory and void-copy procedures will require written Curia approval before any real transactions are enabled.</p>
-    </div>}
+    {tab === "receipts" && <BookletCustodyDemo mode="cowl" />}
 
     {tab === "remittances" && <section className="space-y-4">
       <div><h2 className={ebGaramond.className + " text-[27px] font-medium"}>Curia remittance and turnover</h2><p className="mt-1 text-sm text-[#6F6265]">Each remittance covers funds and the duplicate copies of its listed official receipts.</p></div>
