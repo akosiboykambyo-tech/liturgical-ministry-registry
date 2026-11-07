@@ -396,6 +396,31 @@ BEGIN
     RETURN jsonb_build_object('member_id',v_id,'deleted',true);
   END IF;
 
+  IF p_action='flag_duplicate' THEN
+    v_id:=(p_data->>'existing_member_id')::uuid;
+    IF v_id IS NULL OR NOT EXISTS(SELECT 1 FROM public.members WHERE id=v_id) OR
+       jsonb_typeof(p_data->'incoming_data')<>'object' OR
+       jsonb_typeof(p_data->'incoming_ministries')<>'array' THEN
+      RAISE EXCEPTION 'Valid existing member and incoming duplicate are required'
+        USING ERRCODE='22023';
+    END IF;
+    SELECT array_agg(DISTINCT x) INTO v_ministries
+      FROM jsonb_array_elements_text(p_data->'incoming_ministries') AS m(x);
+    IF v_ministries IS NULL OR cardinality(v_ministries)>6 OR
+       EXISTS(SELECT 1 FROM unnest(v_ministries) AS m(x)
+              WHERE NOT (m.x=ANY(v_valid_ministries))) THEN
+      RAISE EXCEPTION 'Invalid duplicate ministry list' USING ERRCODE='22023';
+    END IF;
+    INSERT INTO public.duplicate_flags(existing_member_id,incoming_first_name,
+      incoming_last_name,incoming_parish,incoming_ministries,incoming_data,resolved)
+    VALUES(v_id,left(p_data->>'incoming_first_name',160),
+      left(p_data->>'incoming_last_name',160),
+      left(p_data->>'incoming_parish',200),
+      v_ministries,p_data->'incoming_data',false)
+    RETURNING id INTO v_batch;
+    RETURN jsonb_build_object('id',v_batch,'flagged',true);
+  END IF;
+
   IF p_action='import_begin' THEN
     IF coalesce(p_data->>'file_hash','') !~ '^[a-fA-F0-9]{64}$' OR
        length(coalesce(p_data->>'file_name',''))>240 OR
