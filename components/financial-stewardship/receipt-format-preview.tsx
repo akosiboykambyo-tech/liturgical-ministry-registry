@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, FileSearch, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronsUpDown, FileSearch, RotateCcw, ShieldCheck } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import { MINISTRIES, PARISHES } from "@/lib/constants";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   parsePesoAmountToCentavos, REFERENCE_RECEIPT,
 } from "@/lib/financial-stewardship-receipt-preview";
@@ -51,6 +53,7 @@ function Field({
 
 export default function ReceiptFormatPreview() {
   const [draft, setDraft] = useState<Draft>(DEFAULT);
+  const [parishOpen, setParishOpen] = useState(false);
   const edit = (field: keyof Draft, value: string) =>
     setDraft(current => ({ ...current, [field]: value }));
   const data = useMemo(() => {
@@ -71,7 +74,7 @@ export default function ReceiptFormatPreview() {
         <h2 className={ebGaramond.className + " text-[30px] font-medium"}>Preprinted Receipt · Format Review</h2>
         <p className="mt-2 max-w-[800px] text-sm leading-6 text-[#6F6265]">An editable, unsaved transcription of the receipt you provided. Use it to test the fields COWL should record before any accounting integration.</p>
       </div>
-      <button type="button" onClick={() => setDraft({ ...DEFAULT })}
+      <button type="button" onClick={() => { setDraft({ ...DEFAULT }); setParishOpen(false); }}
         className="inline-flex min-h-10 items-center gap-2 border border-[#CFBEC3] bg-white px-4 text-sm font-semibold text-[#49363A] hover:bg-[#FBF9F9]">
         <RotateCcw className="h-4 w-4" /> Reset to receipt sample
       </button>
@@ -90,11 +93,44 @@ export default function ReceiptFormatPreview() {
             <Field id="receipt-reference-date" title="Date written on the receipt" type="date" value={draft.receiptDate} onChange={v => edit("receiptDate", v)} />
             <div className="min-w-0">
               <label htmlFor="receipt-reference-from" className={labelCss}>Paying parish (COWL-DOK registry)</label>
-              <select id="receipt-reference-from" value={draft.receivedFrom} onChange={event => edit("receivedFrom", event.target.value)} className={inputCss}>
-                <option value="" disabled>Select a registered parish</option>
-                {PARISHES.map(parish => <option key={parish} value={parish}>{parish}</option>)}
-              </select>
-              <p className="mt-1 text-xs leading-5 text-[#706268]">Select the parish from the registry list to prevent spelling or naming errors.</p>
+              <Popover open={parishOpen} onOpenChange={setParishOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    id="receipt-reference-from"
+                    type="button"
+                    role="combobox"
+                    aria-expanded={parishOpen}
+                    aria-haspopup="listbox"
+                    aria-label="Search and select paying parish"
+                    className="flex min-h-11 w-full min-w-0 items-center justify-between gap-2 border border-[#CDBFC3] bg-white px-3 py-2 text-left text-sm text-[#1E1114] outline-none focus-visible:border-[#890022] focus-visible:ring-1 focus-visible:ring-[#890022]"
+                  >
+                    <span className={draft.receivedFrom ? "truncate" : "truncate text-[#706268]"}>{draft.receivedFrom || "Search and select a parish..."}</span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 text-[#706268]" aria-hidden="true" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(90vw,430px)] rounded-none border-[#CDBFC3] p-0">
+                  <Command>
+                    <CommandInput placeholder="Type a parish or mission station..." className="text-sm" />
+                    <CommandList className="max-h-[260px]">
+                      <CommandEmpty>No matching parish in the registry.</CommandEmpty>
+                      <CommandGroup>
+                        {[...PARISHES].sort((a, b) => a.localeCompare(b)).map(parish => (
+                          <CommandItem
+                            key={parish}
+                            value={parish}
+                            onSelect={() => { edit("receivedFrom", parish); setParishOpen(false); }}
+                            className="cursor-pointer gap-2 py-2 text-sm"
+                          >
+                            <Check className={draft.receivedFrom === parish ? "h-4 w-4 shrink-0 text-[#0B5C5A]" : "h-4 w-4 shrink-0 opacity-0"} aria-hidden="true" />
+                            <span className="whitespace-normal">{parish}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <p className="mt-1 text-xs leading-5 text-[#706268]">Search by parish or mission-station name, then select the official registry entry.</p>
             </div>
             <Field id="receipt-reference-year" title="Renewal / service year" value={draft.renewalYear} onChange={v => edit("renewalYear", v)} />
             <div className="sm:col-span-2"><Field id="receipt-reference-from-printed" title="Received from (exact wording on physical receipt)" value={draft.receivedFromPrinted} onChange={v => edit("receivedFromPrinted", v)}
