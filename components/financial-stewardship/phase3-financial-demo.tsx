@@ -316,59 +316,32 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
               <span>I checked that <strong>OR {serial || "—"}</strong> matches the physical paper receipt. The demo will not choose the next available number for me.</span>
             </label>
           </div>
-          <div className="sm:col-span-2 grid gap-4 border border-[#E6DADC] bg-[#FFFCFD] p-4 sm:grid-cols-2">
+          <div className="sm:col-span-2 grid gap-4 border-l-[3px] border-[#890022] bg-[#FFFCFD] p-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#890022]">Parish identity · linked fields</p>
-              <p className="mt-1 text-xs leading-5 text-[#6F6265]">Select the official registry parish and separately preserve how the payer is written on the physical receipt.</p>
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#890022]">Parish</p>
+              <p className="mt-1 text-xs leading-5 text-[#6F6265]">Link the official registry entry to the wording recorded on the physical receipt.</p>
             </div>
-            <div className="min-w-0">
-              <label htmlFor="phase3-parish" className={LABEL}>Paying parish (official registry name)</label>
-              <Popover open={parishOpen} onOpenChange={setParishOpen}>
-                <PopoverTrigger asChild>
-                  <button id="phase3-parish" type="button" role="combobox" aria-expanded={parishOpen}
-                    className="flex min-h-11 w-full min-w-0 items-center justify-between gap-2 border border-[#CDBFC3] bg-white px-3 py-2 text-left text-sm outline-none focus-visible:border-[#890022] focus-visible:ring-1 focus-visible:ring-[#890022]">
-                    <span className="truncate">{parish || "Search for parish..."}</span>
-                    <ChevronsUpDown className="h-4 w-4 shrink-0 text-[#706268]" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(90vw,430px)] rounded-none border-[#CDBFC3] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search parish or mission station..." />
-                    <CommandList className="max-h-[250px]">
-                      <CommandEmpty>No matching registered parish.</CommandEmpty>
-                      <CommandGroup>
-                        {[...PARISHES].sort((a, b) => a.localeCompare(b)).map(p => <CommandItem key={p} value={p}
-                          onSelect={() => { setParish(p); setParishOpen(false); }} className="cursor-pointer gap-2 py-2">
-                          <Check className={parish === p ? "h-4 w-4 shrink-0 text-[#0B5C5A]" : "h-4 w-4 shrink-0 opacity-0"} />
-                          <span className="whitespace-normal text-sm">{p}</span>
-                        </CommandItem>)}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <Field id="phase3-parish-paper" label="Received from (exact paper wording)" value={parishPrinted} onChange={setParishPrinted} />
+            <FinancialChoice id="phase3-parish" label="Parish — Registry" value={parish} onChange={setParish}
+              options={[...PARISHES].sort((a, b) => a.localeCompare(b)).map(p => ({ value: p, label: p }))}
+              searchPlaceholder="Search parish or mission station..." />
+            <Field id="phase3-parish-paper" label="Parish — On receipt" value={parishPrinted} onChange={setParishPrinted} />
           </div>
-          <div className="sm:col-span-2 grid gap-4 border border-[#E6DADC] bg-[#FFFCFD] p-4 sm:grid-cols-2">
+          <div className="sm:col-span-2 grid gap-4 border-l-[3px] border-[#890022] bg-[#FFFCFD] p-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#890022]">Ministry identity · linked fields</p>
-              <p className="mt-1 text-xs leading-5 text-[#6F6265]">Match one of the six official registry ministries while retaining the wording from the Curia receipt.</p>
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#890022]">Ministry</p>
+              <p className="mt-1 text-xs leading-5 text-[#6F6265]">Use the official COWL-DOK ministry while preserving the wording on the physical receipt.</p>
             </div>
-            <div>
-              <label htmlFor="phase3-ministry" className={LABEL}>Linked COWL-DOK ministry</label>
-              <select id="phase3-ministry" value={ministry} onChange={event => setMinistry(event.target.value)} className={INPUT}>
-                {MINISTRIES.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <Field id="phase3-ministry-paper" label="Ministry as written on the receipt" value={ministryPrinted} onChange={setMinistryPrinted} />
+            <FinancialChoice id="phase3-ministry" label="Ministry — Registry" value={ministry} onChange={setMinistry}
+              options={MINISTRIES.map(m => ({ value: m, label: m }))}
+              searchPlaceholder="Search official ministry..." />
+            <Field id="phase3-ministry-paper" label="Ministry — On receipt" value={ministryPrinted} onChange={setMinistryPrinted} />
           </div>
-          <Field id="phase3-year" label="Renewal year" value={renewalYear} onChange={setRenewalYear} />
-          <Field id="phase3-date" label="Receipt / collection date" type="date" value={date} onChange={setDate} note={"Selected: " + readableFinancialDate(date)} />
+          <Field id="phase3-year" label="Renewal year" type="number" min={2000} max={2100} step={1} value={renewalYear} onChange={setRenewalYear} />
+          <FinancialDate id="phase3-date" label="Collection date" value={date} onChange={setDate} />
           <div className="sm:col-span-2 grid gap-4 sm:grid-cols-3">
-            <Field id="phase3-participants" label="Number of participants" value={participants} onChange={setParticipants} />
-            <Field id="phase3-fee" label="Fee per participant (PHP)" value={fee} onChange={setFee}
-              note="₱50.00 is only an example, not an approved fee schedule." />
+            <Field id="phase3-participants" label="Number of participants" type="number" min={1} max={100000} step={1} value={participants} onChange={setParticipants} />
+            <Field id="phase3-fee" label="Fee per participant" currency value={fee} onChange={setFee}
+              note="The ₱50.00 example is not an approved rate." />
             <div aria-live="polite" className="min-w-0">
               <p className={LABEL}>Live computed total</p>
               <div className="flex h-11 items-center border border-[#BFD9CF] bg-[#EFF9F4] px-3 text-lg font-bold tabular-nums text-[#145747]">
@@ -377,17 +350,15 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
               <p className="mt-1 text-xs leading-5 text-[#6F6265]">{count === null ? "Enter a participant count." : count + " participant(s)"} × {feeCentavos === null ? "valid fee needed" : money(feeCentavos)}. Compare with the printed receipt.</p>
             </div>
           </div>
-          <Field id="phase3-received" label="Amount physically received (PHP)" value={received} onChange={setReceived} />
-          <div className="min-w-0">
-            <label htmlFor="phase3-payment-method" className={LABEL}>Payment method (demo)</label>
-            <select id="phase3-payment-method" className={INPUT} value={method} onChange={event => setMethod(event.target.value as "cash" | "check" | "other")}>
-              <option value="cash">Cash</option><option value="check">Check</option><option value="other">Other</option>
-            </select>
-          </div>
-          <Field id="phase3-purpose" label="Purpose / nature of payment" value={purpose} onChange={setPurpose} />
-          <Field id="phase3-code" label="CODE printed on paper (if any)" value={printedCode} onChange={setPrintedCode}
+          <Field id="phase3-received" label="Amount received" currency value={received} onChange={setReceived} />
+          <FinancialChoice id="phase3-payment-method" label="Payment method" value={method}
+            onChange={value => setMethod(value as "cash" | "check" | "other")}
+            options={[{ value: "cash", label: "Cash" }, { value: "check", label: "Check" }, { value: "other", label: "Other" }]}
+            searchPlaceholder="Search payment method..." />
+          <Field id="phase3-purpose" label="Collection purpose" value={purpose} onChange={setPurpose} />
+          <Field id="phase3-code" label="Code on receipt" value={printedCode} onChange={setPrintedCode}
             note="Do not assign accounting meaning until Curia confirms the code." />
-          <div className="sm:col-span-2"><Field id="phase3-collected-by" label="COWL officer recording the collection" value={collectedBy} onChange={setCollectedBy} /></div>
+          <div className="sm:col-span-2"><Field id="phase3-collected-by" label="COWL receiving officer" value={collectedBy} onChange={setCollectedBy} /></div>
         </div>
         <div className={"mt-5 flex flex-wrap items-center gap-3 border px-4 py-3 text-sm " +
           (amountMatches ? "border-[#B8DCD3] bg-[#EFF9F4] text-[#145747]" : "border-[#E8D6A9] bg-[#FFF9EC] text-[#805C16]")}>
@@ -425,7 +396,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
         </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field id="phase3-preparer" label="COWL officer preparing turnover" value={preparedBy} onChange={setPreparedBy} />
-          <Field id="phase3-submitted-date" label="Handover date" type="date" value={submittedDate} onChange={setSubmittedDate} note={"Selected: " + readableFinancialDate(submittedDate)} />
+          <FinancialDate id="phase3-submitted-date" label="Remittance date" value={submittedDate} onChange={setSubmittedDate} />
         </div>
         <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm leading-6">
           <input type="checkbox" checked={copiesChecked} onChange={event => setCopiesChecked(event.target.checked)}
@@ -503,9 +474,9 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
           </div>
           {mode === "curia" && selectedRemittance.status === "pending" && <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field id="phase3-counted" label="Actual funds counted by Curia (PHP)" value={counted} onChange={setCounted} />
+              <Field id="phase3-counted" label="Funds counted by Curia" currency value={counted} onChange={setCounted} />
               <Field id="phase3-curia-officer" label="Curia receiving officer (demo)" value={curiaOfficer} onChange={setCuriaOfficer} />
-              <Field id="phase3-curia-date" label="Date of independent review" value={reviewDate} type="date" onChange={setReviewDate} note={"Selected: " + readableFinancialDate(reviewDate)} />
+              <FinancialDate id="phase3-curia-date" label="Curia review date" value={reviewDate} onChange={setReviewDate} />
               <Field id="phase3-curia-reference" label="Curia acknowledgment reference" value={curiaRef} onChange={setCuriaRef}
                 note="Required for full confirmation. Separate from the official receipt numbers." />
             </div>
