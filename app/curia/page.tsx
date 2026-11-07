@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { ebGaramond, inter } from "@/app/fonts";
 import { useAuth } from "@/lib/auth-context";
+import BookletCustodyDemo from "@/components/financial-stewardship/booklet-custody-demo";
+import { bookletCounts, useReceiptBookletDemo } from "@/lib/financial-stewardship-booklet-demo";
 import { DEMO_RECEIPT_BREAKDOWNS, REFERENCE_RECEIPT } from "@/lib/financial-stewardship-receipt-preview";
 
 type Section = "overview" | "incoming" | "booklets" | "history";
@@ -100,6 +102,9 @@ export default function CuriaPreviewPage() {
   useEffect(() => { if (!loading && !user) router.replace("/admin"); }, [loading, user, router]);
 
   const [section, setSection] = useState<Section>("overview");
+  const { booklets: demoBooklets } = useReceiptBookletDemo();
+  const sampleBooklet = demoBooklets.find(item => item.id === "COWL-001");
+  const sampleCounts = sampleBooklet ? bookletCounts(sampleBooklet) : { total: 50, issued: 6, voided: 1, missing: 0, available: 43 };
   const [remittances, setRemittances] = useState<Remittance[]>(initialRemittances);
   const [audit, setAudit] = useState<AuditEvent[]>(INITIAL_AUDIT);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -215,7 +220,7 @@ export default function CuriaPreviewPage() {
             <div className="hidden lg:block"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#890022]">Diocesan Curia</p><p className="text-sm text-[#655459]">Financial Stewardship · Remittance Accountability</p></div>
             <div className="flex flex-wrap items-center gap-3">
               <span className="border border-[#DCCBA3] bg-[#FFF8E8] px-3 py-1.5 text-xs font-semibold text-[#765015]">SAMPLE DATA ONLY</span>
-              <button type="button" onClick={resetDemo} className="inline-flex min-h-9 items-center gap-2 border border-[#CEBEC3] bg-white px-3 text-xs font-semibold text-[#5F4A4F] hover:bg-[#FBF9F9]"><RotateCcw className="h-3.5 w-3.5" /> Reset demo</button>
+              <button type="button" onClick={resetDemo} className="inline-flex min-h-9 items-center gap-2 border border-[#CEBEC3] bg-white px-3 text-xs font-semibold text-[#5F4A4F] hover:bg-[#FBF9F9]"><RotateCcw className="h-3.5 w-3.5" /> Reset remittance demo</button>
             </div>
           </div>
           <nav aria-label="Curia mobile navigation" className="mx-auto mt-4 flex max-w-[1450px] gap-2 overflow-x-auto pb-1 lg:hidden">
@@ -234,7 +239,7 @@ export default function CuriaPreviewPage() {
           </div>
 
           <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
-            <strong>Prototype only.</strong> The remittance ledger, booklet inventory and sample personnel are fictional. The Receipt Booklets section also shows a separate transcription of the real receipt photo you supplied, explicitly excluded from mock transactions. Confirmation and discrepancy actions affect this browser page only; there is no financial database, Curia authorization, audit persistence or synchronization with COWL.
+            <strong>Prototype only.</strong> The remittance ledger, receipt booklet inventory and sample personnel are fictional. The Receipt Booklets section also shows a separate transcription of the real receipt photo you supplied, explicitly excluded from mock transactions. Confirmation and discrepancy actions affect this browser page only; there is no financial database, Curia authorization, audit persistence or synchronization with COWL.
           </div>
 
           {section === "overview" && <>
@@ -278,7 +283,7 @@ export default function CuriaPreviewPage() {
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className="bg-[#FBF9F9] p-4"><p className="text-xs text-[#6F6265]">Booklet serials</p><p className="mt-1 text-lg font-semibold tabular-nums">000101–000150</p></div>
-                <div className="bg-[#FBF9F9] p-4"><p className="text-xs text-[#6F6265]">Issued / Voided / Unused</p><p className="mt-1 text-lg font-semibold">6 / 1 / 43</p></div>
+                <div className="bg-[#FBF9F9] p-4"><p className="text-xs text-[#6F6265]">Issued / Voided / Unused</p><p className="mt-1 text-lg font-semibold">{sampleCounts.issued} / {sampleCounts.voided} / {sampleCounts.available}</p></div>
                 <div className="bg-[#FBF9F9] p-4"><p className="text-xs text-[#6F6265]">Duplicate copies verified</p><p className="mt-1 text-lg font-semibold">{confirmedSerials.size} / 6</p></div>
               </div>
             </section>
@@ -387,37 +392,13 @@ export default function CuriaPreviewPage() {
           </>}
 
           {section === "booklets" && <>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Metric title="Receipt serials entrusted to COWL" value="50" note="Booklet COWL-001 · serials 000101–000150" Icon={BookOpenCheck} />
-              <Metric title="Issued by COWL" value="6" note="Includes one not yet submitted to Curia" Icon={ReceiptText} />
-              <Metric title="Voided" value="1" note="Void original retained for physical review" Icon={AlertTriangle} />
-              <Metric title="Unused in COWL custody" value="43" note="Unissued serials in the booklet" Icon={ShieldCheck} />
-            </div>
+            <BookletCustodyDemo mode="curia" />
             <section className="border border-[#E6DADC] bg-white p-5 sm:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h2 className={ebGaramond.className + " text-[30px]"}>Booklet COWL-001</h2><p className="mt-1 text-sm text-[#6F6265]">Curia-issued · fictional issuance date Nov 1, 2026 · Custodian: COWL Staff (sample)</p></div>
-                <span className="border border-[#DDCE9C] bg-[#FFFAE9] px-3 py-2 text-xs font-semibold text-[#805C16]">Entrusted to COWL</span>
-              </div>
-              <div className="mt-5 overflow-x-auto">
-                <table className="w-full min-w-[690px] text-left text-sm">
-                  <thead className="border-y border-[#E6DADC] bg-[#FBF9F9] text-xs uppercase tracking-wide text-[#6F6265]"><tr>
-                    <th className="px-4 py-3">Receipt serial</th><th className="px-4 py-3">Issued status</th><th className="px-4 py-3">Duplicate-copy accountability</th>
-                  </tr></thead>
-                  <tbody className="divide-y divide-[#EDE5E7]">
-                    {["000101", "000102", "000103", "000104", "000105", "000106"].map(serial => <tr key={serial}>
-                      <td className="px-4 py-3 font-semibold tabular-nums">{serial}</td><td className="px-4 py-3">Issued</td>
-                      <td className="px-4 py-3">{confirmedSerials.has(serial) ? "Surrender confirmed by Curia" : pendingSerials.has(serial) ? "Submitted to Curia · verification pending" : flagged.some(item => item.receipts.some(receipt => receipt.serial === serial)) ? "Discrepancy recorded; follow-up required" : "Still held by COWL"}</td>
-                    </tr>)}
-                    <tr><td className="px-4 py-3 font-semibold tabular-nums">000107</td><td className="px-4 py-3 text-[#922A38]">Voided (sample)</td><td className="px-4 py-3">Handling subject to Curia's void-copy policy</td></tr>
-                    <tr><td className="px-4 py-3 font-semibold tabular-nums">000108–000150</td><td className="px-4 py-3">43 unused</td><td className="px-4 py-3">Still held by COWL</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-            <section className="border border-[#E6DADC] bg-white p-5 sm:p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.13em] text-[#890022]">Format reference from supplied receipt photo</p>
-              <h2 className={ebGaramond.className + " mt-2 text-[29px]"}>Official receipt {REFERENCE_RECEIPT.serial}</h2>
-              <p className="mt-1 text-xs leading-5 text-[#6F6265]">Source-based transcription only. This previously issued sample is not assigned to fictional booklet COWL-001 or included in the demo remittances.</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.13em] text-[#890022]">Separate format reference from uploaded receipt</p>
+              <h2 className={ebGaramond.className + " mt-2 text-[29px]"}>Official Receipt {REFERENCE_RECEIPT.serial}</h2>
+              <p className="mt-1 text-xs leading-5 text-[#6F6265]">
+                Source-based transcription only. This historical receipt is not part of the fictional COWL-001 or CUR-002 inventory and cannot be reassigned or issued by the prototype.
+              </p>
               <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[
                   ["Issuing entity", REFERENCE_RECEIPT.issuer],
@@ -429,7 +410,7 @@ export default function CuriaPreviewPage() {
                   ["Participants", String(REFERENCE_RECEIPT.participantCount)],
                   ["Fee per person", money(REFERENCE_RECEIPT.feeCentavos)],
                   ["Receipt amount", money(REFERENCE_RECEIPT.amountCentavos)],
-                  ["Printed CODE", REFERENCE_RECEIPT.printedCode + " (meaning not yet confirmed)"],
+                  ["Printed CODE", REFERENCE_RECEIPT.printedCode + " (meaning not confirmed)"],
                   ["Payment method", REFERENCE_RECEIPT.paymentMethod],
                 ].map(([label, value]) => <div key={label}><dt className="text-xs text-[#6F6265]">{label}</dt><dd className="mt-1 text-sm font-semibold">{value}</dd></div>)}
               </dl>
@@ -437,7 +418,6 @@ export default function CuriaPreviewPage() {
                 Source calculation: 113 × ₱50.00 = ₱5,650.00. Receipt serial stays as text, including its leading zero.
               </div>
             </section>
-            <p className="text-sm leading-6 text-[#6F6265]">For production, the Curia would record each actual booklet issuance, receiving custodian, serial ranges and subsequent reconciliation. This preview cannot create or assign official receipt stock. The code printed on the source sample has not yet been interpreted as an accounting account.</p>
           </>}
 
           {section === "history" && <section className="border border-[#E6DADC] bg-white p-5 sm:p-6">
