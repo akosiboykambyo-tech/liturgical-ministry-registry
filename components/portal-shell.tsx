@@ -44,9 +44,9 @@ export default function PortalShell({
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   useEffect(() => {
-    try { setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "true"); }
+    try { setCollapsed(localStorage.getItem(COLLAPSED_KEY) !== "false"); }
     catch { /* Keep expanded mode when browser storage is unavailable. */ }
   }, []);
   const toggleCollapsed = () => setCollapsed(value => {
