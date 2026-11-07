@@ -8,7 +8,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
  */
 export type RegistryWriteAction =
   | "create" | "create_batch" | "merge" | "save" | "delete"
-  | "document" | "renew" | "detach" | "set_status"
+  | "document" | "renew" | "activate" | "detach" | "set_status"
   | "flag_duplicate" | "import_begin" | "import_finish";
 
 export async function registryAdminWrite<T = Record<string, unknown>>(
