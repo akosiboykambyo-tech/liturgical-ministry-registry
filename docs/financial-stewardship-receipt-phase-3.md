@@ -55,3 +55,27 @@ Before any live financial entry, implement:
 6. Downloadable/printable Curia-approved remittance report and compatibility with diocesan accounting systems, plus real browser/mobile QA and security reviews.
 
 **Do not merge the draft PR or deploy any production financial capability until these controls are approved and tested.**
+
+## Phase 3 UX refinement — printed serial first
+
+The COWL sample collection form now treats the **exact preprinted OR serial** as the primary identifier:
+
+- Clerk types the digits seen on the physical receipt (including leading zeroes), or searches the list of available serials in a keyboard-accessible combobox.
+- Eligible suggestions are drawn from **acknowledged booklets only**. If multiple booklets have available serials, suggestions are grouped by booklet; when only one booklet has available stock, a separate booklet filter is not shown.
+- The booklet is **derived from the exact serial**, displayed read-only, and independently derived again during the mock collection mutation. The input never auto-picks or generates a serial.
+- Inline outcomes include **available**, **already used**, **not in custody** (Curia stock or unacknowledged handover), **outside registered ranges**, **voided**, **missing**, **invalid**, and **ambiguous across series**. Ambiguous numbers are blocked until an authoritative series can be determined.
+- An enabled physical-receipt checkbox is explicitly required for a valid serial. Changing the typed number clears that attestation.
+- The parish and ministry each have visually paired **canonical registry choice** and **wording on the paper** inputs.
+- The participant count and fee display a live calculated peso total adjacent to the rate, without silently replacing the amount physically received.
+- Native date inputs remain, but readable **day–month-name–year** summaries remove locale-order ambiguity.
+
+### Specific regression test cases
+
+1. In COWL Phase 3 type `000123` with initial stock: status **Available**, booklet **COWL-001** derived, no auto-filled serial on page load.
+2. Type `000101`: status **Already used**. Type `000107`: **Voided**. Typing `000151` before Phase 2 custody handover: **Not in custody**. Type `999999`: **Outside registered ranges**.
+3. Type `123` without the three leading zeros: status invalid; suggested `000123` can be chosen without changing the original typing automatically.
+4. Record `000123` with the explicit physical paper confirmation and a matching participant/fee/received total, then try to use `000123` again. Both the UI and the shared mock mutation must reject reuse.
+5. After Curia assigns and COWL acknowledges `CUR-002`, ensure search suggestions group the available `COWL-001` and `CUR-002` serials.
+6. Verify the example 2 × ₱50.00 = **₱100.00** is shown next to the fee and compare it with the separately entered received amount.
+7. Inspect on desktop and phone: paired canonical/printed fields stay visually grouped and date helpers show **7 November 2026** even if the browser date control uses numeric ordering.
+8. If Curia registers another series with an overlapping **printed serial**, entering that serial must report **Ambiguous serial** and block recording; it cannot silently pick a booklet.
