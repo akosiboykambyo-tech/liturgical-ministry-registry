@@ -8,13 +8,12 @@ import {
   Wallet, X,
 } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
-import ReceiptFormatPreview from "@/components/financial-stewardship/receipt-format-preview";
 import BookletCustodyDemo from "@/components/financial-stewardship/booklet-custody-demo";
 import Phase3FinancialDemo from "@/components/financial-stewardship/phase3-financial-demo";
 import { bookletCounts, useReceiptBookletDemo } from "@/lib/financial-stewardship-booklet-demo";
 import { DEMO_RECEIPT_BREAKDOWNS } from "@/lib/financial-stewardship-receipt-preview";
 
-type Tab = "overview" | "collections" | "format" | "receipts" | "remittances" | "workflow";
+type Tab = "overview" | "collections" | "receipts" | "remittances" | "workflow";
 type CollectionStage = "COWL custody" | "Submitted to Curia" | "Curia confirmed";
 type Collection = {
   id: string; parish: string; ministry: string; amount: number;
@@ -111,7 +110,6 @@ export default function FinancialStewardshipPreviewPage() {
     { key: "overview", label: "Overview (Sample)", Icon: Wallet },
     { key: "collections", label: "Collections (Sample Ledger)", Icon: HandCoins },
     { key: "workflow", label: "Collections & Remittances (Phase 3)", Icon: ArrowRight },
-    { key: "format", label: "Receipt Format (Phase 1)", Icon: ReceiptText },
     { key: "receipts", label: "Receipt Inventory", Icon: ReceiptText },
     { key: "remittances", label: "Curia Remittances (Sample)", Icon: Landmark },
   ];
@@ -131,7 +129,7 @@ export default function FinancialStewardshipPreviewPage() {
     </div>
 
     <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
-      <strong>Preview only.</strong> The Overview, Collections (Sample Ledger) and Curia Remittances tabs show fictional historic examples, while Phase 3 provides a separate connected browser-only workflow. The Receipt Format tab transcribes the physical sample you supplied; it is not a new issued receipt. This page makes no financial database changes and cannot issue receipts or transfer funds.
+      <strong>Preview only.</strong> The Overview, Collections (Sample Ledger) and Curia Remittances tabs show fictional historic examples, while Phase 3 provides a separate connected browser-only workflow. The supplied official receipt remains a format reference in the project specifications, not an editable transaction or separate navigation tab. This page makes no financial database changes and cannot issue receipts or transfer funds.
     </div>
 
     <div className="flex flex-wrap gap-2 border-b border-[#E6DADC] pb-3" role="tablist" aria-label="Financial Stewardship preview sections">
@@ -211,8 +209,6 @@ export default function FinancialStewardshipPreviewPage() {
     </section>}
 
     {tab === "workflow" && <Phase3FinancialDemo mode="cowl" />}
-
-    {tab === "format" && <ReceiptFormatPreview />}
 
     {tab === "receipts" && <BookletCustodyDemo mode="cowl" />}
 
