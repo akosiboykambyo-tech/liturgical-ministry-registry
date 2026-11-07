@@ -49,7 +49,7 @@ export function rangeSize(first: string, last: string): number | null {
   if (!/^\d{4,12}$/.test(first) || !/^\d{4,12}$/.test(last) || first.length !== last.length) return null;
   const start = BigInt(first), end = BigInt(last);
   if (end < start || end - start > BigInt(199)) return null;
-  return Number(end - start + 1n);
+  return Number(end - start + BigInt(1));
 }
 export function serialsInBooklet(booklet: ReceiptBookletDemo): string[] {
   const size = rangeSize(booklet.first, booklet.last);
