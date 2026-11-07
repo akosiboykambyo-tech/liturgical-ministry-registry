@@ -108,12 +108,12 @@ export default function FinancialStewardshipPreviewPage() {
     return match && (stage === "all" || item.stage === stage);
   }), [query, stage]);
   const tabs: { key: Tab; label: string; Icon: typeof Wallet }[] = [
-    { key: "overview", label: "Overview", Icon: Wallet },
+    { key: "overview", label: "Overview (Sample)", Icon: Wallet },
     { key: "collections", label: "Collections (Sample Ledger)", Icon: HandCoins },
     { key: "workflow", label: "Collections & Remittances (Phase 3)", Icon: ArrowRight },
     { key: "format", label: "Receipt Format (Phase 1)", Icon: ReceiptText },
     { key: "receipts", label: "Receipt Inventory", Icon: ReceiptText },
-    { key: "remittances", label: "Curia Remittances", Icon: Landmark },
+    { key: "remittances", label: "Curia Remittances (Sample)", Icon: Landmark },
   ];
   return <div className="space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-4">
