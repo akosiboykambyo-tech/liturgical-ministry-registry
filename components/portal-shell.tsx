@@ -69,7 +69,7 @@ export default function PortalShell({
   };
   const navClass = (active?: boolean) =>
     "flex min-h-11 w-full items-center border-l-[3px] text-left text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white " +
-    (collapsed ? "justify-center gap-0 px-1 lg:justify-center lg:gap-0" : "gap-3 px-3") +
+    (collapsed ? "gap-3 px-3 lg:justify-center lg:gap-0 lg:px-1" : "gap-3 px-3") +
     (active
       ? " border-white bg-white text-[#890022]"
       : " border-transparent text-white/90 hover:bg-white/15 hover:text-white");
