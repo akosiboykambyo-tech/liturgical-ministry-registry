@@ -318,46 +318,67 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
               <span>I checked that <strong>OR {serial || "—"}</strong> matches the physical paper receipt. The demo will not choose the next available number for me.</span>
             </label>
           </div>
-          <div className="min-w-0">
-            <label htmlFor="phase3-parish" className={LABEL}>Paying parish (official registry name)</label>
-            <Popover open={parishOpen} onOpenChange={setParishOpen}>
-              <PopoverTrigger asChild>
-                <button id="phase3-parish" type="button" role="combobox" aria-expanded={parishOpen}
-                  className="flex min-h-11 w-full min-w-0 items-center justify-between gap-2 border border-[#CDBFC3] bg-white px-3 py-2 text-left text-sm outline-none focus-visible:border-[#890022] focus-visible:ring-1 focus-visible:ring-[#890022]">
-                  <span className="truncate">{parish || "Search for parish..."}</span>
-                  <ChevronsUpDown className="h-4 w-4 shrink-0 text-[#706268]" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-[min(90vw,430px)] rounded-none border-[#CDBFC3] p-0">
-                <Command>
-                  <CommandInput placeholder="Search parish or mission station..." />
-                  <CommandList className="max-h-[250px]">
-                    <CommandEmpty>No matching registered parish.</CommandEmpty>
-                    <CommandGroup>
-                      {[...PARISHES].sort((a, b) => a.localeCompare(b)).map(p => <CommandItem key={p} value={p}
-                        onSelect={() => { setParish(p); setParishOpen(false); }} className="cursor-pointer gap-2 py-2">
-                        <Check className={parish === p ? "h-4 w-4 shrink-0 text-[#0B5C5A]" : "h-4 w-4 shrink-0 opacity-0"} />
-                        <span className="whitespace-normal text-sm">{p}</span>
-                      </CommandItem>)}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+          <div className="sm:col-span-2 grid gap-4 border border-[#E6DADC] bg-[#FFFCFD] p-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#890022]">Parish identity · linked fields</p>
+              <p className="mt-1 text-xs leading-5 text-[#6F6265]">Select the official registry parish and separately preserve how the payer is written on the physical receipt.</p>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="phase3-parish" className={LABEL}>Paying parish (official registry name)</label>
+              <Popover open={parishOpen} onOpenChange={setParishOpen}>
+                <PopoverTrigger asChild>
+                  <button id="phase3-parish" type="button" role="combobox" aria-expanded={parishOpen}
+                    className="flex min-h-11 w-full min-w-0 items-center justify-between gap-2 border border-[#CDBFC3] bg-white px-3 py-2 text-left text-sm outline-none focus-visible:border-[#890022] focus-visible:ring-1 focus-visible:ring-[#890022]">
+                    <span className="truncate">{parish || "Search for parish..."}</span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 text-[#706268]" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(90vw,430px)] rounded-none border-[#CDBFC3] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search parish or mission station..." />
+                    <CommandList className="max-h-[250px]">
+                      <CommandEmpty>No matching registered parish.</CommandEmpty>
+                      <CommandGroup>
+                        {[...PARISHES].sort((a, b) => a.localeCompare(b)).map(p => <CommandItem key={p} value={p}
+                          onSelect={() => { setParish(p); setParishOpen(false); }} className="cursor-pointer gap-2 py-2">
+                          <Check className={parish === p ? "h-4 w-4 shrink-0 text-[#0B5C5A]" : "h-4 w-4 shrink-0 opacity-0"} />
+                          <span className="whitespace-normal text-sm">{p}</span>
+                        </CommandItem>)}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <Field id="phase3-parish-paper" label="Received from (exact paper wording)" value={parishPrinted} onChange={setParishPrinted} />
           </div>
-          <div>
-            <label htmlFor="phase3-ministry" className={LABEL}>Linked COWL-DOK ministry</label>
-            <select id="phase3-ministry" value={ministry} onChange={event => setMinistry(event.target.value)} className={INPUT}>
-              {MINISTRIES.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
+          <div className="sm:col-span-2 grid gap-4 border border-[#E6DADC] bg-[#FFFCFD] p-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#890022]">Ministry identity · linked fields</p>
+              <p className="mt-1 text-xs leading-5 text-[#6F6265]">Match one of the six official registry ministries while retaining the wording from the Curia receipt.</p>
+            </div>
+            <div>
+              <label htmlFor="phase3-ministry" className={LABEL}>Linked COWL-DOK ministry</label>
+              <select id="phase3-ministry" value={ministry} onChange={event => setMinistry(event.target.value)} className={INPUT}>
+                {MINISTRIES.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <Field id="phase3-ministry-paper" label="Ministry as written on the receipt" value={ministryPrinted} onChange={setMinistryPrinted} />
           </div>
-          <Field id="phase3-parish-paper" label="Received from (exact paper wording)" value={parishPrinted} onChange={setParishPrinted} />
-          <Field id="phase3-ministry-paper" label="Ministry as written on the receipt" value={ministryPrinted} onChange={setMinistryPrinted} />
           <Field id="phase3-year" label="Renewal year" value={renewalYear} onChange={setRenewalYear} />
-          <Field id="phase3-date" label="Receipt / collection date" type="date" value={date} onChange={setDate} />
-          <Field id="phase3-participants" label="Number of participants" value={participants} onChange={setParticipants} />
-          <Field id="phase3-fee" label="Fee per participant (PHP)" value={fee} onChange={setFee}
-            note="₱50.00 is an example from the supplied receipt, not an approved fee schedule." />
+          <Field id="phase3-date" label="Receipt / collection date" type="date" value={date} onChange={setDate} note={"Selected: " + readableDate(date)} />
+          <div className="sm:col-span-2 grid gap-4 sm:grid-cols-3">
+            <Field id="phase3-participants" label="Number of participants" value={participants} onChange={setParticipants} />
+            <Field id="phase3-fee" label="Fee per participant (PHP)" value={fee} onChange={setFee}
+              note="₱50.00 is only an example, not an approved fee schedule." />
+            <div aria-live="polite" className="min-w-0">
+              <p className={LABEL}>Live computed total</p>
+              <div className="flex h-11 items-center border border-[#BFD9CF] bg-[#EFF9F4] px-3 text-lg font-bold tabular-nums text-[#145747]">
+                {computed === null ? "—" : money(computed)}
+              </div>
+              <p className="mt-1 text-xs leading-5 text-[#6F6265]">{count === null ? "Enter a participant count." : count + " participant(s)"} × {feeCentavos === null ? "valid fee needed" : money(feeCentavos)}. Compare with the printed receipt.</p>
+            </div>
+          </div>
           <Field id="phase3-received" label="Amount physically received (PHP)" value={received} onChange={setReceived} />
           <div className="min-w-0">
             <label htmlFor="phase3-payment-method" className={LABEL}>Payment method (demo)</label>
@@ -377,14 +398,14 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
             {amountMatches ? " The example breakdown reconciles." : " Correct the difference before continuing."}</span>
         </div>
         <button type="button" className={PRIMARY + " mt-4"} disabled={!eligibleCollection} onClick={() => {
-          if (!activeBooklet || !serial || count === null || feeCentavos === null || receivedCentavos === null) return;
+          if (serialCheck.status !== "available" || !serialPhysicallyChecked || count === null || feeCentavos === null || receivedCentavos === null) return;
           const result = recordCollection({
-            bookletId: activeBooklet.id, serial, parish, parishPrinted, ministry, ministryPrinted,
+            serial, parish, parishPrinted, ministry, ministryPrinted,
             renewalYear, date, participants: count, feeCentavos,
             amountCentavos: receivedCentavos, purpose, printedCode, paymentMethod: method, collectedBy,
           });
           handle(result, "Sample collection recorded and receipt " + serial + " marked issued in the shared browser ledger.");
-          if (result.ok) setSerial("");
+          if (result.ok) { setSerial(""); setSerialPhysicallyChecked(false); setSerialOpen(false); }
         }}>
           <ReceiptText className="h-4 w-4" /> Simulate collection + receipt usage
         </button>
@@ -406,7 +427,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
         </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field id="phase3-preparer" label="COWL officer preparing turnover" value={preparedBy} onChange={setPreparedBy} />
-          <Field id="phase3-submitted-date" label="Handover date" type="date" value={submittedDate} onChange={setSubmittedDate} />
+          <Field id="phase3-submitted-date" label="Handover date" type="date" value={submittedDate} onChange={setSubmittedDate} note={"Selected: " + readableDate(submittedDate)} />
         </div>
         <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm leading-6">
           <input type="checkbox" checked={copiesChecked} onChange={event => setCopiesChecked(event.target.checked)}
@@ -443,7 +464,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
             className={"border p-4 text-left hover:border-[#890022] " + (selectedRemittance?.id === r.id ? "border-[#890022] bg-[#FFF8F9]" : "border-[#E6DADC]")}>
             <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold">{r.id}</span><Pill status={r.status} /></div>
             <p className="mt-2 text-lg font-semibold tabular-nums">{money(r.totalCentavos)}</p>
-            <p className="mt-1 text-xs text-[#6F6265]">{r.collectionIds.length} receipt(s) · submitted {r.submittedDate}</p>
+            <p className="mt-1 text-xs text-[#6F6265]">{r.collectionIds.length} receipt(s) · submitted {readableDate(r.submittedDate)}</p>
           </button>)}
         </div>
         {selectedRemittance && <div className="mt-5 space-y-5 border-t border-[#E6DADC] pt-5">
@@ -474,7 +495,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
                     <div className="min-w-0 flex-1">
                       <p className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><span>{id} · OR {c.serial}</span><span className="tabular-nums">{money(c.amountCentavos)}</span></p>
                       <p className="mt-1 text-xs leading-5 text-[#6F6265]">{c.parish} · {c.ministry}</p>
-                      <p className="mt-1 text-xs leading-5 text-[#6F6265]">{c.participants} × {money(c.feeCentavos)} · {c.date} · Booklet {c.bookletId}</p>
+                      <p className="mt-1 text-xs leading-5 text-[#6F6265]">{c.participants} × {money(c.feeCentavos)} · {readableDate(c.date)} · Booklet {c.bookletId}</p>
                       <p className="mt-1 text-xs leading-5 text-[#6F6265]">Printed payer: {c.parishPrinted || FORM_PLACEHOLDER} · CODE: {c.printedCode || "Not specified"}</p>
                     </div>
                   </div>
@@ -486,7 +507,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field id="phase3-counted" label="Actual funds counted by Curia (PHP)" value={counted} onChange={setCounted} />
               <Field id="phase3-curia-officer" label="Curia receiving officer (demo)" value={curiaOfficer} onChange={setCuriaOfficer} />
-              <Field id="phase3-curia-date" label="Date of independent review" value={reviewDate} type="date" onChange={setReviewDate} />
+              <Field id="phase3-curia-date" label="Date of independent review" value={reviewDate} type="date" onChange={setReviewDate} note={"Selected: " + readableDate(reviewDate)} />
               <Field id="phase3-curia-reference" label="Curia acknowledgment reference" value={curiaRef} onChange={setCuriaRef}
                 note="Required for full confirmation. Separate from the official receipt numbers." />
             </div>
@@ -526,7 +547,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
                 ["Duplicates checked", (selectedRemittance.verifiedCollectionIds?.length || 0) + " of " + selectedRemittance.duplicateCount],
                 ["Receiving officer", selectedRemittance.curiaOfficer || FORM_PLACEHOLDER],
                 ["Acknowledgment reference", selectedRemittance.curiaReference || "Not recorded"],
-                ["Reviewed date", selectedRemittance.reviewedDate || FORM_PLACEHOLDER],
+                ["Reviewed date", selectedRemittance.reviewedDate ? readableDate(selectedRemittance.reviewedDate) : FORM_PLACEHOLDER],
                 ...(selectedRemittance.discrepancyReason ? [["Discrepancy reason", selectedRemittance.discrepancyReason]] : []),
               ].map(([key, value]) => <div key={key}><dt className="text-xs text-[#6F6265]">{key}</dt><dd className="mt-1 font-semibold">{value}</dd></div>)}
             </dl>
