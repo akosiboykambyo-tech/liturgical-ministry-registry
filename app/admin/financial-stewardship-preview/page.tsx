@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import ReceiptFormatPreview from "@/components/financial-stewardship/receipt-format-preview";
+import { DEMO_RECEIPT_BREAKDOWNS } from "@/lib/financial-stewardship-receipt-preview";
 
 type Tab = "overview" | "collections" | "format" | "receipts" | "remittances";
 type CollectionStage = "COWL custody" | "Submitted to Curia" | "Curia confirmed";
@@ -123,7 +124,7 @@ export default function FinancialStewardshipPreviewPage() {
     </div>
 
     <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
-      <strong>Sample records only.</strong> All figures, receipt numbers, parishes in transactions, personnel and remittance references are fictional. This page is read-only, has no financial database connection, and cannot issue receipts or transfer funds.
+      <strong>Preview only.</strong> Collection and remittance ledger records are fictional. The Receipt Format tab transcribes the physical sample you supplied; it is not a new issued receipt. This page makes no financial database changes and cannot issue receipts or transfer funds.
     </div>
 
     <div className="flex flex-wrap gap-2 border-b border-[#E6DADC] pb-3" role="tablist" aria-label="Financial Stewardship preview sections">
@@ -265,6 +266,10 @@ export default function FinancialStewardshipPreviewPage() {
             ["Date received", date(selected.received)], ["Parish", selected.parish],
             ["Ministry", selected.ministry], ["Representative", selected.representative],
             ["Collected by", selected.collectedBy], ["Preprinted official receipt", selected.receipt],
+            ["Renewal year (fictional)", DEMO_RECEIPT_BREAKDOWNS[selected.receipt]?.renewalYear || "Not supplied"],
+            ["Participants (fictional)", String(DEMO_RECEIPT_BREAKDOWNS[selected.receipt]?.participantCount ?? "Not supplied")],
+            ["Fee per person (fictional)", DEMO_RECEIPT_BREAKDOWNS[selected.receipt] ? money(DEMO_RECEIPT_BREAKDOWNS[selected.receipt].feeCentavos / 100) : "Not supplied"],
+            ["CODE printed on paper", DEMO_RECEIPT_BREAKDOWNS[selected.receipt]?.printedCode || "Not supplied in fictional ledger"],
             ["Curia remittance", selected.remittance || "Not yet submitted"],
             ["Receipt duplicate", selected.stage === "Curia confirmed" ? "Surrender confirmed by Curia" : selected.stage === "Submitted to Curia" ? "Submitted, pending confirmation" : "In COWL custody"],
           ].map(([label, value]) => <div key={label} className="flex flex-wrap justify-between gap-2 border-b border-[#EEE6E8] pb-3"><dt className="text-[#6F6265]">{label}</dt><dd className="max-w-[260px] text-right font-semibold">{value}</dd></div>)}
