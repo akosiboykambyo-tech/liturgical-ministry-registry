@@ -10,10 +10,11 @@ import {
 } from "lucide-react";
 import { ebGaramond, inter } from "@/app/fonts";
 import { useAuth } from "@/lib/auth-context";
+import { DEMO_RECEIPT_BREAKDOWNS, REFERENCE_RECEIPT } from "@/lib/financial-stewardship-receipt-preview";
 
 type Section = "overview" | "incoming" | "booklets" | "history";
 type Status = "Pending Curia review" | "Curia confirmed" | "Discrepancy recorded";
-type ReceiptLine = { serial: string; parish: string; ministry: string; centavos: number };
+type ReceiptLine = { serial: string; receiptDate: string; parish: string; ministry: string; centavos: number };
 type Remittance = {
   id: string;
   submittedAt: string;
@@ -37,17 +38,17 @@ const SAMPLE_REMITTANCES: Remittance[] = [
     verifiedSerials: ["000101", "000102", "000103"],
     receivedBy: "Curia Cashier (sample)", curiaReference: "CUR-ACK-2026-001", reviewedAt: "2026-11-04",
     receipts: [
-      { serial: "000101", parish: "San Roque Cathedral Parish", ministry: "Ministry of Lectors and Commentators", centavos: 200000 },
-      { serial: "000102", parish: "San Bartolome Parish", ministry: "Extraordinary Ministers of Holy Communion", centavos: 150000 },
-      { serial: "000103", parish: "The Diocesan Shrine and Parish of Our Lady of Grace", ministry: "Ministry of Greeters and Collectors", centavos: 250000 },
+      { serial: "000101", receiptDate: "2026-11-02", parish: "San Roque Cathedral Parish", ministry: "Ministry of Lectors and Commentators", centavos: 200000 },
+      { serial: "000102", receiptDate: "2026-11-02", parish: "San Bartolome Parish", ministry: "Extraordinary Ministers of Holy Communion", centavos: 150000 },
+      { serial: "000103", receiptDate: "2026-11-03", parish: "The Diocesan Shrine and Parish of Our Lady of Grace", ministry: "Ministry of Greeters and Collectors", centavos: 250000 },
     ],
   },
   {
     id: "REM-2026-002", submittedAt: "2026-11-06", preparedBy: "COWL Secretary (sample)",
     declaredCentavos: 500000, status: "Pending Curia review",
     receipts: [
-      { serial: "000104", parish: "San Roque Cathedral Parish", ministry: "Ministry of Liturgical Music", centavos: 180000 },
-      { serial: "000105", parish: "San Bartolome Parish", ministry: "Ministry of Altar Servers", centavos: 320000 },
+      { serial: "000104", receiptDate: "2026-11-04", parish: "San Roque Cathedral Parish", ministry: "Ministry of Liturgical Music", centavos: 180000 },
+      { serial: "000105", receiptDate: "2026-11-05", parish: "San Bartolome Parish", ministry: "Ministry of Altar Servers", centavos: 320000 },
     ],
   },
 ];
@@ -117,7 +118,13 @@ export default function CuriaPreviewPage() {
   const confirmedCentavos = confirmed.reduce((total, item) => total + (item.acceptedCentavos || 0), 0);
   const checkedCount = selected ? selected.receipts.filter(receipt => checkedSerials.includes(receipt.serial)).length : 0;
   const parsedAmount = parseCentavos(amount);
-  const canConfirm = Boolean(selected?.status === "Pending Curia review" &&
+  const linesReconcile = Boolean(selected && selected.receipts.length > 0 &&
+    selected.receipts.reduce((total, receipt) => total + receipt.centavos, 0) === selected.declaredCentavos &&
+    selected.receipts.every(receipt => {
+      const details = DEMO_RECEIPT_BREAKDOWNS[receipt.serial];
+      return details && details.participantCount * details.feeCentavos === receipt.centavos;
+    }));
+  const canConfirm = Boolean(selected?.status === "Pending Curia review" && linesReconcile &&
     parsedAmount !== null && parsedAmount === selected.declaredCentavos &&
     checkedCount === selected.receipts.length &&
     officer.trim().length >= 3 && curiaReference.trim().length >= 3);
@@ -320,11 +327,26 @@ export default function CuriaPreviewPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold">2. Check the physical receipt duplicates</h3>
-                    <p className="mt-2 text-xs leading-5 text-[#6F6265]">Tick a serial only after checking its actual paper duplicate.</p>
+                    <p className="mt-2 text-xs leading-5 text-[#6F6265]">Tick a serial only after checking its actual paper duplicate and matching the date, paying parish, ministry, amount, participant count, solidarity fee and any printed CODE.</p>
+                    <p className={"mt-2 text-xs font-semibold " + (linesReconcile ? "text-[#145747]" : "text-[#922A38]")}>
+                      {linesReconcile ? "Sample receipt subtotals reconcile with COWL's declared remittance." : "Receipt subtotals or participant calculations do not reconcile; confirmation is blocked."}
+                    </p>
                     <div className="mt-3 space-y-2">{selected.receipts.map(receipt => <label key={receipt.serial} className="flex cursor-pointer items-start gap-3 border border-[#E6DADC] px-3 py-3 hover:bg-[#FFFCFD]">
                       <input type="checkbox" checked={checkedSerials.includes(receipt.serial)} onChange={event => setCheckedSerials(items => event.target.checked ? [...items, receipt.serial] : items.filter(value => value !== receipt.serial))}
                         className="mt-1 h-4 w-4 accent-[#890022]" />
-                      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">OR {receipt.serial} · {money(receipt.centavos)}</span><span className="mt-1 block text-xs leading-5 text-[#6F6265]">{receipt.parish} · {receipt.ministry}</span></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold">OR {receipt.serial} · {money(receipt.centavos)}</span>
+                        <span className="mt-1 block text-xs leading-5 text-[#6F6265]">{receipt.parish} · {receipt.ministry}</span>
+                        <span className="mt-2 block text-xs leading-5 text-[#5F4A4F]">
+                          Receipt date: {formatDate(receipt.receiptDate)} · Renewal year: {DEMO_RECEIPT_BREAKDOWNS[receipt.serial]?.renewalYear || "Not supplied"}
+                        </span>
+                        <span className="block text-xs leading-5 text-[#5F4A4F]">
+                          Solidarity fee breakdown: {DEMO_RECEIPT_BREAKDOWNS[receipt.serial]?.participantCount ?? "—"} participants × {money(DEMO_RECEIPT_BREAKDOWNS[receipt.serial]?.feeCentavos ?? 0)} = {money(receipt.centavos)}
+                        </span>
+                        <span className="block text-xs leading-5 text-[#5F4A4F]">
+                          Printed accounting CODE: {DEMO_RECEIPT_BREAKDOWNS[receipt.serial]?.printedCode || "Not supplied in fictional data"}
+                        </span>
+                      </span>
                     </label>)}</div>
                     <p className="mt-2 text-xs text-[#6F6265]">{checkedCount} of {selected.receipts.length} duplicates checked</p>
                   </div>
@@ -341,7 +363,7 @@ export default function CuriaPreviewPage() {
                     className="inline-flex min-h-11 items-center gap-2 bg-[#890022] px-5 text-sm font-semibold text-white hover:bg-[#70001B] disabled:cursor-not-allowed disabled:bg-[#D1C6C9] disabled:text-[#655B5E]">
                     <CheckCircle2 className="h-4 w-4" /> Simulate Curia confirmation
                   </button>
-                  <span className="max-w-[500px] text-xs leading-5 text-[#6F6265]">Requires an exact amount match, every duplicate checked, an officer and a reference.</span>
+                  <span className="max-w-[500px] text-xs leading-5 text-[#6F6265]">Requires reconciled receipt subtotals, an exact counted amount, every duplicate checked, an officer and an acknowledgment reference.</span>
                 </div>
                 <div className="mt-6 border-t border-[#E6DADC] pt-5">
                   <h3 className="flex items-center gap-2 font-semibold text-[#922A38]"><AlertTriangle className="h-4 w-4" /> Record a discrepancy instead</h3>
@@ -392,7 +414,30 @@ export default function CuriaPreviewPage() {
                 </table>
               </div>
             </section>
-            <p className="text-sm leading-6 text-[#6F6265]">For production, the Curia would record each actual booklet issuance, receiving custodian, serial ranges and subsequent reconciliation. This preview cannot create or assign official receipt stock.</p>
+            <section className="border border-[#E6DADC] bg-white p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.13em] text-[#890022]">Format reference from supplied receipt photo</p>
+              <h2 className={ebGaramond.className + " mt-2 text-[29px]"}>Official receipt {REFERENCE_RECEIPT.serial}</h2>
+              <p className="mt-1 text-xs leading-5 text-[#6F6265]">Source-based transcription only. This previously issued sample is not assigned to fictional booklet COWL-001 or included in the demo remittances.</p>
+              <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  ["Issuing entity", REFERENCE_RECEIPT.issuer],
+                  ["Receipt date", formatDate(REFERENCE_RECEIPT.receiptDate)],
+                  ["Received from", REFERENCE_RECEIPT.receivedFrom],
+                  ["Printed ministry", REFERENCE_RECEIPT.ministryOnPaper],
+                  ["Registry ministry", REFERENCE_RECEIPT.ministryInRegistry],
+                  ["Renewal / purpose", REFERENCE_RECEIPT.purpose],
+                  ["Participants", String(REFERENCE_RECEIPT.participantCount)],
+                  ["Fee per person", money(REFERENCE_RECEIPT.feeCentavos)],
+                  ["Receipt amount", money(REFERENCE_RECEIPT.amountCentavos)],
+                  ["Printed CODE", REFERENCE_RECEIPT.printedCode + " (meaning not yet confirmed)"],
+                  ["Payment method", REFERENCE_RECEIPT.paymentMethod],
+                ].map(([label, value]) => <div key={label}><dt className="text-xs text-[#6F6265]">{label}</dt><dd className="mt-1 text-sm font-semibold">{value}</dd></div>)}
+              </dl>
+              <div className="mt-5 border border-[#C7E2D7] bg-[#EFF9F4] px-4 py-3 text-sm font-semibold text-[#145747]">
+                Source calculation: 113 × ₱50.00 = ₱5,650.00. Receipt serial stays as text, including its leading zero.
+              </div>
+            </section>
+            <p className="text-sm leading-6 text-[#6F6265]">For production, the Curia would record each actual booklet issuance, receiving custodian, serial ranges and subsequent reconciliation. This preview cannot create or assign official receipt stock. The code printed on the source sample has not yet been interpreted as an accounting account.</p>
           </>}
 
           {section === "history" && <section className="border border-[#E6DADC] bg-white p-5 sm:p-6">
