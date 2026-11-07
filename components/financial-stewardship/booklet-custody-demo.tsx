@@ -60,6 +60,7 @@ export default function BookletCustodyDemo({ mode }: { mode: Mode }) {
   const [id, setId] = useState(mode === "curia" ? "CUR-002" : "COWL-001");
   const selected = booklets.find(b => b.id === id) || booklets[0] || null;
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [resetArmed, setResetArmed] = useState(false);
 
   const [reference, setReference] = useState("CUR-003");
   const [series, setSeries] = useState("Curia sample series");
@@ -109,10 +110,15 @@ export default function BookletCustodyDemo({ mode }: { mode: Mode }) {
         </p>
       </div>
       <button type="button" className={secondary} onClick={() => {
+        if (!resetArmed) {
+          setResetArmed(true);
+          setNotice({ ok: false, text: "Resetting will erase ALL browser-local Phase 2 and Phase 3 mock booklets, collections, and remittances. Click Confirm reset to proceed." });
+          return;
+        }
         const result = reset(); setId(mode === "curia" ? "CUR-002" : "COWL-001");
-        setNotice({ ok: result.ok, text: result.ok ? "Both demo portals reset to the fictional starting inventory." : result.error || "Unable to reset." });
-        setPhysicallyChecked(false);
-      }}><RotateCcw className="h-4 w-4" /> Reset mock inventory</button>
+        setNotice({ ok: result.ok, text: result.ok ? "Phase 2 and Phase 3 mock data reset to the fictional starting inventory." : result.error || "Unable to reset." });
+        setPhysicallyChecked(false); setResetArmed(false);
+      }}><RotateCcw className="h-4 w-4" /> {resetArmed ? "Confirm reset all mock data" : "Reset Phase 2/3 demos"}</button>
     </div>
 
     <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
