@@ -138,7 +138,7 @@ export default function PortalShell({
           <Link href={homeHref} onClick={() => setMobileOpen(false)}
             aria-label={title + " home"} title={title + " home"}
             className="flex h-14 w-14 shrink-0 items-center justify-center lg:h-12 lg:w-12">
-            <DiocesanCoat size={46} />
+            <DiocesanCoat size={38} />
           </Link>
           <div className="min-w-0 lg:sr-only">
             <p className={ebGaramond.className + " text-[23px] font-medium leading-none"}>{title}</p>
