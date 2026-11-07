@@ -81,7 +81,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
   const serialStatus = (() => {
     const b = serialCheck.booklet;
     switch (serialCheck.status) {
-      case "empty": return "Enter the Official Receipt No. exactly as printed, including leading zeros. No number is selected.";
+      case "empty": return "Enter the Official Receipt No. exactly as printed, including leading zeros. No receipt number is selected.";
       case "invalid": return "Use the complete printed Official Receipt No. (4–12 digits), without spaces or punctuation. Preserve leading zeros.";
       case "outside_range": return "Outside any registered receipt booklet range. Check the printed digits and leading zeros.";
       case "ambiguous": return "This receipt number exists in multiple booklet series. Ask Curia to identify the correct series before recording.";
@@ -202,22 +202,22 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
 
     {mode === "cowl" && <>
       <section className="border border-[#E6DADC] bg-white p-5 sm:p-6">
-        <div className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-[#890022]" /><h3 className={ebGaramond.className + " text-[28px]"}>1. Record a sample collection</h3></div>
+        <div className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-[#890022]" /><h3 className={ebGaramond.className + " text-[28px]"}>1. Record a collection</h3></div>
         <p className="mt-2 text-xs leading-5 text-[#6F6265]">Start with the exact number printed on the physical receipt. The assigned booklet is identified automatically; no serial number is generated or preselected.</p>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label htmlFor="phase3-serial" className={LABEL}>Official receipt serial number — as printed on paper</label>
+            <label htmlFor="phase3-serial" className={LABEL}>Official Receipt No. — as printed</label>
             <div className="relative" onBlur={event => {
               if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSerialOpen(false);
             }}>
               <div className="relative flex">
-                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[#7A666C]" />
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-[#7A666C]" />
                 <input id="phase3-serial" type="text" inputMode="numeric" autoComplete="off"
                   spellCheck={false} maxLength={16} role="combobox" aria-autocomplete="list"
                   aria-controls="phase3-serial-options" aria-expanded={serialOpen}
                   aria-activedescendant={serialOpen && serialActiveIndex >= 0 ? "phase3-suggestion-" + serialActiveIndex : undefined}
                   aria-describedby="phase3-serial-status"
-                  placeholder="Type printed serial, e.g. 000123"
+                  placeholder="Type printed receipt number, e.g. 000123"
                   value={serial}
                   onFocus={() => setSerialOpen(true)}
                   onChange={event => {
@@ -242,19 +242,19 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
                       event.preventDefault(); setSerialOpen(false); setSerialActiveIndex(-1);
                     }
                   }}
-                  className="h-12 w-full min-w-0 border border-[#CDBFC3] bg-white pl-10 pr-12 font-mono text-base tracking-wide text-[#1E1114] outline-none focus:border-[#890022] focus:ring-1 focus:ring-[#890022]"
+                  className="h-11 w-full min-w-0 border border-[#CDBFC3] bg-white pl-10 pr-12 font-mono text-sm tracking-wide text-[#1E1114] outline-none focus:border-[#890022] focus:ring-1 focus:ring-[#890022]"
                 />
-                <button type="button" aria-label={serialOpen ? "Close available serial suggestions" : "Show available serial suggestions"}
+                <button type="button" aria-label={serialOpen ? "Close available receipt numbers" : "Show available receipt numbers"}
                   aria-expanded={serialOpen} onClick={() => { setSerialOpen(value => !value); setSerialActiveIndex(-1); }}
-                  className="absolute right-0 top-0 flex h-12 w-11 items-center justify-center border-l border-[#E6DADC] text-[#6F6265] hover:bg-[#FBF9F9]">
+                  className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center border-l border-[#E6DADC] text-[#6F6265] hover:bg-[#FBF9F9]">
                   <ChevronDown className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
-              {serialOpen && <div id="phase3-serial-options" role="listbox" aria-label="Available official receipt numbers"
+              {serialOpen && <div id="phase3-serial-options" role="listbox" aria-label="Available Official Receipt Nos."
                 className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-y-auto border border-[#D8C7CB] bg-white py-1 shadow-lg">
                 {!serialSuggestions.length && <p className="px-3 py-3 text-sm text-[#6F6265]">
                   {availableBookletGroups.length
-                    ? "No unused matching serials. Check the validation message below for this printed number."
+                    ? "No matching available receipt numbers. Check the status below."
                     : "No available receipt numbers in acknowledged COWL custody."}
                 </p>}
                 {suggestionGroups.map(group => <div key={group.booklet.id} role="group" aria-label={"Booklet " + group.booklet.id}>
@@ -295,25 +295,25 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
                 <strong>{serialCheck.status === "available" ? "Available" :
                   serialCheck.status === "already_used" ? "Already used" :
                   serialCheck.status === "not_in_custody" ? "Not in custody" :
-                  serialCheck.status === "outside_range" ? "Outside acknowledged range" :
+                  serialCheck.status === "outside_range" ? "Outside registered range" :
                   serialCheck.status === "invalid" ? "Incomplete or invalid number" :
-                  serialCheck.status === "ambiguous" ? "Ambiguous serial" :
+                  serialCheck.status === "ambiguous" ? "Ambiguous receipt number" :
                   serialCheck.status === "voided" ? "Voided" :
-                  serialCheck.status === "missing" ? "Missing" : "Awaiting printed serial"}:</strong> {serialStatus}
+                  serialCheck.status === "missing" ? "Missing" : "Awaiting receipt number"}:</strong> {serialStatus}
               </div>
             </div>
             <p className="mt-2 text-xs leading-5 text-[#6F6265]">
               {availableBookletGroups.length === 1
-                ? "Unused numbers belong to " + availableBookletGroups[0].booklet.id + "; no separate booklet selection needed."
+                ? "Available receipt numbers belong to " + availableBookletGroups[0].booklet.id + "; no separate booklet selection needed."
                 : availableBookletGroups.length > 1
-                  ? "Unused numbers are grouped by " + availableBookletGroups.length + " acknowledged COWL booklets."
-                  : "There are no unused serials in a COWL-acknowledged booklet. Resolve booklet custody in Phase 2 first."}
+                  ? "Available receipt numbers are grouped by " + availableBookletGroups.length + " acknowledged COWL booklets."
+                  : "There are no unused receipt numbers in a COWL-acknowledged booklet. Resolve booklet custody in Phase 2 first."}
             </p>
             <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm leading-5">
               <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[#890022]"
                 checked={serialPhysicallyChecked} disabled={serialCheck.status !== "available"}
                 onChange={event => setSerialPhysicallyChecked(event.target.checked)} />
-              <span>I checked that <strong>OR {serial || "—"}</strong> matches the physical paper receipt. The demo will not choose the next available number for me.</span>
+              <span>I checked that <strong>OR {serial || "—"}</strong> matches the physical paper receipt. The system will not choose a receipt number for me.</span>
             </label>
           </div>
           <div className="sm:col-span-2 grid gap-4 border-l-[3px] border-[#890022] bg-[#FFFCFD] p-4 sm:grid-cols-2">
@@ -373,10 +373,10 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
             renewalYear, date, participants: count, feeCentavos,
             amountCentavos: receivedCentavos, purpose, printedCode, paymentMethod: method, collectedBy,
           });
-          handle(result, "Sample collection recorded and receipt " + serial + " marked issued in the shared browser ledger.");
+          handle(result, "Collection recorded in the demo. Official Receipt No. " + serial + " marked used in the shared browser ledger.");
           if (result.ok) { setSerial(""); setSerialPhysicallyChecked(false); setSerialOpen(false); }
         }}>
-          <ReceiptText className="h-4 w-4" /> Simulate collection + receipt usage
+          <ReceiptText className="h-4 w-4" /> Record demo collection
         </button>
       </section>
 
@@ -388,7 +388,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
             onChange={event => setSelectedCollectionIds(ids => event.target.checked ? [...ids, c.id] : ids.filter(id => id !== c.id))} />
           <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{c.id} · OR {c.serial} · {money(c.amountCentavos)}</span>
             <span className="mt-1 block text-xs leading-5 text-[#6F6265]">{c.parish} · {c.ministry}</span></span>
-        </label>)}</div> : <p className="mt-4 border border-[#E6DADC] bg-[#FBF9F9] p-4 text-sm text-[#6F6265]">No unremitted Phase 3 collections. Record a sample collection above first.</p>}
+        </label>)}</div> : <p className="mt-4 border border-[#E6DADC] bg-[#FBF9F9] p-4 text-sm text-[#6F6265]">No unremitted Phase 3 collections. Record a demo collection above first.</p>}
         <div className="mt-4 grid gap-3 border border-[#E6DADC] bg-[#FBF9F9] p-4 sm:grid-cols-3">
           <div><p className="text-xs text-[#6F6265]">Selected collections</p><p className="mt-1 text-xl font-semibold">{validSelected.length}</p></div>
           <div><p className="text-xs text-[#6F6265]">Expected paper duplicates</p><p className="mt-1 text-xl font-semibold">{validSelected.length}</p></div>
@@ -425,7 +425,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
         </Link>}
       </div>
       {!remittances.length && <p className="mt-5 border border-[#E6DADC] bg-[#FBF9F9] p-4 text-sm text-[#6F6265]">
-        No Phase 3 remittances yet. Use the COWL workflow to record a sample collection and submit a mock turnover.
+        No Phase 3 remittances yet. Use the COWL workflow to record a demo collection and submit a mock turnover.
       </p>}
       {!!remittances.length && <>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -525,7 +525,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
       </>}
     </section>
     <p className="text-xs leading-5 text-[#6F6265]">
-      The existing older financial dashboard and Curia Incoming Remittances tab contain separate fictional historical examples. Only new Phase 3 collections and remittances are synchronized across these two Phase 3 demo views. No actual Curia account verification or multiuser approval is in place.
+      The separate historical sample dashboard and Curia Incoming Remittances tab contain separate fictional historical examples. Only new Phase 3 collections and remittances are synchronized across these two Phase 3 demo views. No actual Curia account verification or multiuser approval is in place.
     </p>
   </div>;
 }
