@@ -11,10 +11,11 @@ import {
 import { ebGaramond, inter } from "@/app/fonts";
 import { useAuth } from "@/lib/auth-context";
 import BookletCustodyDemo from "@/components/financial-stewardship/booklet-custody-demo";
+import Phase3FinancialDemo from "@/components/financial-stewardship/phase3-financial-demo";
 import { bookletCounts, useReceiptBookletDemo } from "@/lib/financial-stewardship-booklet-demo";
 import { DEMO_RECEIPT_BREAKDOWNS, REFERENCE_RECEIPT } from "@/lib/financial-stewardship-receipt-preview";
 
-type Section = "overview" | "incoming" | "booklets" | "history";
+type Section = "overview" | "incoming" | "booklets" | "history" | "reconcile";
 type Status = "Pending Curia review" | "Curia confirmed" | "Discrepancy recorded";
 type ReceiptLine = { serial: string; receiptDate: string; parish: string; ministry: string; centavos: number };
 type Remittance = {
@@ -141,7 +142,8 @@ export default function CuriaPreviewPage() {
 
   const menu: { key: Section; label: string; Icon: typeof Wallet }[] = [
     { key: "overview", label: "Dashboard", Icon: LayoutDashboard },
-    { key: "incoming", label: "Incoming Remittances", Icon: ArrowLeftRight },
+    { key: "incoming", label: "Incoming Remittances (Sample)", Icon: ArrowLeftRight },
+    { key: "reconcile", label: "Phase 3 Reconciliation", Icon: FileText },
     { key: "booklets", label: "Receipt Booklets", Icon: ReceiptText },
     { key: "history", label: "History & Audit", Icon: ClipboardCheck },
   ];
@@ -233,13 +235,13 @@ export default function CuriaPreviewPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#890022]">Curia · Financial Stewardship</p>
             <h1 className={ebGaramond.className + " mt-2 text-[38px] font-medium leading-[1.03] sm:text-[47px]"}>
-              {section === "overview" ? "Remittance Dashboard" : section === "incoming" ? "Incoming Remittances" : section === "booklets" ? "Official Receipt Booklets" : "Remittance History & Audit"}
+              {section === "overview" ? "Remittance Dashboard" : section === "incoming" ? "Incoming Remittances" : section === "reconcile" ? "Curia Reconciliation (Phase 3)" : section === "booklets" ? "Official Receipt Booklets" : "Remittance History & Audit"}
             </h1>
             <p className="mt-3 max-w-[850px] text-sm leading-6 text-[#6F6265]">A simulated Curia workspace to independently acknowledge funds and the duplicate copies of Curia-issued official receipts submitted by COWL.</p>
           </div>
 
           <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
-            <strong>Prototype only.</strong> The remittance ledger, receipt booklet inventory and sample personnel are fictional. The Receipt Booklets section also shows a separate transcription of the real receipt photo you supplied, explicitly excluded from mock transactions. Confirmation and discrepancy actions affect this browser page only; there is no financial database, Curia authorization, audit persistence or synchronization with COWL.
+            <strong>Prototype only.</strong> The Dashboard and Incoming Remittances sample ledger is fictional. Phase 3 Reconciliation is a separate browser-only workflow connected to COWL Phase 3, while receipt booklets remain fictional. The Receipt Booklets section also shows a separate transcription of the real receipt photo you supplied, explicitly excluded from mock transactions. Confirmation and discrepancy actions affect this browser page only; there is no financial database, Curia authorization, audit persistence or synchronization with COWL.
           </div>
 
           {section === "overview" && <>
@@ -288,6 +290,8 @@ export default function CuriaPreviewPage() {
               </div>
             </section>
           </>}
+
+          {section === "reconcile" && <Phase3FinancialDemo mode="curia" />}
 
           {section === "incoming" && <>
             <section className="overflow-hidden border border-[#E6DADC] bg-white">
