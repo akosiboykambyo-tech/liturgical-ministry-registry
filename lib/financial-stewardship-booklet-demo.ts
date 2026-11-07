@@ -244,6 +244,119 @@ export function useReceiptBookletDemo() {
     }) };
   }), [transact]);
 
+  const recordCollection = useCallback((draft: {
+    bookletId: string; serial: string; parish: string; parishPrinted: string;
+    ministry: string; ministryPrinted: string; renewalYear: string; date: string;
+    participants: number; feeCentavos: number; amountCentavos: number;
+    purpose: string; printedCode: string; paymentMethod: "cash" | "check" | "other";
+    collectedBy: string;
+  }): Result => transactState(current => {
+    const unchanged = { result: { ok: false, error: "Invalid mock collection." }, next: current };
+    const b = current.booklets.find(item => item.id === draft.bookletId);
+    if (!b || b.state !== "cowl_custody") return { ...unchanged, result: { ok: false, error: "Select a booklet that COWL has already acknowledged." } };
+    if (!serialsInBooklet(b).includes(draft.serial) || serialState(b, draft.serial) !== "available")
+      return { ...unchanged, result: { ok: false, error: "That preprinted receipt is not available. It may already be issued, voided or missing." } };
+    if (!PARISHES.some(parish => parish === draft.parish) || !MINISTRIES.some(ministry => ministry === draft.ministry))
+      return { ...unchanged, result: { ok: false, error: "Choose a registered parish and one of the six approved ministries." } };
+    if (!Number.isSafeInteger(draft.participants) || draft.participants <= 0 ||
+        !Number.isSafeInteger(draft.feeCentavos) || draft.feeCentavos <= 0 ||
+        !Number.isSafeInteger(draft.amountCentavos) || draft.amountCentavos <= 0 ||
+        draft.participants * draft.feeCentavos !== draft.amountCentavos)
+      return { ...unchanged, result: { ok: false, error: "Participant count × fee must match the amount physically received." } };
+    if (!/^\d{4}$/.test(draft.renewalYear) || !/^\d{4}-\d{2}-\d{2}$/.test(draft.date) ||
+        draft.purpose.trim().length < 3 || draft.collectedBy.trim().length < 3 ||
+        !["cash", "check", "other"].includes(draft.paymentMethod))
+      return { ...unchanged, result: { ok: false, error: "Supply a valid year, collection date, purpose, payment method and receiving officer." } };
+    if ([draft.parishPrinted, draft.ministryPrinted, draft.purpose, draft.printedCode, draft.collectedBy].some(x => x.length > 250))
+      return { ...unchanged, result: { ok: false, error: "One or more description fields are too long." } };
+    const id = "COL-DEMO-" + String(current.collections.length + 1).padStart(4, "0");
+    if (current.collections.some(item => item.id === id) || current.booklets.some(item => item.usage.some(u => u.collectionRef === id)))
+      return { ...unchanged, result: { ok: false, error: "Duplicate internal collection reference." } };
+    const collection: FinancialCollectionDemo = {
+      id, bookletId: b.id, serial: draft.serial, parish: draft.parish,
+      parishPrinted: draft.parishPrinted.trim(), ministry: draft.ministry,
+      ministryPrinted: draft.ministryPrinted.trim(), renewalYear: draft.renewalYear,
+      date: draft.date, participants: draft.participants,
+      feeCentavos: draft.feeCentavos, amountCentavos: draft.amountCentavos,
+      purpose: draft.purpose.trim(), printedCode: draft.printedCode.trim(),
+      paymentMethod: draft.paymentMethod, collectedBy: draft.collectedBy.trim(), remittanceId: null,
+    };
+    const nextBooklets = current.booklets.map(item => item.id !== b.id ? item : {
+      ...item,
+      usage: [...item.usage, { serial: draft.serial, collectionRef: id, issuedBy: draft.collectedBy.trim(), date: draft.date }],
+      history: [...item.history, { action: "Collection and receipt use simulated", date: draft.date,
+        officer: draft.collectedBy.trim(), detail: "OR " + draft.serial + " · " + id }],
+    });
+    return { result: { ok: true }, next: { ...current, booklets: nextBooklets,
+      collections: [...current.collections, collection] } };
+  }), [transactState]);
+
+  const submitRemittance = useCallback((draft: {
+    collectionIds: string[]; preparedBy: string; date: string; copiesChecked: boolean;
+  }): Result => transactState(current => {
+    const fail = (error: string) => ({ result: { ok: false, error }, next: current });
+    const ids = [...new Set(draft.collectionIds)];
+    if (!ids.length || ids.length !== draft.collectionIds.length) return fail("Select one or more distinct, unremitted collection records.");
+    const items = ids.map(id => current.collections.find(item => item.id === id));
+    if (items.some(item => !item || item.remittanceId)) return fail("An included collection is missing or is already on a remittance.");
+    if (!draft.copiesChecked) return fail("Attest that the physical duplicate receipt copies are included in the COWL turnover.");
+    if (draft.preparedBy.trim().length < 3 || !/^\d{4}-\d{2}-\d{2}$/.test(draft.date))
+      return fail("Provide the COWL preparing officer and turnover date.");
+    const amount = items.reduce((sum, item) => sum + (item?.amountCentavos || 0), 0);
+    if (amount <= 0 || !Number.isSafeInteger(amount)) return fail("The remittance amount is invalid.");
+    const id = "REM-DEMO-" + String(current.remittances.length + 1).padStart(4, "0");
+    const remittance: FinancialRemittanceDemo = {
+      id, collectionIds: ids, totalCentavos: amount, duplicateCount: ids.length,
+      preparedBy: draft.preparedBy.trim(), submittedDate: draft.date, status: "pending",
+    };
+    return { result: { ok: true }, next: { ...current,
+      collections: current.collections.map(item => ids.includes(item.id) ? { ...item, remittanceId: id } : item),
+      remittances: [...current.remittances, remittance] } };
+  }), [transactState]);
+
+  const reviewRemittance = useCallback((draft: {
+    id: string; countedCentavos: number; verifiedCollectionIds: string[];
+    officer: string; reference: string; reviewedDate: string;
+    outcome: "confirmed" | "discrepancy"; reason: string;
+  }): Result => transactState(current => {
+    const fail = (error: string) => ({ result: { ok: false, error }, next: current });
+    const remit = current.remittances.find(item => item.id === draft.id);
+    if (!remit || remit.status !== "pending") return fail("Only remittances pending Curia review can be acknowledged.");
+    if (!Number.isSafeInteger(draft.countedCentavos) || draft.countedCentavos < 0 ||
+        draft.officer.trim().length < 3 || !/^\d{4}-\d{2}-\d{2}$/.test(draft.reviewedDate))
+      return fail("Enter a valid counted peso amount, receiving officer and review date.");
+    if (draft.officer.trim().toLowerCase() === remit.preparedBy.toLowerCase())
+      return fail("Curia's reviewing officer must be different from the COWL preparing officer.");
+    const verifiedIds = [...new Set(draft.verifiedCollectionIds)];
+    if (verifiedIds.length !== draft.verifiedCollectionIds.length ||
+        verifiedIds.some(id => !remit.collectionIds.includes(id)))
+      return fail("The receipt-copy checks include an invalid or duplicate collection.");
+    const items = remit.collectionIds.map(id => current.collections.find(c => c.id === id));
+    if (items.some(c => !c || c.remittanceId !== remit.id))
+      return fail("The remittance's recorded collections no longer reconcile.");
+    if (items.reduce((sum, item) => sum + (item?.amountCentavos || 0), 0) !== remit.totalCentavos)
+      return fail("The recorded receipt amounts differ from the declared remittance total.");
+    if (draft.outcome === "confirmed") {
+      if (draft.countedCentavos !== remit.totalCentavos ||
+          verifiedIds.length !== remit.duplicateCount ||
+          draft.reference.trim().length < 3)
+        return fail("Full confirmation requires the exact amount, every duplicate copy checked, and a Curia acknowledgment reference.");
+      if (current.remittances.some(item => item.curiaReference && item.curiaReference.toLowerCase() === draft.reference.trim().toLowerCase()))
+        return fail("That Curia acknowledgment reference has already been used.");
+    } else if (draft.reason.trim().length < 10) {
+      return fail("Explain the discrepancy in at least 10 characters.");
+    }
+    return { result: { ok: true }, next: { ...current,
+      remittances: current.remittances.map(item => item.id !== remit.id ? item : {
+        ...item, status: draft.outcome, curiaCountCentavos: draft.countedCentavos,
+        verifiedCollectionIds: verifiedIds, curiaOfficer: draft.officer.trim(),
+        curiaReference: draft.reference.trim() || undefined,
+        reviewedDate: draft.reviewedDate,
+        discrepancyReason: draft.outcome === "discrepancy" ? draft.reason.trim() : undefined,
+      }),
+    } };
+  }), [transactState]);
+
   const reset = useCallback((): Result => {
     try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(LEGACY_KEY); }
     catch { return { ok: false, error: "Could not reset the browser-local demonstration." }; }
