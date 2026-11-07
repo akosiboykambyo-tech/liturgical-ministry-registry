@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSearch, RotateCcw, ShieldCheck } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
+import { MINISTRIES } from "@/lib/constants";
 import {
   parsePesoAmountToCentavos, REFERENCE_RECEIPT,
 } from "@/lib/financial-stewardship-receipt-preview";
@@ -89,8 +90,14 @@ export default function ReceiptFormatPreview() {
             <Field id="receipt-reference-from" title="Received from (paying parish)" value={draft.receivedFrom} onChange={v => edit("receivedFrom", v)} />
             <Field id="receipt-reference-year" title="Renewal / service year" value={draft.renewalYear} onChange={v => edit("renewalYear", v)} />
             <div className="sm:col-span-2"><Field id="receipt-reference-ministry-paper" title="Ministry wording as printed / written" value={draft.ministryOnPaper} onChange={v => edit("ministryOnPaper", v)} /></div>
-            <div className="sm:col-span-2"><Field id="receipt-reference-ministry-registry" title="Linked COWL-DOK ministry (canonical name)" value={draft.ministryInRegistry} onChange={v => edit("ministryInRegistry", v)}
-              note="The example prints 'MINISTRY ON LITURGICAL MUSIC'; the registry uses 'Ministry of Liturgical Music'." /></div>
+            <div className="min-w-0 sm:col-span-2">
+              <label htmlFor="receipt-reference-ministry-registry" className={labelCss}>Linked COWL-DOK ministry (canonical name)</label>
+              <select id="receipt-reference-ministry-registry" value={draft.ministryInRegistry} onChange={event => edit("ministryInRegistry", event.target.value)} className={inputCss}>
+                <option value="" disabled>Select a registered ministry</option>
+                {MINISTRIES.map(ministry => <option key={ministry} value={ministry}>{ministry}</option>)}
+              </select>
+              <p className="mt-1 text-xs leading-5 text-[#706268]">Choose from the registry's six official ministries. Keep the exact wording on the physical receipt in the field above.</p>
+            </div>
             <div className="sm:col-span-2"><Field id="receipt-reference-purpose" title="Purpose / nature of payment" value={draft.purpose} onChange={v => edit("purpose", v)} /></div>
             <div className="sm:col-span-2"><Field id="receipt-reference-description" title="Additional details as printed" value={draft.printedDescription} onChange={v => edit("printedDescription", v)} /></div>
             <Field id="receipt-reference-code" title="CODE printed on physical receipt" value={draft.printedCode} onChange={v => edit("printedCode", v)}
