@@ -36,7 +36,7 @@ test("member, duplicate and CSV entrypoints use a single administrator RPC wrapp
     "app/admin/import/page.tsx",
     "lib/duplicate-check.ts",
     "lib/verify-actions.ts",
-  ]) assert.match(read(file), /registryAdminWrite\(/, file);
+  ]) assert.match(read(file), /registryAdminWrite(?:<[\s\S]*?>)?\(/, file);
   assert.match(read("lib/registry-admin-writes.ts"), /registry_admin_member_write_v1/);
 });
 
