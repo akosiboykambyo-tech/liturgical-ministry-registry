@@ -8,8 +8,9 @@ import {
   Wallet, X,
 } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
+import ReceiptFormatPreview from "@/components/financial-stewardship/receipt-format-preview";
 
-type Tab = "overview" | "collections" | "receipts" | "remittances";
+type Tab = "overview" | "collections" | "format" | "receipts" | "remittances";
 type CollectionStage = "COWL custody" | "Submitted to Curia" | "Curia confirmed";
 type Collection = {
   id: string; parish: string; ministry: string; amount: number;
@@ -102,6 +103,7 @@ export default function FinancialStewardshipPreviewPage() {
   const tabs: { key: Tab; label: string; Icon: typeof Wallet }[] = [
     { key: "overview", label: "Overview", Icon: Wallet },
     { key: "collections", label: "Collections", Icon: HandCoins },
+    { key: "format", label: "Receipt Format (Phase 1)", Icon: ReceiptText },
     { key: "receipts", label: "Receipt Inventory", Icon: ReceiptText },
     { key: "remittances", label: "Curia Remittances", Icon: Landmark },
   ];
@@ -155,6 +157,7 @@ export default function FinancialStewardshipPreviewPage() {
         </section>
         <section className="border border-[#E6DADC] bg-white p-5 sm:p-6">
           <h2 className={ebGaramond.className + " text-[27px] font-medium"}>Receipt accountability</h2>
+          <p className="mt-1 text-xs text-[#6F6265]">Phase 1 format review is available under the Receipt Format tab.</p>
           <p className="mt-1 text-sm text-[#6F6265]">Sample booklet supplied by the Curia</p>
           <div className="mt-5 border border-[#E6DADC] bg-[#FBF9F9] p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#75656A]">Booklet COWL-001</p>
@@ -198,6 +201,8 @@ export default function FinancialStewardshipPreviewPage() {
       </div>
       <CollectionTable rows={filtered} onChoose={setSelected} />
     </section>}
+
+    {tab === "format" && <ReceiptFormatPreview />}
 
     {tab === "receipts" && <div className="space-y-5">
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
