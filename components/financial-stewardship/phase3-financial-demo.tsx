@@ -3,13 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, ArrowLeftRight, Check, CheckCircle2, ChevronsUpDown,
+  AlertTriangle, ArrowLeftRight, Check, CheckCircle2, ChevronDown,
   ClipboardCheck, FileCheck2, HandCoins, Landmark, ReceiptText, Search,
 } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import { MINISTRIES, PARISHES } from "@/lib/constants";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CONTROL_CLASS, LABEL_CLASS, FinancialChoice, FinancialDate, readableFinancialDate } from "@/components/financial-stewardship/financial-form-controls";
 import { parsePesoAmountToCentavos } from "@/lib/financial-stewardship-receipt-preview";
 import {
   checkPrintedReceiptSerial, serialsInBooklet, serialState, useReceiptBookletDemo,
@@ -21,25 +20,25 @@ type Notice = { ok: boolean; message: string };
 const BUTTON = "inline-flex min-h-11 items-center justify-center gap-2 border px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40";
 const PRIMARY = BUTTON + " border-[#890022] bg-[#890022] text-white hover:bg-[#75001C]";
 const NEUTRAL = BUTTON + " border-[#CDBFC3] bg-white text-[#5F4A4F] hover:bg-[#F8F1F2]";
-const INPUT = "h-11 w-full min-w-0 border border-[#CDBFC3] bg-white px-3 text-sm text-[#1E1114] outline-none focus:border-[#890022] focus:ring-1 focus:ring-[#890022]";
-const LABEL = "mb-1.5 block text-xs font-semibold text-[#5F4A4F]";
+const INPUT = CONTROL_CLASS;
+const LABEL = LABEL_CLASS;
 const money = (centavos: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(centavos / 100);
 const DATE = "2026-11-07";
 const FORM_PLACEHOLDER = "—";
-function readableDate(value: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Select a valid date";
-  const date = new Date(value + "T12:00:00Z");
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return "Select a valid date";
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(date);
-}
-
-function Field({ id, label, value, onChange, type = "text", note }: {
-  id: string; label: string; value: string; onChange: (v: string) => void; type?: string; note?: string;
+function Field({ id, label, value, onChange, type = "text", note, min, max, step, currency = false }: {
+  id: string; label: string; value: string; onChange: (v: string) => void;
+  type?: "text" | "number"; note?: string; min?: number; max?: number; step?: number; currency?: boolean;
 }) {
   return <div className="min-w-0">
     <label htmlFor={id} className={LABEL}>{label}</label>
-    <input id={id} value={value} onChange={event => onChange(event.target.value)}
-      className={INPUT} type={type} autoComplete="off" />
+    <div className="relative">
+      {currency && <span aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-sm font-semibold text-[#5F4A4F]">₱</span>}
+      <input id={id} value={value} onChange={event => onChange(event.target.value)}
+        type={type} min={min} max={max} step={step}
+        inputMode={currency ? "decimal" : type === "number" ? "numeric" : undefined}
+        className={INPUT + (currency ? " pl-8" : "") + (type === "number" ? " [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" : "")}
+        autoComplete="off" />
+    </div>
     {note && <p className="mt-1 text-xs leading-5 text-[#6F6265]">{note}</p>}
   </div>;
 }
@@ -82,20 +81,20 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
   const serialStatus = (() => {
     const b = serialCheck.booklet;
     switch (serialCheck.status) {
-      case "empty": return "Enter the number exactly as printed, including leading zeros. No serial has been selected.";
-      case "invalid": return "Use the complete printed numeric serial (4–12 digits), without spaces or punctuation. Preserve leading zeros.";
+      case "empty": return "Enter the Official Receipt No. exactly as printed, including leading zeros. No number is selected.";
+      case "invalid": return "Use the complete printed Official Receipt No. (4–12 digits), without spaces or punctuation. Preserve leading zeros.";
       case "outside_range": return "Outside any registered receipt booklet range. Check the printed digits and leading zeros.";
-      case "ambiguous": return "This serial exists in multiple booklet series. Ask Curia to identify the correct series before recording.";
+      case "ambiguous": return "This receipt number exists in multiple booklet series. Ask Curia to identify the correct series before recording.";
       case "not_in_custody": return b?.state === "awaiting_cowl_ack"
         ? "Not in COWL custody: booklet handover has not yet been acknowledged."
         : "Not in COWL custody: this booklet is still held by Curia.";
       case "already_used": {
         const existing = b?.usage.find(value => value.serial === serial);
-        return "Already used" + (existing ? " — linked to " + existing.collectionRef : "") + ". This serial cannot be recorded again.";
+        return "Already used" + (existing ? " — linked to " + existing.collectionRef : "") + ". This receipt number cannot be recorded again.";
       }
-      case "voided": return "Voided receipt. This printed number cannot be reused.";
-      case "missing": return "Reported missing. This printed number cannot be used.";
-      case "available": return "Available in acknowledged COWL custody. Confirm it matches the physical paper before recording.";
+      case "voided": return "Voided Official Receipt No. This number cannot be reused.";
+      case "missing": return "This Official Receipt No. is reported missing and cannot be used.";
+      case "available": return "Available in acknowledged COWL custody. Confirm this number against the paper receipt before recording a collection.";
     }
   })();
   function chooseSerial(next: string) {
@@ -105,7 +104,6 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
     setSerialActiveIndex(-1);
   }
   const [parish, setParish] = useState("San Bartolome Parish");
-  const [parishOpen, setParishOpen] = useState(false);
   const [parishPrinted, setParishPrinted] = useState("SAN BARTOLOME PARISH");
   const [ministry, setMinistry] = useState("Ministry of Liturgical Music");
   const [ministryPrinted, setMinistryPrinted] = useState("MINISTRY ON LITURGICAL MUSIC");
@@ -119,12 +117,12 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
   const [method, setMethod] = useState<"cash" | "check" | "other">("cash");
   const [collectedBy, setCollectedBy] = useState("COWL Collector (demo)");
 
-  const count = /^\d{1,6}$/.test(participants.trim()) ? Number(participants) : null;
+  const count = /^\d{1,6}$/.test(participants.trim()) && Number(participants) >= 1 && Number(participants) <= 100000 ? Number(participants) : null;
   const feeCentavos = parsePesoAmountToCentavos(fee);
   const receivedCentavos = parsePesoAmountToCentavos(received);
   const computed = count !== null && feeCentavos !== null ? count * feeCentavos : null;
   const amountMatches = Boolean(count && feeCentavos && receivedCentavos !== null && receivedCentavos === computed);
-  const eligibleCollection = storageReady && serialCheck.status === "available" && serialPhysicallyChecked && amountMatches &&
+  const eligibleCollection = storageReady && serialCheck.status === "available" && serialPhysicallyChecked && amountMatches && Number(renewalYear) >= 2000 && Number(renewalYear) <= 2100 &&
     PARISHES.some(p => p === parish) && MINISTRIES.some(m => m === ministry) &&
     collectedBy.trim().length > 2 && purpose.trim().length > 2;
 
@@ -249,7 +247,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
                 <button type="button" aria-label={serialOpen ? "Close available serial suggestions" : "Show available serial suggestions"}
                   aria-expanded={serialOpen} onClick={() => { setSerialOpen(value => !value); setSerialActiveIndex(-1); }}
                   className="absolute right-0 top-0 flex h-12 w-11 items-center justify-center border-l border-[#E6DADC] text-[#6F6265] hover:bg-[#FBF9F9]">
-                  <ChevronsUpDown className="h-4 w-4" aria-hidden="true" />
+                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
               {serialOpen && <div id="phase3-serial-options" role="listbox" aria-label="Available official receipt numbers"
@@ -366,7 +364,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
             <Field id="phase3-ministry-paper" label="Ministry as written on the receipt" value={ministryPrinted} onChange={setMinistryPrinted} />
           </div>
           <Field id="phase3-year" label="Renewal year" value={renewalYear} onChange={setRenewalYear} />
-          <Field id="phase3-date" label="Receipt / collection date" type="date" value={date} onChange={setDate} note={"Selected: " + readableDate(date)} />
+          <Field id="phase3-date" label="Receipt / collection date" type="date" value={date} onChange={setDate} note={"Selected: " + readableFinancialDate(date)} />
           <div className="sm:col-span-2 grid gap-4 sm:grid-cols-3">
             <Field id="phase3-participants" label="Number of participants" value={participants} onChange={setParticipants} />
             <Field id="phase3-fee" label="Fee per participant (PHP)" value={fee} onChange={setFee}
@@ -427,7 +425,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
         </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field id="phase3-preparer" label="COWL officer preparing turnover" value={preparedBy} onChange={setPreparedBy} />
-          <Field id="phase3-submitted-date" label="Handover date" type="date" value={submittedDate} onChange={setSubmittedDate} note={"Selected: " + readableDate(submittedDate)} />
+          <Field id="phase3-submitted-date" label="Handover date" type="date" value={submittedDate} onChange={setSubmittedDate} note={"Selected: " + readableFinancialDate(submittedDate)} />
         </div>
         <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm leading-6">
           <input type="checkbox" checked={copiesChecked} onChange={event => setCopiesChecked(event.target.checked)}
@@ -464,7 +462,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
             className={"border p-4 text-left hover:border-[#890022] " + (selectedRemittance?.id === r.id ? "border-[#890022] bg-[#FFF8F9]" : "border-[#E6DADC]")}>
             <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold">{r.id}</span><Pill status={r.status} /></div>
             <p className="mt-2 text-lg font-semibold tabular-nums">{money(r.totalCentavos)}</p>
-            <p className="mt-1 text-xs text-[#6F6265]">{r.collectionIds.length} receipt(s) · submitted {readableDate(r.submittedDate)}</p>
+            <p className="mt-1 text-xs text-[#6F6265]">{r.collectionIds.length} receipt(s) · submitted {readableFinancialDate(r.submittedDate)}</p>
           </button>)}
         </div>
         {selectedRemittance && <div className="mt-5 space-y-5 border-t border-[#E6DADC] pt-5">
@@ -495,7 +493,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
                     <div className="min-w-0 flex-1">
                       <p className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><span>{id} · OR {c.serial}</span><span className="tabular-nums">{money(c.amountCentavos)}</span></p>
                       <p className="mt-1 text-xs leading-5 text-[#6F6265]">{c.parish} · {c.ministry}</p>
-                      <p className="mt-1 text-xs leading-5 text-[#6F6265]">{c.participants} × {money(c.feeCentavos)} · {readableDate(c.date)} · Booklet {c.bookletId}</p>
+                      <p className="mt-1 text-xs leading-5 text-[#6F6265]">{c.participants} × {money(c.feeCentavos)} · {readableFinancialDate(c.date)} · Booklet {c.bookletId}</p>
                       <p className="mt-1 text-xs leading-5 text-[#6F6265]">Printed payer: {c.parishPrinted || FORM_PLACEHOLDER} · CODE: {c.printedCode || "Not specified"}</p>
                     </div>
                   </div>
@@ -507,7 +505,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field id="phase3-counted" label="Actual funds counted by Curia (PHP)" value={counted} onChange={setCounted} />
               <Field id="phase3-curia-officer" label="Curia receiving officer (demo)" value={curiaOfficer} onChange={setCuriaOfficer} />
-              <Field id="phase3-curia-date" label="Date of independent review" value={reviewDate} type="date" onChange={setReviewDate} note={"Selected: " + readableDate(reviewDate)} />
+              <Field id="phase3-curia-date" label="Date of independent review" value={reviewDate} type="date" onChange={setReviewDate} note={"Selected: " + readableFinancialDate(reviewDate)} />
               <Field id="phase3-curia-reference" label="Curia acknowledgment reference" value={curiaRef} onChange={setCuriaRef}
                 note="Required for full confirmation. Separate from the official receipt numbers." />
             </div>
@@ -547,7 +545,7 @@ export default function Phase3FinancialDemo({ mode }: { mode: Mode }) {
                 ["Duplicates checked", (selectedRemittance.verifiedCollectionIds?.length || 0) + " of " + selectedRemittance.duplicateCount],
                 ["Receiving officer", selectedRemittance.curiaOfficer || FORM_PLACEHOLDER],
                 ["Acknowledgment reference", selectedRemittance.curiaReference || "Not recorded"],
-                ["Reviewed date", selectedRemittance.reviewedDate ? readableDate(selectedRemittance.reviewedDate) : FORM_PLACEHOLDER],
+                ["Reviewed date", selectedRemittance.reviewedDate ? readableFinancialDate(selectedRemittance.reviewedDate) : FORM_PLACEHOLDER],
                 ...(selectedRemittance.discrepancyReason ? [["Discrepancy reason", selectedRemittance.discrepancyReason]] : []),
               ].map(([key, value]) => <div key={key}><dt className="text-xs text-[#6F6265]">{key}</dt><dd className="mt-1 font-semibold">{value}</dd></div>)}
             </dl>
