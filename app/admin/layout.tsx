@@ -8,7 +8,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   ExternalLink, LayoutDashboard, Loader2, LogOut,
   Menu, ScrollText, Settings, ShieldCheck, Upload, Users, X,
-  FileBadge, UserPlus, ClipboardList, Wallet,
+  FileBadge, UserPlus, ClipboardList, Wallet, Landmark,
 } from "lucide-react";
 import { ebGaramond, inter } from "@/app/fonts";
 
@@ -25,6 +25,7 @@ const NAV_GROUPS = [
   ] },
   { name: "Financial Stewardship", items: [
     { href: "/admin/financial-stewardship-preview", label: "Financial Stewardship (Demo)", icon: Wallet },
+    { href: "/curia", label: "Curia Portal (Demo)", icon: Landmark },
   ] },
   { name: "Documents", items: [{ href: "/admin/certificates", label: "Certificate Templates", icon: FileBadge }] },
   { name: "Governance", items: [
