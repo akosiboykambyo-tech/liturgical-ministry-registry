@@ -11,6 +11,7 @@ export type PortalNavItem = {
   icon: LucideIcon;
   active?: boolean;
   href?: string;
+  external?: boolean;
   onSelect?: () => void;
 };
 export type PortalNavGroup = { name?: string; items: PortalNavItem[] };
@@ -129,7 +130,7 @@ export default function PortalShell({
                   className: navClass(item.active),
                 };
                 return item.href
-                  ? <Link key={item.id} href={item.href} {...common} onClick={() => handleSelect(item)}>{contents}</Link>
+                  ? <Link key={item.id} href={item.href} {...common} target={item.external ? "_blank" : undefined} rel={item.external ? "noopener noreferrer" : undefined} onClick={() => handleSelect(item)}>{contents}</Link>
                   : <button key={item.id} type="button" {...common} onClick={() => handleSelect(item)}>{contents}</button>;
               })}
             </div>
