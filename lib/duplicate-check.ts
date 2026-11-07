@@ -203,8 +203,6 @@ export async function importSingleMember(
   | { status: "duplicate"; existing: Member; flagId: string; matchType: string }
   | { status: "error"; error: string }
 > {
-  const supabase = getSupabaseBrowserClient();
-
   const dupes = await findDuplicateMembers(
     data.first_name,
     data.last_name,
@@ -228,7 +226,7 @@ export async function importSingleMember(
   }
 
   try {
-    const created = await registryAdminWrite<{ member: Member }>("create", data);
+    const created = await registryAdminWrite<{ member: Member }>("create", { ...data });
     return { status: "created", member: created.member };
   } catch (error) {
     return { status: "error", error: error instanceof Error ? error.message : "Member creation failed" };
@@ -773,28 +771,7 @@ export type BatchResult = {
   error?: string;
 };
 
-/** Build the insert payload row expected by the members table. */
-function buildInsertRow(data: IncomingMemberData) {
-  return {
-    first_name: (data.first_name ?? "").trim(),
-    last_name: (data.last_name ?? "").trim(),
-    parish: (data.parish ?? "").trim(),
-    ministries: data.ministries,
-    service_year: data.service_year,
-    status: "Pending Verification" as const,
-    uid: "PENDING", // trigger overwrites with LMD-<year>-####
-  };
-}
-
-/**
- * Process a batch of incoming members. We first attempt a single bulk INSERT
- * for all rows. If the database rejects the batch with Postgres error code
- * `23505` (unique_violation) — thrown by the unique index on
- * (first_name, last_name, parish, ministries) — we fall back to inserting
- * each row individually so that only the colliding rows are skipped while
- * the valid rows still succeed. This keeps the import resilient: one
- * duplicate never aborts the whole batch.
- */
+/** Create CSV rows through bounded, per-row transactional admin RPC calls. */
 export async function importMemberBatch(
   batch: IncomingMemberData[],
   startIndex: number
