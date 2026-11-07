@@ -234,7 +234,7 @@ export default function CuriaPreviewPage() {
           </div>
 
           <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
-            <strong>Prototype only.</strong> All records, serials, names and amounts are fictional. Confirmation and discrepancy actions affect this browser page only; there is no financial database, Curia authorization, audit persistence or synchronization with the COWL demo yet.
+            <strong>Prototype only.</strong> The remittance ledger, booklet inventory and sample personnel are fictional. The Receipt Booklets section also shows a separate transcription of the real receipt photo you supplied, explicitly excluded from mock transactions. Confirmation and discrepancy actions affect this browser page only; there is no financial database, Curia authorization, audit persistence or synchronization with COWL.
           </div>
 
           {section === "overview" && <>
