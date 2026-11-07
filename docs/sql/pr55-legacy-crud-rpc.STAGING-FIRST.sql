@@ -149,7 +149,7 @@ BEGIN
     RETURN jsonb_build_object('rows',v_rows);
   END IF;
 
-  IF p_action IN ('merge','save','delete','document','renew','detach','set_status') THEN
+  IF p_action IN ('merge','save','delete','document','renew','activate','detach','set_status') THEN
     v_id:=(p_data->>'member_id')::uuid;
     IF v_id IS NULL THEN
       RAISE EXCEPTION 'A member ID is required' USING ERRCODE='22023';
@@ -323,7 +323,7 @@ BEGIN
     RETURN jsonb_build_object('member_id',v_id,'document_url',v_path);
   END IF;
 
-  IF p_action IN ('renew','detach') THEN
+  IF p_action IN ('renew','activate','detach') THEN
     v_assignment_id:=(p_data->>'membership_id')::uuid;
     IF v_assignment_id IS NULL THEN
       RAISE EXCEPTION 'Ministry assignment ID required' USING ERRCODE='22023';
@@ -336,9 +336,10 @@ BEGIN
     END IF;
     v_old_path:=v_existing.document_url;
 
-    IF p_action='renew' THEN
+    IF p_action IN ('renew','activate') THEN
       v_path:=nullif(trim(coalesce(p_data->>'document_path','')),'');
-      IF v_existing.status NOT IN ('New','Renewed') OR
+      IF (p_action='renew' AND v_existing.status NOT IN ('New','Renewed')) OR
+         (p_action='activate' AND v_existing.status<>'Pending Verification') OR
          v_path IS NULL OR
          left(v_path,length('verification/' || v_id || '/' || v_assignment_id || '/')) <>
            ('verification/' || v_id || '/' || v_assignment_id || '/') OR
@@ -348,8 +349,11 @@ BEGIN
           USING ERRCODE='22023';
       END IF;
       v_new_expiration:=(v_current_date + interval '1 year')::date;
-      UPDATE public.member_ministries SET status='Renewed',
-        renewal_date=v_current_date,expiration_date=v_new_expiration,
+      v_status:=CASE WHEN p_action='activate' THEN 'New' ELSE 'Renewed' END;
+      UPDATE public.member_ministries SET status=v_status,
+        start_date=CASE WHEN p_action='activate' THEN v_current_date ELSE start_date END,
+        renewal_date=CASE WHEN p_action='renew' THEN v_current_date ELSE NULL END,
+        expiration_date=v_new_expiration,
         document_url=v_path,document_uploaded_at=transaction_timestamp(),
         archived_documents=CASE WHEN v_old_path IS NULL THEN archived_documents
           ELSE archived_documents || jsonb_build_array(jsonb_build_object(
@@ -363,7 +367,7 @@ BEGIN
       UPDATE public.members SET document_url=v_path WHERE id=v_id;
       PERFORM registry_private.registry_sync_member_mirror_v1(v_id);
       RETURN jsonb_build_object('member_id',v_id,'membership_id',v_assignment_id,
-        'status','Renewed','expires_on',v_new_expiration);
+        'status',v_status,'expires_on',v_new_expiration);
     END IF;
 
     -- Detach retains the physical evidence object. Never delete Storage first.
