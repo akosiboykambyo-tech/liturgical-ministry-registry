@@ -13,22 +13,28 @@ import {
 import PortalShell, { type PortalNavGroup } from "@/components/portal-shell";
 
 const NAV_GROUPS = [
-  { name: "Overview", items: [{ href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard }] },
-  { name: "Registry", items: [
+  { name: "Dashboard", icon: LayoutDashboard, items: [
+    { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  ] },
+  { name: "Registry", icon: Users, items: [
     { href: "/admin/members", label: "Members", icon: Users },
     { href: "/admin/members/add", label: "Add Member", icon: UserPlus },
-    { href: "/admin/verify", label: "Quick-Scan Matrix", icon: ShieldCheck },
     { href: "/admin/import", label: "Bulk Registration Import", icon: Upload },
     { href: "/admin/duplicate-review-preview", label: "Duplicate Queue Preview", icon: ClipboardList },
+  ] },
+  { name: "Verification", icon: ShieldCheck, items: [
+    { href: "/admin/verify", label: "Quick-Scan Matrix", icon: ShieldCheck },
     { href: "/admin/renewal-batches", label: "Renewal Batches", icon: ClipboardList },
     { href: "/admin/renewal-reviews", label: "Renewal Review Queue", icon: ShieldCheck },
   ] },
-  { name: "Financial Stewardship", items: [
+  { name: "Financial Stewardship", icon: Wallet, items: [
     { href: "/admin/financial-stewardship-preview", label: "Financial Stewardship (Demo)", icon: Wallet },
     { href: "/curia", label: "Curia Portal (Demo)", icon: Landmark },
   ] },
-  { name: "Documents", items: [{ href: "/admin/certificates", label: "Certificate Templates", icon: FileBadge }] },
-  { name: "Governance", items: [
+  { name: "Documents", icon: FileBadge, items: [
+    { href: "/admin/certificates", label: "Certificate Templates", icon: FileBadge },
+  ] },
+  { name: "Governance", icon: Settings, items: [
     { href: "/admin/audit", label: "Audit Trail", icon: ScrollText },
     { href: "/admin/site-settings", label: "Public Website Settings", icon: Settings },
   ] },
@@ -80,6 +86,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const groups: PortalNavGroup[] = NAV_GROUPS.map(group => ({
     name: group.name,
+    icon: group.icon,
     items: group.items.map(item => ({
       id: item.href,
       href: item.href,
@@ -101,6 +108,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     homeHref="/admin/dashboard"
     navigationLabel="Admin navigation"
     groups={groups}
+    desktopMode="groups"
     footer={<>
       <p className="truncate text-sm font-semibold text-white" title={displayName}>{displayName}</p>
       <p className="mt-1 text-sm text-white/75">Administrator</p>
