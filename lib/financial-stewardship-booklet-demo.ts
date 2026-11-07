@@ -80,6 +80,29 @@ export function serialState(booklet: ReceiptBookletDemo, serial: string): Receip
   const problem = booklet.exceptions.find(item => item.serial === serial);
   return problem?.kind || "available";
 }
+export type SerialCheckStatus =
+  | "empty" | "invalid" | "outside_range" | "ambiguous" | "not_in_custody"
+  | "available" | "already_used" | "voided" | "missing";
+export type SerialCheck = { status: SerialCheckStatus; booklet: ReceiptBookletDemo | null };
+
+/**
+ * Resolve an exact printed number to its physical stock, not the reverse.
+ * Never pad, strip leading zeroes, guess a booklet, or auto-pick the next serial.
+ * A duplicate numeric serial across different series is ambiguous until Curia
+ * specifies the authoritative series.
+ */
+export function checkPrintedReceiptSerial(booklets: ReceiptBookletDemo[], serial: string): SerialCheck {
+  if (!serial) return { status: "empty", booklet: null };
+  if (!/^\d{4,12}$/.test(serial)) return { status: "invalid", booklet: null };
+  const matching = booklets.filter(booklet => serialsInBooklet(booklet).includes(serial));
+  if (matching.length === 0) return { status: "outside_range", booklet: null };
+  if (matching.length > 1) return { status: "ambiguous", booklet: null };
+  const booklet = matching[0];
+  if (booklet.state !== "cowl_custody") return { status: "not_in_custody", booklet };
+  const state = serialState(booklet, serial);
+  return { status: state === "issued" ? "already_used" : state, booklet };
+}
+
 export function bookletCounts(booklet: ReceiptBookletDemo) {
   const total = serialsInBooklet(booklet).length;
   return {
@@ -245,17 +268,18 @@ export function useReceiptBookletDemo() {
   }), [transact]);
 
   const recordCollection = useCallback((draft: {
-    bookletId: string; serial: string; parish: string; parishPrinted: string;
+    serial: string; parish: string; parishPrinted: string;
     ministry: string; ministryPrinted: string; renewalYear: string; date: string;
     participants: number; feeCentavos: number; amountCentavos: number;
     purpose: string; printedCode: string; paymentMethod: "cash" | "check" | "other";
     collectedBy: string;
   }): Result => transactState(current => {
     const unchanged = { result: { ok: false, error: "Invalid mock collection." }, next: current };
-    const b = current.booklets.find(item => item.id === draft.bookletId);
-    if (!b || b.state !== "cowl_custody") return { ...unchanged, result: { ok: false, error: "Select a booklet that COWL has already acknowledged." } };
-    if (!serialsInBooklet(b).includes(draft.serial) || serialState(b, draft.serial) !== "available")
-      return { ...unchanged, result: { ok: false, error: "That preprinted receipt is not available. It may already be issued, voided or missing." } };
+    const check = checkPrintedReceiptSerial(current.booklets, draft.serial);
+    if (check.status !== "available" || !check.booklet)
+      return { ...unchanged, result: { ok: false, error:
+        "The exact printed serial is not available in COWL custody (" + check.status.replace(/_/g, " ") + "). No receipt was recorded." } };
+    const b = check.booklet;
     if (!PARISHES.some(parish => parish === draft.parish) || !MINISTRIES.some(ministry => ministry === draft.ministry))
       return { ...unchanged, result: { ok: false, error: "Choose a registered parish and one of the six approved ministries." } };
     if (!Number.isSafeInteger(draft.participants) || draft.participants <= 0 ||
