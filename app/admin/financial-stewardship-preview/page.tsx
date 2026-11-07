@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ArrowRight, BookOpenCheck, CheckCircle2, ClipboardList,
   Clock3, FileCheck2, HandCoins, Landmark, ReceiptText, Search, ShieldCheck,
@@ -23,7 +24,7 @@ type Remittance = {
 const COLLECTIONS: Collection[] = [
   { id: "COL-2026-001", parish: "San Roque Cathedral Parish", ministry: "Ministry of Lectors and Commentators", amount: 2000, received: "2026-11-02", receipt: "000101", representative: "Sample Parish Representative A", collectedBy: "COWL Staff A", stage: "Curia confirmed", remittance: "REM-2026-001" },
   { id: "COL-2026-002", parish: "San Bartolome Parish", ministry: "Extraordinary Ministers of Holy Communion", amount: 1500, received: "2026-11-02", receipt: "000102", representative: "Sample Parish Representative B", collectedBy: "COWL Staff A", stage: "Curia confirmed", remittance: "REM-2026-001" },
-  { id: "COL-2026-003", parish: "Our Lady of Grace Parish", ministry: "Ministry of Greeters and Collectors", amount: 2500, received: "2026-11-03", receipt: "000103", representative: "Sample Parish Representative C", collectedBy: "COWL Staff B", stage: "Curia confirmed", remittance: "REM-2026-001" },
+  { id: "COL-2026-003", parish: "The Diocesan Shrine and Parish of Our Lady of Grace", ministry: "Ministry of Greeters and Collectors", amount: 2500, received: "2026-11-03", receipt: "000103", representative: "Sample Parish Representative C", collectedBy: "COWL Staff B", stage: "Curia confirmed", remittance: "REM-2026-001" },
   { id: "COL-2026-004", parish: "San Roque Cathedral Parish", ministry: "Ministry of Liturgical Music", amount: 1800, received: "2026-11-04", receipt: "000104", representative: "Sample Parish Representative D", collectedBy: "COWL Staff A", stage: "Submitted to Curia", remittance: "REM-2026-002" },
   { id: "COL-2026-005", parish: "San Bartolome Parish", ministry: "Ministry of Altar Servers", amount: 3200, received: "2026-11-05", receipt: "000105", representative: "Sample Parish Representative E", collectedBy: "COWL Staff B", stage: "Submitted to Curia", remittance: "REM-2026-002" },
   { id: "COL-2026-006", parish: "San Roque Cathedral Parish", ministry: "Mother Butler Guild", amount: 1200, received: "2026-11-06", receipt: "000106", representative: "Sample Parish Representative F", collectedBy: "COWL Staff A", stage: "COWL custody", remittance: null },
@@ -111,7 +112,12 @@ export default function FinancialStewardshipPreviewPage() {
         <h1 className={ebGaramond.className + " mt-2 text-[38px] font-medium leading-[1.05] text-[#1E1114] sm:text-[47px]"}>Financial Stewardship</h1>
         <p className="mt-3 max-w-[780px] text-sm leading-6 text-[#5F4A4F]">Parish ministry collections, Curia-supplied official receipts and accountable remittance of funds and duplicate receipt copies.</p>
       </div>
-      <span className="inline-flex items-center gap-2 border border-[#D7C2A7] bg-[#FFF7E9] px-3 py-2 text-xs font-semibold text-[#75511A]"><ShieldCheck className="h-4 w-4" /> DEMONSTRATION ONLY</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link href="/curia" className="inline-flex min-h-10 items-center gap-2 border border-[#890022] bg-white px-4 py-2 text-sm font-semibold text-[#890022] hover:bg-[#F8EDEF]">
+          <Landmark className="h-4 w-4" aria-hidden="true" /> Open Curia Portal demo <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+        <span className="inline-flex items-center gap-2 border border-[#D7C2A7] bg-[#FFF7E9] px-3 py-2 text-xs font-semibold text-[#75511A]"><ShieldCheck className="h-4 w-4" /> DEMONSTRATION ONLY</span>
+      </div>
     </div>
 
     <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
