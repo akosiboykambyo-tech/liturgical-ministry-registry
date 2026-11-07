@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import { MINISTRIES, shortMinistry } from "@/lib/constants";
 import type { Member, MemberMinistry } from "@/lib/types";
 import { areNamesSimilar, similarityRatio, classifyIdentityMatch } from "@/lib/registration-matching";
@@ -51,50 +52,6 @@ async function fetchAllMemberMinistries(): Promise<MemberMinistry[]> {
   }
 
   return all;
-}
-
-function buildMembershipRows(
-  memberId: string,
-  ministries: string[]
-): Array<
-  Pick<
-    MemberMinistry,
-    | "member_id"
-    | "ministry"
-    | "status"
-    | "start_date"
-    | "expiration_date"
-    | "renewal_date"
-    | "document_url"
-    | "document_uploaded_at"
-    | "archived_documents"
-  >
-> {
-  return ministries.map((ministry) => ({
-    member_id: memberId,
-    ministry,
-    status: "Pending Verification",
-    start_date: null,
-    expiration_date: null,
-    renewal_date: null,
-    document_url: null,
-    document_uploaded_at: null,
-    archived_documents: [],
-  }));
-}
-
-async function createMemberMinistries(
-  memberId: string,
-  ministries: string[]
-): Promise<string | null> {
-  if (ministries.length === 0) return null;
-
-  const supabase = getSupabaseBrowserClient();
-  const { error } = await supabase
-    .from("member_ministries")
-    .insert(buildMembershipRows(memberId, ministries));
-
-  return error?.message ?? null;
 }
 
 export interface DuplicateMatch {
@@ -258,55 +215,24 @@ export async function importSingleMember(
     // Park in pending-merge queue. Do not create the member.
     const match = dupes[0];
     const existing = match.existing;
-    const { data: flag, error } = await supabase
-      .from("duplicate_flags")
-      .insert({
-        existing_member_id: existing.id,
-        incoming_first_name: data.first_name,
-        incoming_last_name: data.last_name,
-        incoming_parish: data.parish,
-        incoming_ministries: data.ministries,
-        incoming_data: { ...data, matchType: match.matchType, similarity: match.similarity },
-        resolved: false,
-      })
-      .select("id")
-      .single();
-    if (error) return { status: "error", error: error.message };
-    return { status: "duplicate", existing, flagId: flag!.id, matchType: match.matchType };
+    const flagged = await registryAdminWrite<{ id: string }>("flag_duplicate", {
+      existing_member_id: existing.id,
+      incoming_first_name: data.first_name,
+      incoming_last_name: data.last_name,
+      incoming_parish: data.parish,
+      incoming_ministries: data.ministries,
+      incoming_data: { ...data, matchType: match.matchType, similarity: match.similarity },
+    }).catch((error: Error) => ({ error: error.message }));
+    if ("error" in flagged) return { status: "error", error: flagged.error as string };
+    return { status: "duplicate", existing, flagId: flagged.id, matchType: match.matchType };
   }
 
-  const { data: member, error } = await supabase
-    .from("members")
-    .insert({
-      first_name: data.first_name,
-      last_name: data.last_name,
-      parish: data.parish,
-      ministries: data.ministries,
-      service_year: data.service_year,
-      notes: data.notes ?? null,
-      status: "Pending Verification",
-      uid: "PENDING", // trigger overwrites
-    })
-    .select("*")
-    .single();
-
-  if (error) return { status: "error", error: error.message };
-
-  const createdMember = member as Member;
-  const membershipError = await createMemberMinistries(
-    createdMember.id,
-    data.ministries
-  );
-
-  if (membershipError) {
-    await supabase.from("members").delete().eq("id", createdMember.id);
-    return {
-      status: "error",
-      error: `Member creation was rolled back because ministry memberships could not be created: ${membershipError}`,
-    };
+  try {
+    const created = await registryAdminWrite<{ member: Member }>("create", data);
+    return { status: "created", member: created.member };
+  } catch (error) {
+    return { status: "error", error: error instanceof Error ? error.message : "Member creation failed" };
   }
-
-  return { status: "created", member: createdMember };
 }
 
 export interface IncomingRecord {
@@ -874,121 +800,30 @@ export async function importMemberBatch(
   startIndex: number
 ): Promise<BatchResult[]> {
   if (batch.length === 0) return [];
-  const supabase = getSupabaseBrowserClient();
-
-  const results: BatchResult[] = new Array(batch.length);
-
-  const insertPayload = batch.map((data) => buildInsertRow(data));
-
-  // Fast path: try one bulk insert for the whole batch.
-  const { data: inserted, error: insErr } = await supabase
-    .from("members")
-    .insert(insertPayload)
-    .select("*");
-
-  if (!insErr && inserted) {
-    const createdMembers = inserted as Member[];
-    const membershipRows = createdMembers.flatMap((member, index) =>
-      buildMembershipRows(member.id, batch[index]?.ministries ?? [])
-    );
-
-    const { error: membershipError } = membershipRows.length
-      ? await supabase.from("member_ministries").insert(membershipRows)
-      : { error: null };
-
-    if (membershipError) {
-      const createdIds = createdMembers.map((member) => member.id);
-      if (createdIds.length > 0) {
-        await supabase.from("members").delete().in("id", createdIds);
-      }
-
-      const message =
-        `Batch creation was rolled back because ministry memberships could not be created: ${membershipError.message}`;
-
-      for (let j = 0; j < batch.length; j++) {
-        results[j] = {
-          index: startIndex + j,
-          status: "error",
-          error: message,
-        };
-      }
-
-      return results;
-    }
-
-    // Bulk insert and relationship creation both succeeded.
-    for (let j = 0; j < batch.length; j++) {
-      const created = createdMembers[j];
-      results[j] = created
-        ? { index: startIndex + j, status: "created" }
-        : {
-            index: startIndex + j,
-            status: "error",
-            error: "No row returned on insert",
-          };
-    }
-    return results;
-  }
-
-  // If the failure is a unique-constraint violation (23505), fall back to
-  // per-row inserts so we can isolate the duplicates and keep the others.
-  // Any other error is treated as fatal for the whole batch.
-  const isUniqueViolation =
-    (insErr as { code?: string } | null)?.code === "23505";
-
-  if (!isUniqueViolation) {
-    const msg = insErr?.message ?? "Insert failed";
-    for (let j = 0; j < batch.length; j++) {
-      results[j] = { index: startIndex + j, status: "error", error: msg };
-    }
-    return results;
-  }
-
-  // Slow path: 23505 was raised on the bulk insert. Insert one row at a time
-  // so colliding rows are classified as "duplicate" and skipped, while every
-  // other row is still created. Within-batch duplicates (the same person
-  // appearing twice in the same CSV) are also caught here.
-  for (let i = 0; i < batch.length; i++) {
-    const data = batch[i];
-    const { data: row, error: rowErr } = await supabase
-      .from("members")
-      .insert(buildInsertRow(data))
-      .select("*")
-      .single();
-    if (rowErr) {
-      const code = (rowErr as { code?: string }).code;
-      if (code === "23505") {
-        results[i] = {
-          index: startIndex + i,
-          status: "duplicate",
-          error: undefined,
-        };
-      } else {
-        results[i] = {
-          index: startIndex + i,
-          status: "error",
-          error: rowErr.message,
-        };
-      }
-    } else {
-      const createdMember = row as Member;
-      const membershipError = await createMemberMinistries(
-        createdMember.id,
-        data.ministries
-      );
-
-      if (membershipError) {
-        await supabase.from("members").delete().eq("id", createdMember.id);
-        results[i] = {
-          index: startIndex + i,
-          status: "error",
-          error: `Member creation was rolled back because ministry memberships could not be created: ${membershipError}`,
-        };
-      } else {
-        results[i] = { index: startIndex + i, status: "created" };
-      }
+  const output: BatchResult[] = [];
+  // Keep RPC payloads bounded. Each row is atomic; failures never require
+  // browser-side cleanup and never leave orphan ministry assignments.
+  for (let offset = 0; offset < batch.length; offset += 100) {
+    const chunk = batch.slice(offset, offset + 100);
+    try {
+      const result = await registryAdminWrite<{
+        rows: Array<{ status: BatchResult["status"]; error?: string }>;
+      }>("create_batch", { rows: chunk });
+      if (!Array.isArray(result.rows) || result.rows.length !== chunk.length)
+        throw new Error("Incomplete server batch result");
+      result.rows.forEach((row, i) => {
+        output.push({
+          index: startIndex + offset + i,
+          status: row.status,
+          error: row.error,
+        });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Secure batch import failed";
+      chunk.forEach((_, i) => {
+        output.push({ index: startIndex + offset + i, status: "error", error: message });
+      });
     }
   }
-
-  return results;
+  return output;
 }
