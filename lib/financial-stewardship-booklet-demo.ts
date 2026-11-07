@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { REFERENCE_RECEIPT } from "@/lib/financial-stewardship-receipt-preview";
 
 export type BookletState = "curia_stock" | "awaiting_cowl_ack" | "cowl_custody";
 export type ReceiptState = "available" | "issued" | "voided" | "missing";
@@ -135,6 +136,10 @@ export function useReceiptBookletDemo() {
       return { result: { ok: false, error: "One or more identifying fields are too long." }, next: items };
     if (items.some(b => b.id.toLowerCase() === d.id.toLowerCase()))
       return { result: { ok: false, error: "This booklet reference already exists." }, next: items };
+    if (d.first.length === REFERENCE_RECEIPT.serial.length &&
+        BigInt(d.first) <= BigInt(REFERENCE_RECEIPT.serial) &&
+        BigInt(d.last) >= BigInt(REFERENCE_RECEIPT.serial))
+      return { result: { ok: false, error: "The uploaded historical receipt 057785 is a format reference, not an assignable demo serial." }, next: items };
     const overlaps = items.some(b => b.series.toLowerCase() === d.series.toLowerCase() &&
       BigInt(d.first) <= BigInt(b.last) && BigInt(d.last) >= BigInt(b.first));
     if (overlaps) return { result: { ok: false, error: "Serial range overlaps an existing booklet in the same series." }, next: items };
