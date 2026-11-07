@@ -259,9 +259,12 @@ export default function MemberDetailPage() {
               className="w-full rounded-none border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {STATUS_VALUES.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s} disabled={(s === "New" || s === "Renewed") && s !== member.status}>{s}</option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              New and Renewed are assigned through recommendation-letter verification, not manual status changes.
+            </p>
           </div>
 
           <div className="space-y-3">
