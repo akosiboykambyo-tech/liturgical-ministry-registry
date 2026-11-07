@@ -4,7 +4,7 @@
 
 ## Applied to TEST only
 
-Five versioned SQL migrations were applied successfully via the connected Supabase migration interface, after their corresponding candidate scripts were reviewed and each rehearsed using `BEGIN ... ROLLBACK`:
+Six versioned SQL migrations were applied successfully via the connected Supabase migration interface, after their corresponding candidate scripts were reviewed and each rehearsed using `BEGIN ... ROLLBACK`:
 
 1. `pr55_staging_production_history_schema_isolated` — created the 13 formerly absent public/history tables with production-derived types, defaults, generated columns, 46 constraints and 25 non-constraint indexes. Enabled RLS and safe service-role grants; did **not** copy insecure fixed-email/fixed-UUID production policies.
 2. `pr55_stage_atomic_guarded_registry_write_rpc` — installed the administrator-allowlist-guarded `public.registry_admin_member_write_v1(text,jsonb)` and its private summary helper. The candidate was corrected before application to write duplicate flags only into the **three production-compatible columns** (`existing_member_id`, `incoming_data`, `resolved`).
@@ -12,8 +12,6 @@ Five versioned SQL migrations were applied successfully via the connected Supaba
 4. `pr55_stage_storage_bucket_and_admin_policies` — created the **empty public** `certificate-templates` bucket (as in production); preserved the staging **private** `member-documents` bucket and its stricter 5 MB/MIME restrictions; expanded its three object policies to administrator-scoped paths, added member-document UPDATE and four certificate-template administrator policies (8 total). **No Storage object metadata or bytes were copied.**
 5. `pr55_stage_hardened_batch_renewal_rpc_parity` — installed production-derived administrator-guarded renewal-batch RPC and restricted helper.
 6. `pr55_stage_import_duplicate_admin_readonly` — installed administrator-only SELECT grants and RLS policies for `import_batches` and `duplicate_flags`, with **no browser INSERT/UPDATE/DELETE**.
-
-_Note: six migrations are listed above; each was applied only to TEST._
 
 All of the reviewed migration source files are retained under `docs/sql/pr55-staging-*.ISOLATED-ONLY.sql`; the guarded member-write candidate is `docs/sql/pr55-legacy-crud-rpc.STAGING-FIRST.sql`.
 
