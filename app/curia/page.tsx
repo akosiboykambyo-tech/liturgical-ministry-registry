@@ -141,7 +141,7 @@ export default function CuriaPreviewPage() {
   const pendingSerials = useMemo(() => new Set(submitted.flatMap(item => item.receipts.map(receipt => receipt.serial))), [submitted]);
 
   const menu: { key: Section; label: string; Icon: typeof Wallet }[] = [
-    { key: "overview", label: "Dashboard", Icon: LayoutDashboard },
+    { key: "overview", label: "Dashboard (Sample)", Icon: LayoutDashboard },
     { key: "incoming", label: "Incoming Remittances (Sample)", Icon: ArrowLeftRight },
     { key: "reconcile", label: "Phase 3 Reconciliation", Icon: FileText },
     { key: "booklets", label: "Receipt Booklets", Icon: ReceiptText },
