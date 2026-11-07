@@ -295,7 +295,7 @@ export function useReceiptBookletDemo() {
     collectionIds: string[]; preparedBy: string; date: string; copiesChecked: boolean;
   }): Result => transactState(current => {
     const fail = (error: string) => ({ result: { ok: false, error }, next: current });
-    const ids = [...new Set(draft.collectionIds)];
+    const ids = Array.from(new Set(draft.collectionIds));
     if (!ids.length || ids.length !== draft.collectionIds.length) return fail("Select one or more distinct, unremitted collection records.");
     const items = ids.map(id => current.collections.find(item => item.id === id));
     if (items.some(item => !item || item.remittanceId)) return fail("An included collection is missing or is already on a remittance.");
@@ -327,7 +327,7 @@ export function useReceiptBookletDemo() {
       return fail("Enter a valid counted peso amount, receiving officer and review date.");
     if (draft.officer.trim().toLowerCase() === remit.preparedBy.toLowerCase())
       return fail("Curia's reviewing officer must be different from the COWL preparing officer.");
-    const verifiedIds = [...new Set(draft.verifiedCollectionIds)];
+    const verifiedIds = Array.from(new Set(draft.verifiedCollectionIds));
     if (verifiedIds.length !== draft.verifiedCollectionIds.length ||
         verifiedIds.some(id => !remit.collectionIds.includes(id)))
       return fail("The receipt-copy checks include an invalid or duplicate collection.");
