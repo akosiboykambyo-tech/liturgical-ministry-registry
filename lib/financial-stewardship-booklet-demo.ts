@@ -48,7 +48,7 @@ export const SAMPLE_BOOKLETS: ReceiptBookletDemo[] = [
 export function rangeSize(first: string, last: string): number | null {
   if (!/^\d{4,12}$/.test(first) || !/^\d{4,12}$/.test(last) || first.length !== last.length) return null;
   const start = BigInt(first), end = BigInt(last);
-  if (end < start || end - start > 199n) return null;
+  if (end < start || end - start > BigInt(199)) return null;
   return Number(end - start + 1n);
 }
 export function serialsInBooklet(booklet: ReceiptBookletDemo): string[] {
