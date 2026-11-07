@@ -79,3 +79,15 @@ The COWL sample collection form now treats the **exact preprinted OR serial** as
 6. Verify the example 2 × ₱50.00 = **₱100.00** is shown next to the fee and compare it with the separately entered received amount.
 7. Inspect on desktop and phone: paired canonical/printed fields stay visually grouped and date helpers show **7 November 2026** even if the browser date control uses numeric ordering.
 8. If Curia registers another series with an overlapping **printed serial**, entering that serial must report **Ambiguous serial** and block recording; it cannot silently pick a booklet.
+
+## Phase 3 interface consistency review (November 7, 2026)
+
+- Removed the standalone **Receipt Format (Phase 1)** tab from COWL Financial Stewardship navigation. The source receipt model/specification remains documented; this does not remove the actual receipt-number controls in collection entry.
+- **Official Receipt No.** identifies the Curia-preprinted paper document; **Collection** identifies the COWL payment entry; **Remittance** identifies the grouped handover to Curia. Internal code retains `serial` for stable data compatibility, but staff-facing language uses receipt number.
+- The separate booklet choice remains intentionally absent in Phase 3: the exact printed receipt number determines the booklet. Search suggestions and read-only booklet information stay available.
+- Introduced common diocesan-styled searchable dropdown controls for parish, ministry and payment method (consistent burgundy focus, pale background, 44px height, uniform 14px control type).
+- Paired parish and ministry registry/paper-wording inputs share consistent labels, with a discreet diocesan burgundy accent on each group.
+- Collection, remittance and Curia review dates now use an accessible calendar button displaying `Nov 7, 2026` rather than a locale-dependent numeric date.
+- Participant count and renewal year use bounded numeric controls; monetary entry uses a consistent `₱` prefix and keeps integer-centavo parsing in business logic. The computed participant × fee total remains visible next to the rate.
+- The project's **Vercel preview feedback** setting was disabled to avoid an unlabelled floating preview feedback control covering forms. This project setting does not establish that the screenshot's floating button was definitely Vercel's control; if another widget persists, check its source before removing it.
+- No production financial write, route change beyond the demo tab, or Supabase migration was made. Desktop/mobile visual and assistive-technology tests are still required.
