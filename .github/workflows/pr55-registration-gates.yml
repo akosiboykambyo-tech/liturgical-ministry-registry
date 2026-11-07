@@ -11,6 +11,13 @@ on:
       - 'docs/sql/pr55-*.sql'
       - 'lib/registration-matching.ts'
       - 'lib/production-registration-preflight.ts'
+      - 'lib/registry-admin-writes.ts'
+      - 'lib/duplicate-check.ts'
+      - 'lib/verify-actions.ts'
+      - 'app/admin/members/**'
+      - 'app/admin/import/page.tsx'
+      - 'app/admin/verify/page.tsx'
+      - 'components/member-detail-drawer.tsx'
       - '.github/workflows/pr55-registration-gates.yml'
   workflow_dispatch:
 
