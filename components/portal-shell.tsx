@@ -19,6 +19,7 @@ export type PortalNavItem = {
 export type PortalNavGroup = {
   name?: string;
   icon?: LucideIcon;
+  separatorBefore?: boolean;
   items: PortalNavItem[];
 };
 
@@ -57,10 +58,12 @@ export default function PortalShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [allOpen, setAllOpen] = useState(false);
 
   useEffect(() => {
     setMobileOpen(false);
     setOpenGroup(null);
+    setAllOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -75,6 +78,7 @@ export default function PortalShell({
   const selectItem = (item: PortalNavItem) => {
     setMobileOpen(false);
     setOpenGroup(null);
+    setAllOpen(false);
     item.onSelect?.();
   };
 
@@ -142,15 +146,56 @@ export default function PortalShell({
           </div>
         </div>
 
+        {/* Desktop compact rail: the chevron opens the detailed navigation only on request. */}
+        <div className="hidden h-[72px] shrink-0 items-center justify-center border-b border-white/20 lg:flex">
+          <Popover open={allOpen} onOpenChange={setAllOpen}>
+            <PopoverTrigger asChild>
+              <button type="button" title="Show all navigation"
+                aria-label="Show all navigation" aria-expanded={allOpen}
+                className={"grid h-11 w-11 place-items-center rounded-sm transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
+                  (allOpen ? "bg-white text-[#890022]" : "text-white")}>
+                <ChevronRight className={"h-[18px] w-[18px] transition-transform " + (allOpen ? "rotate-180" : "")} aria-hidden="true" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="right" sideOffset={12} align="start"
+              className="max-h-[min(80vh,650px)] w-[290px] overflow-y-auto rounded-sm border border-[#E6DADC] bg-white p-3 shadow-xl">
+              <p className="px-2 pb-3 text-xs font-bold uppercase tracking-wider text-[#890022]">Navigation</p>
+              <div className="space-y-3">
+                {groups.map((group, index) => <div key={group.name || index}>
+                  {group.name && <p className="px-2 pb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#79676D]">{group.name}</p>}
+                  {group.items.map(item => {
+                    const Icon = item.icon;
+                    return item.href
+                      ? <Link key={item.id} href={item.href}
+                          aria-current={item.active ? "page" : undefined}
+                          target={item.external ? "_blank" : undefined}
+                          rel={item.external ? "noopener noreferrer" : undefined}
+                          onClick={() => selectItem(item)}
+                          className={"flex min-h-9 items-center gap-2 rounded-sm px-2 py-2 text-sm " +
+                            (item.active ? "bg-[#F8EDEF] font-semibold text-[#890022]" : "text-[#49363A] hover:bg-[#FBF9F9]")}>
+                          <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />{item.label}
+                        </Link>
+                      : <button key={item.id} type="button" onClick={() => selectItem(item)}
+                          className={"flex min-h-9 w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm " +
+                            (item.active ? "bg-[#F8EDEF] font-semibold text-[#890022]" : "text-[#49363A] hover:bg-[#FBF9F9]")}>
+                          <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />{item.label}
+                        </button>;
+                  })}
+                </div>)}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+
         {/* Desktop: only top-level icons; deeper actions appear on demand. */}
-        <nav aria-label={navigationLabel + " compact"} className="hidden min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto px-2 py-5 lg:flex">
+        <nav aria-label={navigationLabel + " compact"} className="hidden min-h-0 flex-1 flex-col items-center gap-0 overflow-y-auto px-2 py-1 lg:flex">
           {desktopMode === "groups"
             ? groups.map((group, index) => {
                 const id = group.name || String(index);
                 const active = group.items.some(item => item.active);
                 const Icon = group.icon || group.items[0]?.icon;
                 if (!Icon) return null;
-                if (group.items.length === 1) return <div key={id}>
+                if (group.items.length === 1) return <div key={id} className={group.separatorBefore ? "mt-2 border-t border-white/20 pt-2" : ""}>
                   <NavLink item={{ ...group.items[0], icon: Icon }} compact />
                 </div>;
                 return <Popover key={id} open={openGroup === id}
