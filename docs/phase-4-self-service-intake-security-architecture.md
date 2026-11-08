@@ -15,6 +15,73 @@ Keep four independent evidence/trust boundaries:
 
 A payment transaction must never automatically renew, validate or approve a minister. A reviewed recommendation letter must not automatically mark money collected. The Diocese/Curia remains authority for its preprinted receipt series.
 
+## Confirmed direction — coordinator self-service, QR Ph and OTC
+
+The requested future portal is **coordinator-led**, not an unrestricted public minister portal. Up to **two active, staff-approved email contacts per parish** may receive one-time email login codes. These verified contacts may view their **parish's** ministry rosters, file requests to make a member inactive, upload signed recommendation letters and supporting documents, and submit payment evidence. An authenticated email alone is insufficient to establish parish authority. Roles, contact replacements, cancellations and lockouts are audited.
+
+**Do not confuse this future self-service payment subphase with the existing browser-only Financial Stewardship Phase 2 receipt-booklet prototype.** The QR Ph feature belongs to the future coordinator-payment rollout after Phase 4 security design is approved.
+
+### Coordinator's intended mobile journey
+
+1. Sign in with an **email one-time code** linked to one of the parish's approved coordinator accounts. Enforce two active contacts per parish via trusted server transaction and DB locking/constraint mechanisms, not just a UI count; COWL may suspend or replace a contact.
+2. View only the parish's ministry rosters and renewal year, fee quote, due date and document/renewal/payment statuses. Show **Request inactive** against a roster entry; this creates a change request for admin approve/decline, **not** an immediate update to \`members\` or \`member_ministries\`.
+3. Submit the signed recommendation letter using camera, photo gallery or a private file upload. The uploaded evidence remains **Received — awaiting review** until COWL staff mark it reviewed; preserve any replacement/version history. Record requests and decisions in a chronological **Request history**.
+4. Select **Pay renewal**, see the **exact quoted amount**, official beneficiary name, approved organizational **QR Ph P2M** code, and the internal renewal reference (e.g. \`REN-2026-017\`). Allow the coordinator to save/download the QR image for an app's scan-from-gallery flow or scan it from a second device or printout. The renewal reference belongs to COWL-DOK's obligation, **not** the Curia-preprinted Official Receipt No. or the bank's transaction reference.
+5. The payer scans/uploads the QR using a **participating** QR Ph financial app such as a compatible GCash, Maya or bank app and pays to the verified organizational account. Static QR typically does **not** transmit \`REN-2026-017\` automatically and may require the payer to enter the amount. Show a warning to confirm the beneficiary name, amount and transaction success before submitting evidence. Do not silently promise that the payer's app can transmit a custom note.
+6. Back in the portal, the coordinator uploads a screenshot (private) and enters the **exact external transaction reference** plus transfer date/time, amount, payment app/bank and available sender details. The UI immediately displays **Payment submitted — awaiting verification**. It does **not** display Paid merely because the screenshot was accepted.
+7. COWL finance locates the **actual credit** on the authorized receiving bank/e-wallet statement, matches destination, amount, reference, date/time and other available data, and records a verified payment **only after settlement is evidenced**. If ambiguous or conflicting, use **Needs clarification / Under investigation**, not Paid.
+8. The coordinator then sees **Paid** and the verified date, separately from **Official receipt issued** and **Renewal approved**. The authorized office physically issues the exact Curia-supplied preprinted receipt under the existing receipt custody controls. Delivery/acknowledgment of the paper document follows Curia policy, not app-generated numbering.
+
+**OTC remains a first-class alternative.** Cash paid over the counter is recorded by an authorized cashier after actually counting funds. A parish's intent to pay OTC is not proof of collection, and an authorized collector's recorded event is distinct from a parish-submitted screenshot.
+
+### Explicit UI scope
+
+Coordinator mobile web page:
+- Email-code login for **maximum two approved active contacts per parish**, parish-scoped access, revocation and contact replacement
+- At-a-glance renewal status, due date, balance and **separate** document/payment/roster review statuses
+- Ministry-by-ministry roster view; **Request inactive** creates an auditable request, never a direct status edit
+- Camera/gallery/PDF uploads for recommendation letters, roster corrections and payment evidence
+- QR Ph payment instructions showing amount, beneficiary account name, approved QR and renewal reference; OTC instructions always visible
+- History of documents, requests, payments, receipt issuance and reviewer decisions
+
+COWL admin (Financial Stewardship plus review queues):
+- Parish list, filters and status indicators (**submitted**, **documents complete**, **paid**, **overdue**) as separate facets rather than a contradictory single enum
+- Roster change queue with approve/decline and reason; authorization and registrar review are required before any roster change
+- Document intake queue with **received**, **accepted**, **needs replacement** and other explicit states
+- One finance queue for QR Ph claims and OTC collections; QR claim must match a verified receiving-account credit, OTC must be counted by an authorized cashier
+- Duplicate external transaction reference detection, evidence reuse detection, bank-statement reconciliation and restricted staff override with audit
+- Immutable chronological activity log: actor, action, timestamp, target, verification evidence, approvals and corrections
+
+### QR Ph account and reconciliation policy
+
+- Use **one or more Curia-approved organizational receiving accounts**, never the staff member's personal wallet, and retain a versioned receiver-account record. Display the approved payee organization name (or merchant identity) and ensure the QR really routes to that account. For merchant collection, prefer an appropriate provider-issued **QR Ph P2M** code after confirming its eligibility with the provider.
+- **Static QR Ph is not an automatic payment API.** A COWL-DOK renewal reference displayed next to a static code does not necessarily appear in the payer's bank statement. The external bank transaction reference and actual credit are the main reconciliation anchors; staff must review ambiguities.
+- Every submitted payment attempt references the underlying renewal obligation and destination account. A **unique external reference** is checked in a suitably scoped namespace, such as \`(receiving_account_id, rail_or_provider_id, normalized_external_reference)\`. Reserve the claim and prohibit reassigning any **verified bank transaction** to two obligations; duplicate/reused evidence triggers an investigation. Treat reference uniqueness as an **anti-duplicate control, not proof a payment occurred**. Reuploading evidence for the *same* claim should create a revision, not a second paid collection.
+- A single bank credit may be ambiguous when many parishes owe the same amount: use amount, credit date/time, verified destination, provider reference, and available sender details. **Sender name alone, a screenshot or amount/date coincidence is insufficient**. Escalate unmatched credits or conflicting claims, and retain the bank-statement match reference.
+- **Centavo fingerprinting is deferred.** Adding a few centavos per parish (e.g. ₱5,000.17) changes the amount due and receipt reconciliation, and may interact with provider precision/fee schedules. Do not implement unless Curia approves the exact accounting treatment, display of charges and payment app behavior. Prefer a provider-supported dynamic QR/invoice reference if available in a future integration.
+- Payment entry records the intended payment amount separately from \`bank_verified_amount_centavos\`; all money is stored as integer centavos. No automatic cash receipt/ledger posting from applicant input.
+- If the QR directs funds to **COWL's approved account**, later COWL-to-Curia remittance (and duplicate receipt turnover) remains relevant. If it directs funds **straight to Curia**, record a direct diocesan settlement and **do not fabricate a COWL remittance**.
+- Payment reversal, chargeback, refund, excess/short payment and disputed statement matching are distinct review states and adjustment events. Once recorded, the previous financial evidence and decisions remain accessible for audit.
+
+### Distinguish the identifiers
+
+| Identifier | Assigned by | Purpose |
+| --- | --- | --- |
+| Renewal reference \`REN-2026-017\` | COWL-DOK internal ledger | Identifies a parish+ministry+year obligation; printable next to QR |
+| External transaction reference | Bank or payment app | Used to identify the claimed actual transfer; unique within verified provider/account namespace |
+| Collection / payment posting ID | COWL-DOK internal finance ledger | Represents funds counted/verified by authorized staff |
+| Official Receipt No. \`057785\` (sample) | Diocesan Curia preprinted booklets | Real paper receipt stock; cannot be generated from the renewal reference or QR transaction |
+
+### Concrete design invariants
+
+1. Two active parish coordinators maximum, designated by trusted staff; cross-parish access never inferred from email domain or user-supplied metadata.
+2. Roster change requests and file submissions are separate from approved changes to the authoritative member registry.
+3. \`proof_uploaded\` and \`external_reference_submitted\` are not settled funds or \`paid\`.
+4. A financial verifier must see matching authenticated receiving-bank evidence, not just a screenshot. Reused external transaction details cannot post a second confirmed payment; flag exceptions and do not auto-approve.
+5. \`Paid\`, \`Recommendation accepted\`, \`Receipt issued\`, \`Curia remittance confirmed\` and \`Renewal approved\` are separate facts and timestamps.
+6. Only staff with the proper receipt custody scope can record a preprinted Official Receipt No.; the number is stored exactly, including leading zeros.
+7. OTC and QR Ph use the **same collection ledger and parish status tracker**, but use distinct proof/verification routes and never bypass segregation of duties.
+
 ## Recommended user journey
 
 ### Parish representative (future /parish/submissions)
@@ -24,7 +91,7 @@ A payment transaction must never automatically renew, validate or approve a mini
 3. Add roster/members or upload a CSV for matching against authorized `member_ministries`; unmatched, duplicate or ambiguous names enter existing review, never silently create or renew member records.
 4. Upload one **parish-authorized recommendation letter** covering the appropriate batch; preserve document versions, signer/issuer details and review status. Do not copy the same PDF into every member row.
 5. Review the amount **quoted** from an approved, versioned diocesan fee schedule, including documented exemptions/adjustments. A quote is not money received.
-6. Choose the payment method allowed for the applicable year: (a) existing offline COWL handover; (b) bank/diocesan transfer with external payment evidence; or eventually (c) online gateway checkout. Do not promise online payment capability until Curia approves destination accounts and official receipt/document procedures.
+6. Choose **QR Ph** to view the approved organizational payment QR, exact fee and internal renewal reference, or select **OTC**. QR Ph evidence remains pending until checked against the receiving account statement. A future gateway checkout is a separate, optional enhancement, not a prerequisite of QR Ph screenshot-and-bank-verification intake.
 7. Submit the draft. Receive an internal **submission reference** and status tracker; never receive an invented official receipt serial. A successful upload or checkout redirect is not evidence of payment approval.
 8. Respond to reviewer requests through a revision/resubmission event. Finalized submissions are not silently edited.
 
@@ -50,7 +117,7 @@ For gateway payments: use a qualified provider-hosted checkout, never collect or
 ## Proposed schema domains (logical, NOT SQL yet)
 
 ### Identity and permission scope
-- `parish_representative_assignments`: `user_id`, `parish_id`, optional `ministry_id`, `approved_by`, `starts_at`, `expires_at`, `revoked_at`. A parish representative can be assigned several scopes without viewing all other parishes.
+- `parish_representative_assignments`: `user_id`, `parish_id`, optional `ministry_id`, `approved_by`, `starts_at`, `expires_at`, `revoked_at`. A trusted database transaction enforces **at most two active parish coordinator contacts**; approved scope, not verified email alone, controls roster and submission access.
 - `role_assignments` or reviewed `auth.users.raw_app_meta_data.registry_role` claim for coarse roles. Fine-grained parish authority must come from a trusted DB table, not an editable user profile or stale broad JWT claim.
 
 ### Intake, documents, and roster
@@ -60,6 +127,11 @@ For gateway payments: use a qualified provider-hosted checkout, never collect or
 - `submission_reviews` / append-only status events: actor, decision, reason, immutable original evidence, and explicit requests for revision.
 
 ### Pricing and payment
+- `payment_receiving_accounts`: bank/provider identity, organizational beneficiary name, QR Ph P2M image/identifier, effective dates, approval state and COWL-versus-Curia settlement destination. QR assignment/changes are controlled by authorized staff and audited.
+- `renewal_payment_claims`: renewal/payment-request ID, channel (`qr_ph`, `otc`), immutable initial claimant and timestamp, provider, destination account, original and normalized external transaction reference, payer-submitted amount/date/time, screenshot storage reference, claim state and cross-claim duplicate reason; screenshots cannot assert `verified_at`.
+- `bank_statement_credits`: private source statement import or staff-verified bank-credit record, receiving account, bank posting time, amount_centavos, verified bank/rail reference, fingerprint and import batch. Prevent a given verified credit from being linked to more than one posted payment; preserve ambiguity and manual review decisions.
+- `payment_reconciliations`: link claim to verified credit or OTC cashier event, independent verifying staff, decision, verified amount, verified_at, mismatch/rejection reason and append-only event reference. Matching and creation of a posted collection must be atomic and auditable.
+- `parish_change_requests`: member/ministry reference, parish, request type (`request_inactive`, correction, etc.), reason, submitted_by, reviewed_by, decision, reviewed_at and event log. Applicant never directly updates member activation.
 - `fee_schedules` / `fee_rules`: explicitly approved year/ministry/version, calculation basis, fee in **integer centavos**, effective dates and authorized approval.
 - `payment_requests`: financial obligation/quote linked to submission, approved rate version, quoted total, outstanding balance, adjustments and payer/destination.
 - `payment_attempts`: initiated/awaiting evidence/pending verification/verified/failed/refunded/disputed; channel, remittance destination, provider/bank references and server-verified amounts. Applicant-controlled proof is evidence, **not settled money**.
@@ -126,5 +198,8 @@ Implementation controls:
 4. When money arrives digitally, who issues the Curia-approved official accounting document and how do preprinted receipt duplicates move, if at all?
 5. Who is the authorized signatory for recommendation letters, what signature verification is acceptable, and how long must files and payment records be retained?
 6. What counts as a fully approved minister renewal under the existing registry workflow, independent of payment?
+7. Which organizational QR Ph receiving account and beneficiary name does Curia authorize? Is the account held by COWL or paid directly to Curia, and which staff member can verify its statement?
+8. Are QR Ph merchant account/payment limits, provider fees, and exact settlement identifiers acceptable? Must the payer submit proof for every payment, even when the statement shows a definitive reference?
+9. How should bank refunds, partial/overpayments, OTC cash, and duplicate screenshot/transaction claims be resolved? Centavo-based matching must remain disabled absent explicit Curia approval.
 
 **Do not apply a migration or make public self-submission available until these matters and the RLS tests are approved.**
