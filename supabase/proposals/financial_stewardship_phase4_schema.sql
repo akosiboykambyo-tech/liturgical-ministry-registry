@@ -136,6 +136,7 @@ create table public.fs_submission_documents (
     ('recommendation_letter','roster','supporting_document','payment_evidence')),
   storage_bucket text not null default 'fs-private',
   storage_path text not null unique check (length(storage_path) between 10 and 800),
+  document_group_id uuid not null default gen_random_uuid(),
   version integer not null default 1 check (version > 0),
   original_name text check (length(original_name) <= 255),
   mime_type text,
@@ -148,9 +149,12 @@ create table public.fs_submission_documents (
   reviewed_by uuid references auth.users(id),
   reviewed_at timestamptz,
   created_at timestamptz not null default now(),
-  unique(batch_id,document_kind,version),
+  unique(batch_id,document_kind,document_group_id,version),
   check (review_status <> 'accepted' or (scan_status='clean' and reviewed_by is not null))
 );
+-- Each logical file has its own document_group_id. Multiple independent
+-- payment screenshot uploads may coexist in the same renewal batch; revised
+-- versions reuse the group id with an incremented version.
 -- This is metadata only: Supabase Storage bucket and object RLS require a
 -- separately reviewed, private, parish-scoped storage deployment.
 
