@@ -1,5 +1,8 @@
 # Phase 4.2 — Isolated Financial Stewardship Receipt Custody Staging
 
+> **Access update (8 November 2026):** The two user-designated existing **Ministry-Registry-Test** Auth accounts now have separate, active test-only roles: COWL receipt issuer/custodian and Curia receipt custodian. The grants were provisioned using an explicitly user-authorized operator procedure recorded in the database audit trail, not impersonated as a staff approval. Scoped role checks passed; production remains unchanged. An interactive two-device walkthrough and actual test booklet handover have **not** yet occurred.
+
+
 **Deployment scope:** GitHub Draft PR #58 and the existing Vercel Preview for `feature/financial-stewardship-preview`, plus Supabase `Ministry-Registry-Test` only. No production database or production credentials were changed. This is not permission to handle real Official Receipt booklets.
 
 ## Open staging interfaces
@@ -18,7 +21,7 @@
 - Password sign-in requires an existing approved TEST project account. The signed-in identity must have a current `fs_staff_grants` assignment: **`curia_receipt_custodian` for Curia**, **`cowl_receipt_issuer` for COWL**. A normal administrator is not implicitly privileged.
 - Both database RPCs and RLS use current staff grant records, not client role names or user-editable metadata. Anonymous and unapproved users cannot operate financial stock.
 
-**Provisioning dependency:** No test personnel received automatic grants and no test users were created. A trusted test administrator must obtain authorization for **two distinct named test accounts**, confirm both already exist in test Auth, and provision these roles in `fs_staff_grants` with approver identity and audit evidence. The receiving COWL account must not be the Curia assigning officer, even if that user has multiple roles. Never use real officials' passwords or production accounts for this pilot. Revocation/expiry are supported in role records.
+**Test staff provisioning:** The two existing, email-confirmed user-designated test identities are now provisioned with their distinct roles. A separate test-only provenance migration preserves the user's authorization without falsely attributing the grants to a staff approver. The receiving COWL custodian must remain different from the Curia assigning officer. No passwords were handled or identities created; revocation remains available.
 
 ## Curia → COWL workflow (database-backed)
 
@@ -50,7 +53,7 @@
 
 ## Remaining before actual live financial use
 
-1. Confirm named **test** Curia and COWL personnel; provision grants in the isolated Auth system and perform a real two-device walkthrough.
+1. **Completed:** designate the two test identities and provision separate roles. **Pending:** sign into the staging portals with those accounts and perform a real two-device booklet registration, Curia handover and COWL acknowledgment.
 2. Confirm Curia's written authorization of the specific COWL receiving arrangement and official receipt-handling procedures.
 3. Build and review the verified bank/QR payment and OTC UI adapters; their backend transaction operations are separate from this custody pilot.
 4. Complete required scoped file-upload permissions, document verification, fee rules, and broader financial security/concurrency testing.
