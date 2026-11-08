@@ -63,6 +63,31 @@ as $$
   );
 $$;
 
+create function fs_internal.can_read_registry_batch(p_batch uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $
+  select exists (
+    select 1 from public.fs_renewal_batches b
+    where b.id = p_batch and (
+      fs_internal.is_parish_contact(b.parish_id)
+      or fs_internal.has_staff_role('cowl_registry_reviewer')
+    )
+  );
+$;
+
+create function fs_internal.can_read_document(p_batch uuid, p_kind text)
+returns boolean language sql stable security definer set search_path = ''
+as $
+  select exists (
+    select 1 from public.fs_renewal_batches b
+    where b.id = p_batch and (
+      fs_internal.is_parish_contact(b.parish_id)
+      or (p_kind = 'payment_evidence' and fs_internal.has_staff_role('cowl_finance_verifier'))
+      or (p_kind <> 'payment_evidence' and fs_internal.has_staff_role('cowl_registry_reviewer'))
+    )
+  );
+$;
+
 create function fs_internal.can_read_payment_request(p_request uuid)
 returns boolean language sql stable security definer set search_path = ''
 as $$
@@ -77,11 +102,15 @@ revoke all on function fs_internal.has_staff_role(text) from public, anon;
 revoke all on function fs_internal.is_parish_contact(uuid) from public, anon;
 revoke all on function fs_internal.is_any_parish_contact() from public, anon;
 revoke all on function fs_internal.can_read_batch(uuid) from public, anon;
+revoke all on function fs_internal.can_read_registry_batch(uuid) from public, anon;
+revoke all on function fs_internal.can_read_document(uuid,text) from public, anon;
 revoke all on function fs_internal.can_read_payment_request(uuid) from public, anon;
 grant execute on function fs_internal.has_staff_role(text) to authenticated;
 grant execute on function fs_internal.is_parish_contact(uuid) to authenticated;
 grant execute on function fs_internal.is_any_parish_contact() to authenticated;
 grant execute on function fs_internal.can_read_batch(uuid) to authenticated;
+grant execute on function fs_internal.can_read_registry_batch(uuid) to authenticated;
+grant execute on function fs_internal.can_read_document(uuid,text) to authenticated;
 grant execute on function fs_internal.can_read_payment_request(uuid) to authenticated;
 
 -- Explicit per-table SELECT grants below. No write grants are issued.
@@ -117,15 +146,15 @@ create policy fs_batches_read on public.fs_renewal_batches
   );
 create policy fs_batch_members_read on public.fs_batch_members
   for select to authenticated using (
-    fs_internal.can_read_batch(batch_id)
+    fs_internal.can_read_registry_batch(batch_id)
   );
 create policy fs_change_requests_read on public.fs_roster_change_requests
   for select to authenticated using (
-    fs_internal.can_read_batch(batch_id)
+    fs_internal.can_read_registry_batch(batch_id)
   );
 create policy fs_documents_read on public.fs_submission_documents
   for select to authenticated using (
-    fs_internal.can_read_batch(batch_id)
+    fs_internal.can_read_document(batch_id,document_kind)
   );
 create policy fs_fee_schedules_read on public.fs_fee_schedules
   for select to authenticated using (
