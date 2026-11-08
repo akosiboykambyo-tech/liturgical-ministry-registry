@@ -1,5 +1,8 @@
 # Phase 4 — Financial Stewardship database and security review
 
+> **Implementation update — 8 November 2026:** The original text below records the pre-migration architecture proposal. Ten controlled migrations have since been applied to the isolated Ministry-Registry-Test Supabase project, including the 28th Curia fund-receipt table, guarded payment/receipt/remittance RPCs, immutable-evidence protections and a private bucket. The production database and current demo UI remain unchanged. See [Phase 4 isolated test rollout](financial-stewardship-phase4-test-rollout-2026-11-08.md) for the authoritative current implementation and QA status. Financial go-live remains blocked.
+
+
 **Design proposal only. No migration, permission change, or test database mutation has been executed.**
 
 ## Deliverables
