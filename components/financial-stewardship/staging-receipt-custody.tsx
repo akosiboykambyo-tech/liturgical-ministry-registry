@@ -69,6 +69,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const [user, setUser] = useState<User | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [rolesForUser, setRolesForUser] = useState<string | null>(null);
+  const [grantRefresh, setGrantRefresh] = useState(0);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [signingIn, setSigningIn] = useState(false);
@@ -120,7 +121,13 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
         setRoleLoading(false);
       });
     return () => { active = false; };
-  }, [client, user?.id]);
+  }, [client, user?.id, grantRefresh]);
+
+  useEffect(() => {
+    const recheck = () => { if (document.visibilityState === "visible") setGrantRefresh(n => n + 1); };
+    window.addEventListener("focus", recheck);
+    return () => window.removeEventListener("focus", recheck);
+  }, []);
 
   const custodyAllowed = Boolean(user && rolesForUser === user.id && roles.includes(requiredRole));
   const allowed = Boolean(user && rolesForUser === user.id && (
