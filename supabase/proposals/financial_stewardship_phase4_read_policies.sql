@@ -65,7 +65,7 @@ $$;
 
 create function fs_internal.can_read_registry_batch(p_batch uuid)
 returns boolean language sql stable security definer set search_path = ''
-as $
+as $$
   select exists (
     select 1 from public.fs_renewal_batches b
     where b.id = p_batch and (
@@ -73,11 +73,11 @@ as $
       or fs_internal.has_staff_role('cowl_registry_reviewer')
     )
   );
-$;
+$$;
 
 create function fs_internal.can_read_document(p_batch uuid, p_kind text)
 returns boolean language sql stable security definer set search_path = ''
-as $
+as $$
   select exists (
     select 1 from public.fs_renewal_batches b
     where b.id = p_batch and (
@@ -86,7 +86,7 @@ as $
       or (p_kind <> 'payment_evidence' and fs_internal.has_staff_role('cowl_registry_reviewer'))
     )
   );
-$;
+$$;
 
 create function fs_internal.can_read_payment_request(p_request uuid)
 returns boolean language sql stable security definer set search_path = ''
