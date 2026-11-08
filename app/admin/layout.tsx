@@ -34,8 +34,8 @@ const NAV_GROUPS = [
   { name: "Settings", icon: Settings, items: [
     { href: "/admin/site-settings", label: "Public Website Settings", icon: Settings },
     { href: "/admin/audit", label: "Audit Trail", icon: ScrollText },
-    { href: "/admin/financial-stewardship-preview", label: "Financial Stewardship (Demo)", icon: Wallet },
-    { href: "/curia", label: "Curia Portal (Demo)", icon: Landmark },
+    { href: "/admin/financial-stewardship", label: "Financial Stewardship", icon: Wallet },
+    { href: "/curia", label: "Curia Portal", icon: Landmark },
   ] },
 ];
 
@@ -45,14 +45,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [freshDisplayName, setFreshDisplayName] = useState<string | null>(null);
   const isLoginPage = ["/admin", "/admin/forgot-password", "/admin/reset-link-sent", "/admin/reset-password"].includes(pathname);
+  // The Financial Stewardship pages on this isolated preview have their OWN
+  // Supabase test-project identity and role gates. Never inherit production
+  // registry admin authority, and never bypass on production builds.
+  const isolatedFinanceRoute =
+    process.env.NEXT_PUBLIC_FS_STAGING_URL === "https://rtptybxugjhvpfjvcvgw.supabase.co" &&
+    ["/admin/financial-stewardship", "/admin/financial-stewardship-preview"].includes(pathname);
 
   useEffect(() => {
-    if (!loading && !user && !isLoginPage) router.replace("/admin");
-  }, [loading, user, isLoginPage, router]);
+    if (!loading && !user && !isLoginPage && !isolatedFinanceRoute) router.replace("/admin");
+  }, [loading, user, isLoginPage, isolatedFinanceRoute, router]);
 
   // Fetch fresh Auth metadata: the auth context initially reads cached session data.
   useEffect(() => {
-    if (!user?.id || isLoginPage) return;
+    if (!user?.id || isLoginPage || isolatedFinanceRoute) return;
     let cancelled = false;
     setFreshDisplayName(null);
 
@@ -63,9 +69,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
 
     return () => { cancelled = true; };
-  }, [user?.id, isLoginPage]);
+  }, [user?.id, isLoginPage, isolatedFinanceRoute]);
 
-  if (isLoginPage) return <>{children}</>;
+  if (isLoginPage || isolatedFinanceRoute) return <>{children}</>;
   if (loading) return (
     <div className="flex min-h-screen items-center justify-center bg-[#FBF9F9]" role="status">
       <Loader2 className="h-6 w-6 animate-spin text-[#890022]" aria-hidden="true" />
