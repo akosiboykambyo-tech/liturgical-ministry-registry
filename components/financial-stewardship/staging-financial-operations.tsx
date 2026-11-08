@@ -104,9 +104,9 @@ export default function StagingFinancialOperations({
   const canReadIssued = canReadCollections || (mode === "curia" && has("curia_receipt_custodian"));
   const canReadStock = canIssue || canVerify || canRemit || canTreasury ||
     (mode === "curia" && has("curia_receipt_custodian"));
-  const allowed = section === "collections"
-    ? canReadCollections || canReadIssued
-    : canReadRemittances || (mode === "curia" && has("curia_receipt_custodian"));
+  // A stock custodian may inspect receipt status in Receipt Inventory, but
+  // cannot infer hidden finance totals or view a remittance from that role alone.
+  const allowed = section === "collections" ? canReadCollections : canReadRemittances;
 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
