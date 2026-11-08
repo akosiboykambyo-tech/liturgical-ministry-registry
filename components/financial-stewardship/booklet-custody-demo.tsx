@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, BookOpenCheck, CheckCircle2, ClipboardCheck, RotateCcw, ShieldCheck } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import {
@@ -109,6 +110,11 @@ export default function BookletCustodyDemo({ mode }: { mode: Mode }) {
             : "Acknowledge receipt of Curia-assigned booklets, review available serials and simulate recording a receipt's use or exception."}
         </p>
       </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link href={mode === "curia" ? "/staging/financial-stewardship/curia" : "/staging/financial-stewardship/cowl"}
+          className={primary} title="Separate login and isolated Supabase test database required">
+          <ShieldCheck className="h-4 w-4" /> Open secure test inventory
+        </Link>
       <button type="button" className={secondary} onClick={() => {
         if (!resetArmed) {
           setResetArmed(true);
@@ -119,6 +125,7 @@ export default function BookletCustodyDemo({ mode }: { mode: Mode }) {
         setNotice({ ok: result.ok, text: result.ok ? "Phase 2 and Phase 3 mock data reset to the fictional starting inventory." : result.error || "Unable to reset." });
         setPhysicallyChecked(false); setResetArmed(false);
       }}><RotateCcw className="h-4 w-4" /> {resetArmed ? "Confirm reset all mock data" : "Reset Phase 2/3 demos"}</button>
+      </div>
     </div>
 
     <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
