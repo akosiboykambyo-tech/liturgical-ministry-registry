@@ -66,6 +66,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const [roleLoading, setRoleLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
+  const [rolesForUser, setRolesForUser] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [signingIn, setSigningIn] = useState(false);
@@ -99,9 +100,11 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   }, [client]);
 
   useEffect(() => {
-    if (!client || !user) { setRoles([]); setRoleLoading(false); return; }
+    if (!client || !user) { setRoles([]); setRolesForUser(null); setRoleLoading(false); return; }
     let active = true;
     setRoleLoading(true);
+    setRoles([]);
+    setRolesForUser(null);
     void client.from("fs_staff_grants")
       .select("role_code,revoked_at,expires_at")
       .eq("user_id", user.id)
@@ -111,12 +114,13 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
         setRoles(error ? [] : (data || []).filter(grant =>
           !grant.revoked_at && (!grant.expires_at || Date.parse(grant.expires_at) > now)
         ).map(grant => grant.role_code));
+        setRolesForUser(user.id);
         setRoleLoading(false);
       });
     return () => { active = false; };
   }, [client, user?.id]);
 
-  const allowed = Boolean(user && roles.includes(requiredRole));
+  const allowed = Boolean(user && rolesForUser === user.id && roles.includes(requiredRole));
 
   const refresh = useCallback(async () => {
     if (!client || !allowed) return;
@@ -205,7 +209,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   async function signOut() {
     if (!client) return;
     await client.auth.signOut();
-    setUser(null); setRoles([]); setBooklets([]); setNumbers([]); setSeries([]); setEvents([]);
+    setUser(null); setRoles([]); setRolesForUser(null); setBooklets([]); setNumbers([]); setSeries([]); setEvents([]);
     setFeedback(null);
   }
 
