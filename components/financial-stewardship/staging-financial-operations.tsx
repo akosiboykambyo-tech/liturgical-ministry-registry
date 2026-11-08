@@ -129,6 +129,11 @@ export default function StagingFinancialOperations({
   useEffect(() => {
     let active = true;
     if (!client || !allowed) { setLoading(false); return; }
+    // A role may have been revoked or changed without a new Auth identity.
+    // Discard previously rendered financial records before loading newly scoped data.
+    setCollections([]); setRequests([]); setClaims([]); setIssues([]);
+    setNumbers([]); setBooklets([]); setRemittances([]); setItems([]);
+    setCopies([]); setFunds([]); setReviews([]);
     setLoading(true);
     async function load() {
       if (!client) return;
@@ -397,12 +402,12 @@ export default function StagingFinancialOperations({
     </>}
 
     {section === "remittances" && <>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {canReadRemittances && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric name="COWL submitted remittances" value={String(remittances.length)} />
         <Metric name="Awaiting Curia review" value={String(pending.length)} />
         <Metric name="Curia confirmed" value={String(remittances.filter(r=>r.status==="curia_confirmed").length)} />
         <Metric name="Curia discrepancies" value={String(remittances.filter(r=>r.status==="discrepancy").length)} />
-      </div>
+      </div>}
       {canReadRemittances && <section className={box}>
         <h3 className={ebGaramond.className + " text-[27px]"}>COWL-to-Curia remittance ledger</h3>
         <p className="mt-2 text-xs leading-5 text-[#6F6265]">The parish paying COWL and COWL handing money to Curia are separate transactions. A verified parish payment is not Curia acknowledgment.</p>
