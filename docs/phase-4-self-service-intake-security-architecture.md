@@ -52,6 +52,28 @@ COWL admin (Financial Stewardship plus review queues):
 - Duplicate external transaction reference detection, evidence reuse detection, bank-statement reconciliation and restricted staff override with audit
 - Immutable chronological activity log: actor, action, timestamp, target, verification evidence, approvals and corrections
 
+### Architecture decision — preserve COWL as the initial collecting office
+
+**Preferred operating model, pending documented Curia approval:** the QR Ph destination is a **designated organizational account authorized for COWL collections**, with controlled COWL finance access to the receiving statements. The account can be legally owned or sponsored by the appropriate diocesan entity if required by the Curia and banking provider; it must **not** be an individual officer's personal wallet. This is an operational destination choice, not a claim about legal account ownership.
+
+The purpose of this decision is to preserve the existing financial stewardship chain:
+
+1. Parish coordinators choose QR Ph or OTC. QR funds initially land in the approved account **designated for COWL collections**; OTC funds are received and counted by authorized COWL personnel.
+2. Applicant-submitted transaction proof is **pending verification**. COWL verifies the **first money movement** (payer → COWL collection account) against the actual bank/e-wallet account credit, then posts a collection with its own internal collection ID and authorized receiving officer.
+3. COWL physically issues the Curia-supplied **preprinted Official Receipt No.**, records that exact serial without generating a number, and retains the required duplicate copy for turnover. Curia must confirm that its existing preprinted receipt issuance rules apply to QR-funded collections.
+4. COWL consolidates **verified** QR and OTC collections into an itemized remittance. The remittance totals and exact Official Receipt Nos. must reconcile. COWL transfers the funds to Curia using an approved method and turns over the physical duplicate copies under signed custody evidence.
+5. Curia independently verifies the **second money movement** (COWL → Curia), its own received funds, the receipt numbers and duplicate paper copies. Curia acknowledges or flags a discrepancy; **COWL marking a parish payment Paid does not imply Curia has confirmed a remittance**.
+6. The parish portal shows separate status facts for payment verification, Official Receipt issuance, registry renewal review and Curia remittance acknowledgment, as applicable.
+
+**Two distinct transaction references are required** for QR payments in this model:
+- The *parish payment reference*: originating from GCash/Maya/bank → approved COWL receiving account, verified by COWL.
+- The *COWL remittance reference*: originating from COWL → Curia, verified independently by Curia.
+A renewal reference (e.g. \`REN-2026-017\`) and the **preprinted Official Receipt No.** are separate identifiers and must not be substituted for either bank reference.
+
+A **direct-to-Curia QR destination is outside the preferred Phase 4 scope** because it bypasses the COWL fund-receipt-and-remittance sequence. If Curia later mandates direct settlement, that must be an explicit, separately approved route with its own authorization, accounting entries and reconciliation statuses; the system must not fabricate a COWL remittance that never occurred.
+
+**Pre-implementation approval required:** Curia and COWL must agree on the actual organization/beneficiary name, lawful account authority, who can view and attest bank-credit records, settlement limits and fees, the timing of issuance of preprinted official receipts for QR payments, bank-to-Curia transfer and physical duplicate-copy turnover procedures, and exception/void/refund handling. This decision is a design preference, **not permission to collect funds or a change to current Curia rules**.
+
 ### QR Ph account and reconciliation policy
 
 - Use **one or more Curia-approved organizational receiving accounts**, never the staff member's personal wallet, and retain a versioned receiver-account record. Display the approved payee organization name (or merchant identity) and ensure the QR really routes to that account. For merchant collection, prefer an appropriate provider-issued **QR Ph P2M** code after confirming its eligibility with the provider.
@@ -60,7 +82,7 @@ COWL admin (Financial Stewardship plus review queues):
 - A single bank credit may be ambiguous when many parishes owe the same amount: use amount, credit date/time, verified destination, provider reference, and available sender details. **Sender name alone, a screenshot or amount/date coincidence is insufficient**. Escalate unmatched credits or conflicting claims, and retain the bank-statement match reference.
 - **Centavo fingerprinting is deferred.** Adding a few centavos per parish (e.g. ₱5,000.17) changes the amount due and receipt reconciliation, and may interact with provider precision/fee schedules. Do not implement unless Curia approves the exact accounting treatment, display of charges and payment app behavior. Prefer a provider-supported dynamic QR/invoice reference if available in a future integration.
 - Payment entry records the intended payment amount separately from \`bank_verified_amount_centavos\`; all money is stored as integer centavos. No automatic cash receipt/ledger posting from applicant input.
-- If the QR directs funds to **COWL's approved account**, later COWL-to-Curia remittance (and duplicate receipt turnover) remains relevant. If it directs funds **straight to Curia**, record a direct diocesan settlement and **do not fabricate a COWL remittance**.
+- **Preferred route:** QR Ph credits the organizational receiving account designated for COWL collections. COWL verifies the payer credit, issues the Curia-preprinted Official Receipt under approved policy, then remits consolidated funds and physical duplicate receipts to Curia for independent acknowledgment. Direct-to-Curia QR settlement is a separate contingency requiring Curia's explicit approval, not the default.
 - Payment reversal, chargeback, refund, excess/short payment and disputed statement matching are distinct review states and adjustment events. Once recorded, the previous financial evidence and decisions remain accessible for audit.
 
 ### Distinguish the identifiers
@@ -193,12 +215,12 @@ Implementation controls:
 ## Unresolved governance decisions for the Diocese / Curia
 
 1. Is the page available to a **parish-appointed representative**, individual minister, or both? Default: appointed representative may submit; individual minister has no authority to represent a parish or self-approve a recommendation letter.
-2. Who is the lawful beneficiary/account holder for future electronic payments: COWL-controlled approved account or direct Diocesan Curia account? They require different reconciliation paths.
+2. Confirm the designated organizational account **authorized for COWL QR Ph collections**, including its lawful beneficiary, who controls the funds and statements, and the rules for subsequent remittance to Curia. A direct-to-Curia account is not the preferred initial design.
 3. Which fee schedule and exceptions are approved? One pictured receipt at ₱50.00 per minister does **not** establish a universal rate.
 4. When money arrives digitally, who issues the Curia-approved official accounting document and how do preprinted receipt duplicates move, if at all?
 5. Who is the authorized signatory for recommendation letters, what signature verification is acceptable, and how long must files and payment records be retained?
 6. What counts as a fully approved minister renewal under the existing registry workflow, independent of payment?
-7. Which organizational QR Ph receiving account and beneficiary name does Curia authorize? Is the account held by COWL or paid directly to Curia, and which staff member can verify its statement?
+7. Which approved organizational QR Ph account (legally held by COWL or an authorized diocesan entity, as Curia determines) is specifically designated for **COWL collections**, and which staff members may verify its statement and initiate the subsequent transfer to Curia?
 8. Are QR Ph merchant account/payment limits, provider fees, and exact settlement identifiers acceptable? Must the payer submit proof for every payment, even when the statement shows a definitive reference?
 9. How should bank refunds, partial/overpayments, OTC cash, and duplicate screenshot/transaction claims be resolved? Centavo-based matching must remain disabled absent explicit Curia approval.
 
