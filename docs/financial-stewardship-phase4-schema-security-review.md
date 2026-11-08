@@ -123,3 +123,29 @@ These transactional operations are intentionally NOT implemented in the present 
 7. Perform full finance audit, actual bank statement reconciliation, Curia duplicate-receipt handoff, concurrency, mobile UX and rollback/security review before production rollout.
 
 **Current outcome:** two unexecuted SQL proposals plus this security review in Draft PR #58. No real financial collection, database permission, migration, or live portal feature has been enabled.
+
+
+## Integration map to the current Financial Stewardship prototype
+
+| Existing or planned interface | Existing prototype action | Phase 4 database / trusted operation |
+| --- | --- | --- |
+| COWL Receipt Inventory | Curia register/assign booklet; COWL acknowledge; note issued/voided/missing | fs_receipt_series, fs_receipt_booklets, fs_receipt_numbers, fs_receipt_custody_events and Curia/COWL role-scoped transactions |
+| COWL collection desk | Enter exact Official Receipt No., parish, ministry, fee, actual funds; record a fictional collection | fs_payment_requests, fs_collections, fs_collection_allocations and fs_receipt_issues in reviewed atomic posting steps |
+| COWL remittance desk | Select unremitted collections, attest physical duplicate copy handoff | fs_remittances, fs_remittance_items, fs_duplicate_copy_handoffs; a separate transfer bank reference is required |
+| Curia reconciliation | Verify counted funds and individual duplicates; confirm or flag discrepancy | fs_curia_reviews plus remittance/copy statuses; separate Curia reviewer authorization |
+| Future parish coordinator page | Email-code sign-in, roster, inactivation request, letters, QR Ph proof or OTC choice | fs_parish_contacts, fs_renewal_batches, fs_batch_members, fs_roster_change_requests, fs_submission_documents, fs_payment_claims |
+| COWL finance verification queue | Staff verifies QR bank credit or counts OTC cash | fs_bank_credits, fs_payment_reconciliations, fs_collections and staff role grants |
+| Parish payment/renewal status | Awaiting payment, proof submitted, Paid, receipt issued, renewal reviewed | Derived authorized status model from separate payment, document, receipt and registry facts; not one mutable all-purpose status |
+
+Existing mock source files:
+- components/financial-stewardship/booklet-custody-demo.tsx
+- components/financial-stewardship/phase3-financial-demo.tsx
+- lib/financial-stewardship-booklet-demo.ts
+- app/admin/financial-stewardship-preview/page.tsx
+- app/curia/page.tsx
+
+The current browser-only localStorage ledger must **not** be silently repointed to Supabase. Keep the UI read-only or demo until the real transaction API, scoped read models, fully tested RLS, member-privacy filters and a dedicated Curia role system exist. In particular, do not use the old static sample receipt numbers as real stock.
+
+The future coordinator roster screen should receive a **sanitized, parish-scoped read model** of relevant member assignments; the new private finance tables do not themselves make existing public.members or member_ministries queries safe for coordinator access. A reviewed API/SQL view is required before exposing that roster to parish accounts.
+
+**Static cross-file check performed:** 27 proposed tables, 27 RLS-enablement statements, 27 client-grant revocations, 27 matching candidate SELECT policies and 27 matching explicit SELECT grants; no client financial write grants were found. This is structural checking only, **not SQL execution or security testing**.
