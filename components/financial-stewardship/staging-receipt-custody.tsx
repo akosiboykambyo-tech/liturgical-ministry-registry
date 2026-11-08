@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import { ebGaramond } from "@/app/fonts";
 import PortalShell, { type PortalNavGroup } from "@/components/portal-shell";
-import { getFinancialStagingClient, type StagingStaffRole } from "@/lib/financial-stewardship/staging-client";
+import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";
+import StagingFinancialOperations from "@/components/financial-stewardship/staging-financial-operations";
 
 type Mode = "curia" | "cowl";
 type Series = { id: string; issuing_entity: string; series_code: string };
@@ -60,8 +61,9 @@ function ErrorMessage({ value }: { value: Feedback | null }) {
 
 export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const client = useMemo(() => getFinancialStagingClient(), []);
-  const requiredRole: StagingStaffRole = mode === "curia"
+  const requiredRole = mode === "curia"
     ? "curia_receipt_custodian" : "cowl_receipt_issuer";
+  const [section, setSection] = useState<"custody" | "collections" | "remittances">("custody");
   const [authLoading, setAuthLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -120,10 +122,15 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     return () => { active = false; };
   }, [client, user?.id]);
 
-  const allowed = Boolean(user && rolesForUser === user.id && roles.includes(requiredRole));
+  const custodyAllowed = Boolean(user && rolesForUser === user.id && roles.includes(requiredRole));
+  const allowed = Boolean(user && rolesForUser === user.id && (
+    mode === "cowl"
+      ? ["cowl_receipt_issuer", "cowl_finance_verifier", "cowl_remittance_preparer"].some(role => roles.includes(role))
+      : ["curia_receipt_custodian", "curia_treasury_reviewer"].some(role => roles.includes(role))
+  ));
 
   const refresh = useCallback(async () => {
-    if (!client || !allowed) return;
+    if (!client || !custodyAllowed) return;
     setRefreshing(true);
     try {
       const [sr, br, nr, er, cr] = await Promise.all([
@@ -145,7 +152,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     } finally {
       setRefreshing(false);
     }
-  }, [client, allowed, mode]);
+  }, [client, custodyAllowed, mode]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -258,8 +265,13 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   </div>;
 
   const groups: PortalNavGroup[] = [
-    { name: "Receipt custody", items: [
-      { id: "stock", label: "Shared test inventory", icon: BookOpenCheck, active: true, onSelect: () => void refresh() },
+    { name: "Financial Stewardship", items: [
+      { id: "stock", label: "Official Receipt Inventory", icon: BookOpenCheck, active: section === "custody",
+        onSelect: () => { setSection("custody"); void refresh(); } },
+      { id: "collections", label: "Collections and Receipts", icon: Database, active: section === "collections",
+        onSelect: () => setSection("collections") },
+      { id: "remittances", label: "Remittances and Curia Review", icon: ArrowLeftRight, active: section === "remittances",
+        onSelect: () => setSection("remittances") },
       { id: "curia", label: "Curia workspace", icon: Landmark, href: "/staging/financial-stewardship/curia" },
       { id: "cowl", label: "COWL workspace", icon: ShieldCheck, href: "/staging/financial-stewardship/cowl" },
     ] },
@@ -277,20 +289,35 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     <div className="mx-auto w-full max-w-[1350px] space-y-6 px-4 py-7 sm:px-7 lg:px-10">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#890022]">Financial Stewardship · Phase 4.2 staging</p>
-          <h1 className={ebGaramond.className + " mt-2 text-[38px] font-medium leading-tight sm:text-[47px]"}>Official Receipt Booklets</h1>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#890022]">Financial Stewardship · Phase 4.3 operational staging</p>
+          <h1 className={ebGaramond.className + " mt-2 text-[38px] font-medium leading-tight sm:text-[47px]"}>
+            {mode === "curia" ? "Curia Portal" : "Financial Stewardship"}
+          </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#65575A]">{mode === "curia"
-            ? "Register physical receipt series and booklets, then assign them to an authorized COWL custodian."
-            : "Review shared Curia-issued booklet stock, acknowledge assigned physical booklets and report unusable serials."}</p>
+            ? "Shared Curia receipt custody, incoming COWL remittances and independent accounting review."
+            : "Secure COWL receipt inventory, verified collections and accountable remittances to Curia."}</p>
         </div>
         <button type="button" disabled={refreshing} onClick={() => void refresh()} className={outline}>
           <RefreshCw className={"h-4 w-4 " + (refreshing ? "animate-spin" : "")}/> Refresh inventory
         </button>
       </header>
       <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
-        <strong>Isolated Supabase staging.</strong> This inventory is shared across test-authorized COWL and Curia accounts and devices. It contains no seeded official receipt booklets, collections or live funds. Enter only fictional test stock until the Diocese explicitly authorizes real receipt handling.
+        <strong>Isolated Supabase staging.</strong> These workspaces use the same database, but enforce distinct COWL and Curia staff privileges. They contain no approved real financial account or seeded receipt stock. Use fictional test stock and test-only entries until Curia authorizes official handling.
       </div>
       <ErrorMessage value={feedback} />
+      <nav aria-label="Financial Stewardship sections" className="flex flex-wrap gap-2 border-b border-[#E6DADC] pb-4">
+        {([
+          ["custody", "Receipt Inventory", BookOpenCheck],
+          ["collections", "Collections & Receipts", Database],
+          ["remittances", "Remittances & Curia", ArrowLeftRight],
+        ] as const).map(([key,label,Icon]) =>
+          <button key={key} type="button" onClick={() => { setSection(key); setFeedback(null); }}
+            className={"inline-flex min-h-11 items-center gap-2 rounded-sm border px-3 py-2 text-sm font-semibold " +
+              (section===key ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#49363A] hover:border-[#890022]")}>
+            <Icon className="h-4 w-4" />{label}
+          </button>)}
+      </nav>
+      {section === "custody" ? (custodyAllowed ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["Registered test booklets", booklets.length],
@@ -442,9 +469,15 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           </div>
         </div>
       </section>}
+      </> : <div className="flex items-start gap-3 border border-[#E6DADC] bg-white p-5">
+        <ShieldCheck className="h-5 w-5 shrink-0 text-[#890022]" />
+        <div><h2 className="font-semibold">Receipt custodian role required</h2>
+          <p className="mt-1 text-sm text-[#6F6265]">This workspace is available only to the assigned {mode === "curia" ? "Curia receipt custodian" : "COWL receipt issuer / custodian"}. A finance or treasury role alone does not permit control of printed receipt stock.</p>
+        </div>
+      </div>) : <StagingFinancialOperations mode={mode} section={section} roles={roles} />}
       <footer className="border-t border-[#E6DADC] pt-5 text-xs leading-5 text-[#6F6265]">
         <div className="flex flex-wrap items-center gap-2"><Database className="h-4 w-4" /> Test-project records only · Requires distinct Curia and COWL staff authorization · Manual refresh or focus refresh across devices</div>
-        <p className="mt-2">Issuing an official receipt for a verified collection is handled by the separate guarded Financial Stewardship posting operation; it is intentionally not possible to invent or reserve a receipt from this custody page.</p>
+        <p className="mt-2">No financial staff privilege is inferred from receipt custody. Posting and confirmation require their specific test staff grants, approved evidence, and guarded database operations.</p>
       </footer>
     </div>
   </PortalShell>;
