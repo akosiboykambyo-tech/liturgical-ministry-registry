@@ -19,7 +19,7 @@ export const registrationUi = {
 
 /** Case-type colors are informational, not official registry statuses. */
 export const registrationCaseVisual = {
-  approvals: { accent: "#7A4E00", text: "text-[#7A4E00]", label: "Pending approval" },
-  renewal: { accent: "#3B5278", text: "text-[#3B5278]", label: "Renewal review" },
-  duplicates: { accent: "#890022", text: "text-[#890022]", label: "Possible duplicate" },
+  approvals: { accent: "#890022", text: "text-[#890022]", label: "Pending verification" },
+  renewal: { accent: "#7A4E00", text: "text-[#7A4E00]", label: "Renewal attention" },
+  duplicates: { accent: "#3B5278", text: "text-[#3B5278]", label: "Possible duplicate" },
 } as const;
