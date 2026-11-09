@@ -268,8 +268,8 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
       ),
     ] },
   ];
-  const label = mode === "curia" ? "Curia Portal" : "COWL Financial Stewardship";
-  return <PortalShell title={label} subtitle="Isolated staging · Receipt custody"
+  const label = mode === "curia" ? "Curia Portal" : "COWL Portal";
+  return <PortalShell title={label} subtitle="Financial Stewardship · Test"
     homeHref={mode === "curia" ? "/curia" : "/admin/financial-stewardship"}
     navigationLabel="Financial staging navigation" groups={groups}
     footer={<div className="space-y-2">
