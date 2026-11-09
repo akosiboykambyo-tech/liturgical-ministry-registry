@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, useContext } from "react";
-import { RegistrationEmbeddedContext } from "@/lib/registration-embedded-context";
+import { RegistrationEmbeddedContext, RegistrationReviewSearchContext } from "@/lib/registration-embedded-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { quickVerifyMember } from "@/lib/verify-actions";
@@ -43,7 +43,8 @@ const EMPTY_FILTERS: Filters = {
   ministry: "All",
 };
 
-export default function QuickScanMatrixPage({ initialSearch = "" }: { initialSearch?: string } = {}) {
+export default function QuickScanMatrixPage() {
+  const initialSearch = useContext(RegistrationReviewSearchContext);
   return secureMinistryVerificationEnabled
     ? <SecureMinistryVerification initialSearch={initialSearch} />
     : <LegacyQuickScanMatrixPage initialSearch={initialSearch} />;
