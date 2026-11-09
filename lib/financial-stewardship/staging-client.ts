@@ -16,7 +16,10 @@ export function getFinancialStagingClient(): SupabaseClient | null {
       storageKey: "cowl-dok-financial-staging-auth-v1",
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: false,
+      // Parse the Supabase-issued recovery callback, only for this isolated
+      // client. Production registry Auth has a separate session and URL.
+      detectSessionInUrl: true,
+      flowType: "implicit",
     },
   });
   return client;
