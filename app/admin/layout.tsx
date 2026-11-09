@@ -115,10 +115,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         });
         if (registry.data !== true) {
           const result = await financeRequest;
-          const data = await result.json() as { home?: string | null };
+          const data = await result.json() as { home?: string | null; access?: { cowl: string[]; curia: string[] } };
           if (cancelled) return;
           if (result.ok && data.home) {
-            router.replace(data.home);
+            router.replace(data.access?.cowl.length && data.access?.curia.length
+              ? "/financial-stewardship/workspaces" : data.home);
           } else if (result.status === 403) {
             router.replace("/admin/access-pending");
           } else {
