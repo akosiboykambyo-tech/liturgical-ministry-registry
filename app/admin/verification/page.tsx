@@ -9,6 +9,7 @@ import {
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { SubmissionsOverview } from "./submissions-overview";
+import { registrationUi } from "./registration-ui";
 import { UnifiedReviewOverview } from "./review-overview";
 import RenewalBatchPreparationPage from "@/app/admin/renewal-batches/page";
 import CsvImportPage from "@/app/admin/import/page";
@@ -70,8 +71,8 @@ function RegistrationImportHistory() {
   }, [supabase]);
 
   return (
-    <section className="rounded-md border border-[#E6DADC] bg-white p-4 sm:p-6">
-      <h3 className={ebGaramond.className + " text-[27px] font-medium text-[#27191D]"}>Registration imports</h3>
+    <section className={registrationUi.panel}>
+      <h3 className={ebGaramond.className + " text-[30px] font-medium text-[#27191D]"}>Registration imports</h3>
       <p className="mt-1 text-sm text-[#66575C]">
         The latest 30 recorded CSV import batches. Detailed administrator actions remain in the Audit Trail.
       </p>
@@ -80,7 +81,7 @@ function RegistrationImportHistory() {
       ) : error ? (
         <p className="mt-4 text-sm text-[#A32439]" role="alert">History unavailable: {error}</p>
       ) : rows.length === 0 ? (
-        <div className="mt-4 rounded-md border border-dashed border-[#D7C9CD] px-4 py-6">
+        <div className={"mt-4 " + registrationUi.empty}>
           <p className="text-sm font-medium text-[#35262D]">No completed registration imports yet.</p>
           <p className="mt-1 text-xs text-[#66575C]">Imported CSV batches will appear here when recorded.</p>
         </div>
@@ -243,7 +244,7 @@ export default function VerificationWorkspacePage() {
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">MEMBER MANAGEMENT</p>
         <h1 className={ebGaramond.className + " mt-1 text-[42px] font-medium leading-none sm:text-[48px]"}>Registration</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6B5C62]">
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5F4A4F]">
           Review registrations, process renewals, and manage member verification.
         </p>
       </header>
@@ -259,8 +260,8 @@ export default function VerificationWorkspacePage() {
               onClick={() => navigate(entry.key)}
               aria-current={selected ? "page" : undefined}
               aria-disabled={criticalOperation && !selected}
-              className={"inline-flex min-h-11 items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#970E24] " +
-                (selected ? "bg-[#890022] text-white" : "border border-[#E6DADC] bg-white text-[#643A46] hover:bg-[#F8F1F3]")}
+              className={"inline-flex min-h-11 items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#970E24] " +
+                (selected ? "bg-[#890022] text-white" : "border border-[#E6DADC] bg-white text-[#890022] hover:bg-[#FBF3F4]")}
             >
               <Icon className="h-[18px] w-[18px]" aria-hidden="true" />{entry.label}
             </button>
@@ -269,7 +270,7 @@ export default function VerificationWorkspacePage() {
       </nav>
 
       {navigationNotice && (
-        <p role="alert" className="rounded-md border border-[#DFC7CE] bg-[#F8F1F3] px-4 py-3 text-sm text-[#6A3041]">
+        <p role="alert" className={registrationUi.caution}>
           {navigationNotice}
         </p>
       )}
@@ -281,10 +282,10 @@ export default function VerificationWorkspacePage() {
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h2 className={ebGaramond.className + " text-[30px] font-medium leading-tight"}>Parish Submissions</h2>
-                  <p className="mt-1 text-sm text-[#6B5C62]">Prepare a new parish roster or review previously recorded batches.</p>
+                  <p className="mt-1 text-sm text-[#5F4A4F]">Prepare a new parish roster or review previously recorded batches.</p>
                 </div>
                 <button type="button" disabled={criticalOperation} onClick={() => setNewSubmissionOpen(true)}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#890022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#70001C] disabled:opacity-50">
+                  className={registrationUi.primary}>
                   <Plus className="h-4 w-4" aria-hidden="true" /> New submission
                 </button>
               </div>
@@ -305,7 +306,7 @@ export default function VerificationWorkspacePage() {
                   <h2 className={ebGaramond.className + " text-[30px] font-medium leading-tight"}>
                     {submissionKind === "new" ? "New Registration" : "Parish Recommendation Renewal"}
                   </h2>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-[#6B5C62]">
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-[#5F4A4F]">
                     {submissionKind === "new"
                       ? "Upload and validate a parish roster. Confirmed imports currently create Pending Verification records."
                       : "Upload the existing parish roster and signed recommendation letter, then review eligible ministry assignments."}
@@ -313,13 +314,13 @@ export default function VerificationWorkspacePage() {
                 </div>
                 {submissionKind === "renewal" && (
                   <button type="button" onClick={() => setAdvancedRosterOpen(true)}
-                    className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[#DCCFD2] bg-white px-4 py-2 text-sm font-semibold text-[#890022] hover:bg-[#FBF3F5]">
+                    className={registrationUi.secondary}>
                     <Users className="h-4 w-4" aria-hidden="true" /> Prepare roster manually
                   </button>
                 )}
               </div>
               {submissionKind === "new" && (
-                <p className="rounded-md border-l-[3px] border-[#B27D88] bg-[#F9F3F5] px-4 py-3 text-xs leading-5 text-[#62434D]">
+                <p className={registrationUi.info}>
                   <strong>Current processing rule:</strong> The import is not a persistent draft. The final confirmation writes Pending Verification records.
                   The proposed save-draft → review → authorize workflow requires a separate audited backend implementation.
                 </p>
@@ -333,7 +334,7 @@ export default function VerificationWorkspacePage() {
         <section className="space-y-4" aria-label="Registration review queue">
           <div>
             <h2 className={ebGaramond.className + " text-[30px] font-medium leading-tight"}>Review Queue</h2>
-            <p className="mt-1 text-sm text-[#6B5C62]">
+            <p className="mt-1 text-sm text-[#5F4A4F]">
               Review member approvals, staged duplicate checks, and saved renewal exceptions from one location.
             </p>
           </div>
@@ -343,15 +344,15 @@ export default function VerificationWorkspacePage() {
               return (
                 <button key={entry.key} type="button" onClick={() => { setReviewSearch(""); navigate("reviews", entry.key); }}
                   aria-pressed={reviewKind === entry.key}
-                  className={"inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold " +
-                    (reviewKind === entry.key ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#6A5960] hover:bg-[#FBF6F7]")}>
+                  className={"inline-flex min-h-11 items-center gap-2 border px-3 py-2 text-sm font-semibold " +
+                    (reviewKind === entry.key ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#890022] hover:bg-[#FBF3F4]")}>
                   <Icon className="h-4 w-4" aria-hidden="true" />{entry.label}
                 </button>
               );
             })}
           </div>
           {reviewKind === "duplicates" && (
-            <p className="rounded-md border-l-[3px] border-[#B27D88] bg-[#F9F3F5] px-4 py-3 text-xs leading-5 text-[#62434D]">
+            <p className={registrationUi.caution}>
               Registration import duplicate cases are retained in this browser session only.
               Saved renewal exceptions use the existing persistent review queue.
             </p>
@@ -363,15 +364,15 @@ export default function VerificationWorkspacePage() {
         <section className="space-y-4" aria-label="Registration history">
           <div>
             <h2 className={ebGaramond.className + " text-[30px] font-medium leading-tight"}>History</h2>
-            <p className="mt-1 text-sm text-[#6B5C62]">Separate registration and renewal histories, available in one workspace.</p>
+            <p className="mt-1 text-sm text-[#5F4A4F]">Separate registration and renewal histories, available in one workspace.</p>
           </div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="History type">
             <button type="button" onClick={() => navigate("history", "registration")} aria-pressed={historyKind === "registration"}
-              className={"min-h-10 rounded-md border px-4 py-2 text-sm font-semibold " + (historyKind === "registration" ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#6A5960]")}>
+              className={"min-h-11 border px-4 py-2 text-sm font-semibold " + (historyKind === "registration" ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#6A5960]")}>
               Registration
             </button>
             <button type="button" onClick={() => navigate("history", "renewal")} aria-pressed={historyKind === "renewal"}
-              className={"min-h-10 rounded-md border px-4 py-2 text-sm font-semibold " + (historyKind === "renewal" ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#6A5960]")}>
+              className={"min-h-11 border px-4 py-2 text-sm font-semibold " + (historyKind === "renewal" ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#6A5960]")}>
               Renewal
             </button>
           </div>
@@ -426,7 +427,7 @@ export default function VerificationWorkspacePage() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">REGISTRATION · ADVANCED TOOL</p>
                 <h2 className={ebGaramond.className + " mt-1 text-[30px] font-medium leading-tight"}>Prepare Renewal Roster</h2>
-                <p className="mt-1 text-sm text-[#6B5C62]">Select existing registry members and export a draft CSV without changing member records.</p>
+                <p className="mt-1 text-sm text-[#5F4A4F]">Select existing registry members and export a draft CSV without changing member records.</p>
               </div>
               <button type="button" onClick={() => setAdvancedRosterOpen(false)}
                 aria-label="Close renewal roster preparation"
@@ -445,12 +446,12 @@ export default function VerificationWorkspacePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#210F16]/60 p-4"
           onMouseDown={(event) => { if (event.target === event.currentTarget) setNewSubmissionOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-label="Choose submission type"
-            className="w-full max-w-lg rounded-md border border-[#E6DADC] bg-white p-5 shadow-xl sm:p-7">
+            className="w-full max-w-lg border border-[#E6DADC] bg-white p-5 shadow-xl sm:p-7">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">MEMBER MANAGEMENT</p>
                 <h2 className={ebGaramond.className + " mt-1 text-3xl"}>New Submission</h2>
-                <p className="mt-2 text-sm text-[#6B5C62]">Choose the existing administrative process to open.</p>
+                <p className="mt-2 text-sm text-[#5F4A4F]">Choose the existing administrative process to open.</p>
               </div>
               <button type="button" onClick={() => setNewSubmissionOpen(false)} aria-label="Close submission chooser"
                 className="rounded-md p-2 text-[#785762] hover:bg-[#F7EFF1]">
@@ -468,15 +469,15 @@ export default function VerificationWorkspacePage() {
                       setNewSubmissionOpen(false);
                       startIntake(item.kind);
                     }}
-                    className="flex flex-col gap-2 rounded-md border border-[#E6DADC] bg-white p-4 text-left hover:border-[#890022] hover:bg-[#FBF5F7]">
+                    className="flex min-h-[140px] flex-col gap-2 border border-[#E6DADC] bg-[#FBF9F9] p-4 text-left hover:border-[#970E24] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#970E24]">
                     <Icon className="h-6 w-6 text-[#890022]" aria-hidden="true" />
                     <span className="font-semibold text-[#28191E]">{item.label}</span>
-                    <span className="text-xs leading-5 text-[#6B5C62]">{item.description}</span>
+                    <span className="text-xs leading-5 text-[#5F4A4F]">{item.description}</span>
                   </button>
                 );
               })}
             </div>
-            <p className="mt-4 text-xs leading-5 text-[#6B5C62]">
+            <p className="mt-4 text-xs leading-5 text-[#5F4A4F]">
               Your selection opens a dedicated CSV intake screen. No registry records are created until you explicitly confirm processing.
             </p>
           </section>
