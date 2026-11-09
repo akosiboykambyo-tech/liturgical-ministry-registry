@@ -802,7 +802,7 @@ export default function CertificateManagerPage() {
             <ImageIcon className="h-6 w-6" aria-hidden="true" />
           </div>
           <h1 className={`${ebGaramond.className} mt-5 text-[34px] font-medium leading-tight text-[#1E1114]`}>
-            Certificate Template Manager
+            Certificate Studio
           </h1>
           <p className="mt-3 text-sm font-semibold text-[#890022]">
             Desktop access required
@@ -827,7 +827,7 @@ export default function CertificateManagerPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div role="alert" className="w-full max-w-lg space-y-4 border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-7 text-center">
-          <h1 className={`${ebGaramond.className} text-3xl text-[#1E1114]`}>Certificate Template Manager</h1>
+          <h1 className={`${ebGaramond.className} text-3xl text-[#1E1114]`}>Certificate Studio</h1>
           <p className="text-sm text-[#682037]">{templateError}</p>
           {reauthenticationRequired ? (
             <button type="button" onClick={() => {
@@ -851,12 +851,12 @@ export default function CertificateManagerPage() {
     <div className="space-y-5 text-[#1E1114]">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
-            Certificate Template Manager
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">CERTIFICATE MANAGEMENT</p>
+          <h1 className={`${ebGaramond.className} mt-1 text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
+            Certificate Studio
           </h1>
-          <p className="mt-2 text-sm text-[#66565A]">
-            Customize certificate text, fonts, layout, and signatories. The
-            default template is used for public certificate rendering.
+          <p className="mt-2 text-sm leading-6 text-[#6B5C62]">
+            Design and manage certificate templates, layouts, and signatories.
           </p>
         </div>
 
