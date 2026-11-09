@@ -13,7 +13,7 @@ import { UnifiedReviewOverview } from "./review-overview";
 import RenewalBatchPreparationPage from "@/app/admin/renewal-batches/page";
 import CsvImportPage from "@/app/admin/import/page";
 import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification-workspace-context";
-import { RegistrationEmbeddedContext } from "@/lib/registration-embedded-context";
+import { RegistrationEmbeddedContext, RegistrationReviewSearchContext } from "@/lib/registration-embedded-context";
 import QuickScanMatrixPage from "@/app/admin/verify/page";
 import RenewalReviewsPage from "@/app/admin/renewal-reviews/page";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -410,8 +410,10 @@ export default function VerificationWorkspacePage() {
       </div>
 
       <RegistrationEmbeddedContext.Provider value={true}>
-        {view === "reviews" && reviewKind === "approvals" && <QuickScanMatrixPage initialSearch={reviewSearch} />}
-        {view === "reviews" && reviewKind === "renewal" && <RenewalReviewsPage initialSearch={reviewSearch} />}
+        <RegistrationReviewSearchContext.Provider value={reviewSearch}>
+          {view === "reviews" && reviewKind === "approvals" && <QuickScanMatrixPage />}
+          {view === "reviews" && reviewKind === "renewal" && <RenewalReviewsPage />}
+        </RegistrationReviewSearchContext.Provider>
       </RegistrationEmbeddedContext.Provider>
 
       {advancedRosterOpen && (
