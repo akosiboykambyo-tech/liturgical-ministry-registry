@@ -260,8 +260,12 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
         onSelect: () => setSection("collections") },
       { id: "remittances", label: "Remittances and Curia Review", icon: ArrowLeftRight, active: section === "remittances",
         onSelect: () => setSection("remittances") },
-      { id: "curia", label: "Curia workspace", icon: Landmark, href: "/curia" },
-      { id: "cowl", label: "COWL workspace", icon: ShieldCheck, href: "/admin/financial-stewardship" },
+      ...(
+        roles.some(role => role.startsWith("curia_"))
+        && roles.some(role => role.startsWith("cowl_"))
+          ? [{ id: "switch", label: "Switch workspace", icon: ArrowLeftRight, href: "/admin" }]
+          : []
+      ),
     ] },
   ];
   const label = mode === "curia" ? "Curia Portal" : "COWL Financial Stewardship";
