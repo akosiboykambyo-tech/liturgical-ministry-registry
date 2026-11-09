@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, FileBadge, Lock } from "lucide-react";
+import { CheckCircle2, FileBadge, Lock } from "@/components/phosphor-icons";
 interface VerificationMember {
   id: string;
   uid: string;

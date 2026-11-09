@@ -25,7 +25,7 @@ import {
   Filter,
   Upload,
   FileCheck2,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 
 type Toast = { id: number; type: "success" | "error"; msg: string };
 

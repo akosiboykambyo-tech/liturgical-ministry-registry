@@ -24,7 +24,7 @@ import {
   AlertTriangle,
   ScrollText,
   Pencil,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>();

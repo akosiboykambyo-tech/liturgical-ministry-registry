@@ -6,7 +6,7 @@ import {
   ArrowRight, CalendarClock, ClipboardCheck, CopyCheck, Download,
   FileCheck2, FileWarning, RefreshCw, Search, ShieldCheck,
   Upload, UserPlus, Users,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Member, MemberMinistry } from "@/lib/types";
@@ -326,7 +326,7 @@ export default function AdminDashboardPage() {
             </section>
           )}
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <section className="border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-5 sm:p-6" aria-labelledby="quick-actions">
               <h2 id="quick-actions" className={ebGaramond.className + " text-[34px] font-medium leading-tight sm:text-[44px]"}>
                 Quick Actions
@@ -337,7 +337,7 @@ export default function AdminDashboardPage() {
                   const Icon = action.icon;
                   return (
                     <Link key={action.href} href={action.href} className="group flex min-h-[116px] items-start gap-3 border border-[#E6DADC] bg-[#FBF9F9] p-4 hover:border-[#970E24] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#970E24]">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center bg-[#F4EFEF] text-[#890022]"><Icon size={20} aria-hidden="true" /></span>
+                      <Icon size={24} className="mt-0.5 shrink-0 text-[#890022]" aria-hidden="true" />
                       <span className="min-w-0">
                         <span className="block text-[16px] font-semibold text-[#1E1114]">{action.label}</span>
                         <span className="mt-1 block text-[14px] leading-6 text-[#5F4A4F]">{action.note}</span>

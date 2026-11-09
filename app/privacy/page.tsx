@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { RegistryFooter } from "@/components/registry-footer";
 import { RegistryHeader } from "@/components/registry-header";
