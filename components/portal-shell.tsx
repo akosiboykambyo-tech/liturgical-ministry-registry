@@ -111,11 +111,11 @@ export default function PortalShell({
     const className = compact
       ? "grid h-11 w-11 shrink-0 place-items-center rounded-sm border-l-[3px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
         (item.active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15")
-      : "flex min-h-11 w-full items-center gap-3 border-l-[3px] px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
+      : "flex min-h-11 w-full min-w-0 items-center gap-3 overflow-hidden border-l-[3px] py-2 pl-3 pr-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
         (item.active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15");
     const children = <>
       <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-      {!compact && <span className="min-w-0 whitespace-nowrap">{item.label}</span>}
+      {!compact && <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left">{item.label}</span>}
     </>;
     const props = {
       "aria-current": item.active ? "page" as const : undefined,
@@ -231,7 +231,7 @@ export default function PortalShell({
                             ? "border-white bg-white text-[#890022]"
                             : "border-transparent text-white/90 hover:bg-white/15")}>
                         <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-                        {desktopExpanded && <span className="min-w-0 flex-1 whitespace-nowrap">{group.name}</span>}
+                        {desktopExpanded && <span className="min-w-0 flex-1 truncate whitespace-nowrap">{group.name}</span>}
                         {desktopExpanded && <ChevronRight className={"h-4 w-4 shrink-0 transition-transform " +
                           (expanded ? "rotate-90" : "")} aria-hidden="true" />}
                       </button>}
