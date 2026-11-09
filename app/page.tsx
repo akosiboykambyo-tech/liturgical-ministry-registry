@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ScanQrCode } from "lucide-react";
+import { ScanQrCode } from "@/components/phosphor-icons";
 import { RegistryHeader } from "@/components/registry-header";
 import { PublicMaintenanceGate } from "@/components/public-maintenance-gate";
 import { RegistryFooter } from "@/components/registry-footer";

@@ -29,7 +29,7 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 import { CertificateDesign } from "@/components/certificate-design";
 import { CertificateEditor } from "@/components/certificate-editor";
 import { ebGaramond } from "@/app/fonts";

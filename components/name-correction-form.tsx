@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, Mail } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Mail } from "@/components/phosphor-icons";
 
 type NameCorrectionMember = {
   memberId: string;

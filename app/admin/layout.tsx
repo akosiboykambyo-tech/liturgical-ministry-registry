@@ -15,7 +15,7 @@ import {
   ShieldCheck,
   Users,
   X,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 import { useAuth } from "@/lib/auth-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
@@ -177,7 +177,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   : "rounded-md border-transparent text-white/90 hover:bg-white/15 hover:text-white"
               )}
             >
-              <Icon className="h-[19px] w-[19px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
+              <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
               <span
                 aria-hidden={!expanded}
                 className={cn(
@@ -202,7 +202,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               !expanded && "justify-center px-0"
             )}
           >
-            <ExternalLink className="h-[19px] w-[19px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
+            <ExternalLink className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
             <span aria-hidden={!expanded} className={cn("whitespace-nowrap transition-opacity duration-200", expanded ? "opacity-100" : "sr-only")}>
               Public Website
             </span>
@@ -227,7 +227,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             !expanded && "justify-center"
           )}
         >
-          <LogOut className="h-[19px] w-[19px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
+          <LogOut className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
           {expanded && <span>Sign Out</span>}
         </button>
       </footer>

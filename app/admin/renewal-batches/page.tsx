@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, FileDown, FileSpreadsheet, History, Loader2, Search, Users } from "lucide-react";
+import { ClipboardList, FileDown, FileSpreadsheet, History, Loader2, Search, Users } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { MINISTRIES, PARISHES } from "@/lib/constants";
 import { MultiSelectCombobox } from "@/components/multi-select-combobox";

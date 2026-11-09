@@ -7,7 +7,7 @@ import {
   QrCode,
   Search,
   ShieldCheck,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 
 type LandingVerificationHeroProps = {
   displayFontClassName: string;

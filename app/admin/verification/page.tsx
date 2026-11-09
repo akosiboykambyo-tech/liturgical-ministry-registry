@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ClipboardCheck, FileCheck2, GitMerge, History, RefreshCw, Upload, Users } from "lucide-react";
+import { ClipboardCheck, FileCheck2, GitMerge, History, RefreshCw, Upload, Users } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import CsvImportPage from "@/app/admin/import/page";

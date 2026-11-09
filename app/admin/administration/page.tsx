@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ScrollText, Settings } from "lucide-react";
+import { ArrowRight, ScrollText, Settings } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 
 const ADMIN_LINKS = [

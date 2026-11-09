@@ -2,7 +2,7 @@
 
 import { MINISTRIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
+import { Check } from "@/components/phosphor-icons";
 
 interface Props {
   value: string[];

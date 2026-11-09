@@ -21,7 +21,7 @@ import {
   Printer,
   Search,
   X,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 
 import { ebGaramond } from "@/app/fonts";
 import { CertificateDesign } from "@/components/certificate-design";

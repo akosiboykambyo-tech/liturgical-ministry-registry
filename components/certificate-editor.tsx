@@ -6,7 +6,7 @@ import {
   AlignJustify,
   AlignLeft,
   AlignRight,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 import { DYNAMIC_SIGNATORY_SLOT, resolveCertificateSignatory } from "@/lib/certificate";
 import { FONT_OPTIONS } from "@/lib/constants";
 import { DEFAULT_SIGNATURE_OFFSET, effectiveSignatureOffset } from "@/lib/signature-layout";

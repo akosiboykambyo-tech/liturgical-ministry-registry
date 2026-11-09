@@ -53,7 +53,7 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 
 const MAX_ROWS = 3000;
 const BATCH_SIZE = 500;

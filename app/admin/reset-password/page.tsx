@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { Check, CheckCircle2, Circle, Loader2 } from "@/components/phosphor-icons";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle } from "@/components/phosphor-icons";
 import { ebGaramond, inter } from "@/app/fonts";
 
 function Coat() {

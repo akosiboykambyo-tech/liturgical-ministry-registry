@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown } from "@/components/phosphor-icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useRouter } from "next/navigation";
@@ -17,7 +17,7 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 import Link from "next/link";
 import { ebGaramond } from "@/app/fonts";
 
