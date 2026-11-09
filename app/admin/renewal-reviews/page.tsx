@@ -3,7 +3,7 @@
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 
 import { useCallback, useEffect, useMemo, useState, useContext } from "react";
-import { RegistrationEmbeddedContext } from "@/lib/registration-embedded-context";
+import { RegistrationEmbeddedContext, RegistrationReviewSearchContext } from "@/lib/registration-embedded-context";
 import Link from "next/link";
 import { ClipboardCheck, Loader2, RefreshCw, Search } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
@@ -29,7 +29,8 @@ const DECISIONS: { value: RenewalResolution; label: string }[] = [
   { value: "other", label: "Other (explain in notes)" },
 ];
 
-export default function RenewalReviewQueuePage({ initialSearch = "" }: { initialSearch?: string }) {
+export default function RenewalReviewQueuePage() {
+  const initialSearch = useContext(RegistrationReviewSearchContext);
   const embedded = useContext(RegistrationEmbeddedContext);
   const [requestedCase, setRequestedCase] = useState<string | null>(null);
   useEffect(() => { setRequestedCase(new URLSearchParams(window.location.search).get("case")); }, []);
