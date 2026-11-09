@@ -35,14 +35,15 @@ export function DiocesanCoat({ size = 48 }: { size?: number }) {
 /**
  * Match the original COWL-DOK Admin Dashboard interaction shown in the
  * 2026-11-09 reference recording:
- * - Desktop: chevron toggles the entire sidebar between its 260px labeled
- *   navigation and 76px icon rail. Content reflows with its width.
- * - No detached popover/flyout menu for primary navigation.
+ * - Desktop: sidebar expands on pointer hover / keyboard focus, then
+ *   automatically collapses to the 76px icon rail on pointer exit.
+ * - The chevron remains a manual fallback for touch and keyboard users.
+ * - No sticky expanded preference, popovers, or detached primary menus.
+ * - Content reflows with the changing 76px/260px sidebar width.
  * - Mobile/tablet: independent labeled overlay drawer (unchanged).
  * - Groups with deeper admin destinations expand inline, never in a popup.
  *
- * The preference persists across navigation within the same browser; a
- * fresh session starts expanded to match the original dashboard.
+ * Mirrors the original Admin Dashboard recording supplied 2026-11-09.
  */
 export default function PortalShell({
   title, subtitle, homeHref, navigationLabel, groups, footer,
@@ -60,19 +61,8 @@ export default function PortalShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopExpanded, setDesktopExpanded] = useState(true);
+  const [desktopExpanded, setDesktopExpanded] = useState(false);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-
-  useEffect(() => {
-    // A visitor can collapse the rail and keep it that way across routes.
-    try {
-      const value = window.localStorage.getItem("cowl-dok-sidebar-expanded-v1");
-      if (value === "false") setDesktopExpanded(false);
-      else if (value === "true") setDesktopExpanded(true);
-    } catch {
-      // Private browsing or disabled storage still supports the toggle.
-    }
-  }, []);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -89,13 +79,24 @@ export default function PortalShell({
   }, [mobileOpen]);
 
   const toggleDesktop = () => {
-    const next = !desktopExpanded;
-    setDesktopExpanded(next);
-    if (!next) setExpandedGroup(null);
-    try {
-      window.localStorage.setItem("cowl-dok-sidebar-expanded-v1", String(next));
-    } catch {
-      // No persistent storage is required for navigation to work.
+    setDesktopExpanded(previous => {
+      if (previous) setExpandedGroup(null);
+      return !previous;
+    });
+  };
+
+  // The original dashboard's responsive rail follows cursor presence.
+  // Restrict hover behavior to desktop pointer devices so mobile/tablet
+  // drawer interaction, keyboard, and touch are not hijacked by hover.
+  const autoExpand = () => {
+    if (window.matchMedia("(min-width: 1024px) and (hover: hover)").matches) {
+      setDesktopExpanded(true);
+    }
+  };
+  const autoCollapse = () => {
+    if (window.matchMedia("(min-width: 1024px) and (hover: hover)").matches) {
+      setDesktopExpanded(false);
+      setExpandedGroup(null);
     }
   };
 
@@ -154,6 +155,13 @@ export default function PortalShell({
         className="fixed inset-0 z-40 bg-black/50 lg:hidden" />}
 
       <aside id="portal-sidebar" aria-label={navigationLabel}
+        onMouseEnter={autoExpand}
+        onMouseLeave={autoCollapse}
+        onFocusCapture={event => {
+          if (window.matchMedia("(min-width: 1024px)").matches &&
+              event.target instanceof HTMLElement &&
+              event.target.matches("a,button")) setDesktopExpanded(true);
+        }}
         className={"fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#890022] text-white transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:shrink-0 lg:translate-x-0 lg:transition-[width] lg:duration-300 lg:ease-in-out motion-reduce:transition-none " +
           (mobileOpen ? "translate-x-0 " : "-translate-x-full ") +
           (desktopExpanded ? "lg:w-[260px]" : "lg:w-[76px]")}>
@@ -172,8 +180,8 @@ export default function PortalShell({
           </div>
         </div>
 
-        {/* The original dashboard chevron COLLAPSES the whole desktop sidebar.
-            It does not open a detached menu or change the mobile drawer. */}
+        {/* Hover expands/collapses as on the original dashboard.
+            The chevron is also available for keyboard and nonhover devices. */}
         <div className="hidden h-[72px] shrink-0 items-center justify-end border-b border-white/20 px-4 lg:flex">
           <button type="button" title={desktopExpanded ? "Collapse sidebar" : "Expand sidebar"}
             aria-label={desktopExpanded ? "Collapse sidebar" : "Expand sidebar"}
@@ -210,7 +218,6 @@ export default function PortalShell({
                         onClick={() => {
                           if (!desktopExpanded) {
                             setDesktopExpanded(true);
-                            try { window.localStorage.setItem("cowl-dok-sidebar-expanded-v1", "true"); } catch {}
                             setExpandedGroup(id);
                           } else {
                             setExpandedGroup(expanded ? null : id);
