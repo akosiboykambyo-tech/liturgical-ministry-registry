@@ -9,6 +9,7 @@ import {
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { SubmissionsOverview } from "./submissions-overview";
+import { UnifiedReviewOverview } from "./review-overview";
 import RenewalBatchPreparationPage from "@/app/admin/renewal-batches/page";
 import CsvImportPage from "@/app/admin/import/page";
 import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification-workspace-context";
@@ -19,7 +20,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type WorkspaceView = "submissions" | "reviews" | "history";
 type SubmissionKind = "new" | "renewal";
-type ReviewKind = "approvals" | "duplicates" | "renewal";
+type ReviewKind = "all" | "approvals" | "duplicates" | "renewal";
 type HistoryKind = "registration" | "renewal";
 
 const VIEWS: Array<{ key: WorkspaceView; label: string; icon: typeof Files }> = [
@@ -29,6 +30,7 @@ const VIEWS: Array<{ key: WorkspaceView; label: string; icon: typeof Files }> = 
 ];
 
 const REVIEW_FILTERS: Array<{ key: ReviewKind; label: string; icon: typeof Files }> = [
+  { key: "all", label: "All cases", icon: ClipboardCheck },
   { key: "approvals", label: "Member Approvals", icon: Users },
   { key: "duplicates", label: "Duplicate Checks", icon: GitMerge },
   { key: "renewal", label: "Renewal Exceptions", icon: FileCheck2 },
@@ -114,7 +116,9 @@ function RegistrationImportHistory() {
 export default function VerificationWorkspacePage() {
   const [view, setView] = useState<WorkspaceView>("submissions");
   const [submissionKind, setSubmissionKind] = useState<SubmissionKind>("new");
-  const [reviewKind, setReviewKind] = useState<ReviewKind>("approvals");
+  const [reviewKind, setReviewKind] = useState<ReviewKind>("all");
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [pendingDuplicateCount, setPendingDuplicateCount] = useState(0);
   const [historyKind, setHistoryKind] = useState<HistoryKind>("registration");
   const [newSubmissionOpen, setNewSubmissionOpen] = useState(false);
   const [intakeActive, setIntakeActive] = useState(false);
@@ -143,7 +147,7 @@ export default function VerificationWorkspacePage() {
     const kind = params.get("type");
     if (kind === "new" || kind === "renewal") setSubmissionKind(kind);
     const category = params.get("view");
-    if (category === "approvals" || category === "duplicates" || category === "renewal") {
+    if (category === "all" || category === "approvals" || category === "duplicates" || category === "renewal") {
       setReviewKind(category);
     }
     if (category === "registration" || category === "renewal") {
@@ -197,7 +201,7 @@ export default function VerificationWorkspacePage() {
     if (next === "submissions" && (selection === "new" || selection === "renewal")) {
       setSubmissionKind(selection);
     }
-    if (next === "reviews" && (selection === "approvals" || selection === "duplicates" || selection === "renewal")) {
+    if (next === "reviews" && (selection === "all" || selection === "approvals" || selection === "duplicates" || selection === "renewal")) {
       setReviewKind(selection);
     }
     if (next === "history" && (selection === "registration" || selection === "renewal")) {
@@ -213,7 +217,7 @@ export default function VerificationWorkspacePage() {
     if (next === "submissions") {
       url.searchParams.set("type", selection === "new" || selection === "renewal" ? selection : submissionKind);
     } else if (next === "reviews") {
-      url.searchParams.set("view", selection === "approvals" || selection === "duplicates" || selection === "renewal" ? selection : reviewKind);
+      url.searchParams.set("view", selection === "all" || selection === "approvals" || selection === "duplicates" || selection === "renewal" ? selection : reviewKind);
     } else {
       url.searchParams.set("view", selection === "registration" || selection === "renewal" ? selection : historyKind);
     }
@@ -337,7 +341,7 @@ export default function VerificationWorkspacePage() {
             {REVIEW_FILTERS.map(entry => {
               const Icon = entry.icon;
               return (
-                <button key={entry.key} type="button" onClick={() => navigate("reviews", entry.key)}
+                <button key={entry.key} type="button" onClick={() => { setReviewSearch(""); navigate("reviews", entry.key); }}
                   aria-pressed={reviewKind === entry.key}
                   className={"inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold " +
                     (reviewKind === entry.key ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#6A5960] hover:bg-[#FBF6F7]")}>
@@ -375,6 +379,22 @@ export default function VerificationWorkspacePage() {
         </section>
       )}
 
+      {view === "reviews" && reviewKind === "all" && (
+        <UnifiedReviewOverview
+          pendingDuplicateCount={pendingDuplicateCount}
+          onOpen={(kind, memberSearch = "") => {
+            setReviewSearch(memberSearch);
+            navigate("reviews", kind);
+          }}
+        />
+      )}
+      {view === "reviews" && reviewKind !== "all" && (
+        <button type="button" className="inline-flex items-center gap-2 text-xs font-semibold text-[#890022] hover:underline"
+          onClick={() => { setReviewSearch(""); navigate("reviews", "all"); }}>
+          <ArrowRight className="h-3.5 w-3.5 rotate-180" aria-hidden="true" /> Back to all cases
+        </button>
+      )}
+
       {/* Preserve the single live CSV component instance across view changes:
           session-only duplicate review data must not be discarded. */}
       <div hidden={!showCsv} aria-hidden={!showCsv} className={showCsv ? "min-w-0" : ""}>
@@ -383,14 +403,15 @@ export default function VerificationWorkspacePage() {
           workspaceTab: csvTab,
           onWorkspaceTabChange: onImportTabChange,
           onCriticalOperationChange,
+          onPendingDuplicateCountChange: setPendingDuplicateCount,
         }}>
           <CsvImportPage />
         </CsvImportWorkspaceContext.Provider>
       </div>
 
       <RegistrationEmbeddedContext.Provider value={true}>
-        {view === "reviews" && reviewKind === "approvals" && <QuickScanMatrixPage />}
-        {view === "reviews" && reviewKind === "renewal" && <RenewalReviewsPage />}
+        {view === "reviews" && reviewKind === "approvals" && <QuickScanMatrixPage initialSearch={reviewSearch} />}
+        {view === "reviews" && reviewKind === "renewal" && <RenewalReviewsPage initialSearch={reviewSearch} />}
       </RegistrationEmbeddedContext.Provider>
 
       {advancedRosterOpen && (
