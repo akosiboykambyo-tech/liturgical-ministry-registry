@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useContext } from "react";
+import { RegistrationEmbeddedContext, RegistrationReviewSearchContext } from "@/lib/registration-embedded-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { quickVerifyMember } from "@/lib/verify-actions";
@@ -43,18 +44,20 @@ const EMPTY_FILTERS: Filters = {
 };
 
 export default function QuickScanMatrixPage() {
+  const initialSearch = useContext(RegistrationReviewSearchContext);
   return secureMinistryVerificationEnabled
-    ? <SecureMinistryVerification />
-    : <LegacyQuickScanMatrixPage />;
+    ? <SecureMinistryVerification initialSearch={initialSearch} />
+    : <LegacyQuickScanMatrixPage initialSearch={initialSearch} />;
 }
 
 // Keep the legacy UI unchanged until the secure RPC has been separately
 // installed, granted to approved administrators, and fully tested.
-function LegacyQuickScanMatrixPage() {
+function LegacyQuickScanMatrixPage({ initialSearch }: { initialSearch: string }) {
+  const embedded = useContext(RegistrationEmbeddedContext);
   const supabase = getSupabaseBrowserClient();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [optimisticIds, setOptimisticIds] = useState<Record<string, string>>({});
@@ -299,7 +302,7 @@ function LegacyQuickScanMatrixPage() {
   };
 
   return (
-    <div className="-mt-4 space-y-6 pb-24">
+    <div className={embedded ? "space-y-5 pb-16" : "-mt-4 space-y-6 pb-24"}>
       {/* Toasts */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
         {toasts.map((t) => (
@@ -322,6 +325,17 @@ function LegacyQuickScanMatrixPage() {
         ))}
       </div>
 
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className={ebGaramond.className + " text-[27px] font-medium text-[#28191E]"}>
+            Pending member approvals
+          </h3>
+          <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
+            <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
+            {members.length} pending
+          </span>
+        </div>
+      ) : (
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className={cn(ebGaramond.className, "text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]")}>
@@ -339,6 +353,8 @@ function LegacyQuickScanMatrixPage() {
           </span>
         </div>
       </div>
+
+      )}
 
       {/* Search and Filters */}
       <div className="space-y-4 overflow-hidden border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-4 sm:p-5">
