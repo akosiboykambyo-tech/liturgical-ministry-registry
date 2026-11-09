@@ -258,7 +258,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
         onSelect: () => { setSection("custody"); void refresh(); } },
       { id: "collections", label: "Collections and Receipts", icon: Database, active: section === "collections",
         onSelect: () => setSection("collections") },
-      { id: "remittances", label: "Remittances and Curia Review", icon: ArrowLeftRight, active: section === "remittances",
+      { id: "remittances", label: "Remittances & Curia", icon: ArrowLeftRight, active: section === "remittances",
         onSelect: () => setSection("remittances") },
       ...(
         roles.some(role => role.startsWith("curia_"))
