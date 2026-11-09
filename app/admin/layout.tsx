@@ -14,6 +14,7 @@ import {
   Settings,
   ShieldCheck,
   Users,
+  Wallet,
   X,
 } from "@/components/phosphor-icons";
 import { useAuth } from "@/lib/auth-context";
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { href: "/admin/members", label: "RECORD MANAGEMENT", icon: Users },
   { href: "/admin/certificates", label: "CERTIFICATE MANAGEMENT", icon: FileBadge },
   { href: "/admin/administration", label: "SYSTEM MANAGEMENT", icon: Settings },
+  { href: "/financial-stewardship", label: "FINANCIAL STEWARDSHIP", icon: Wallet },
 ];
 
 const LOGIN_ROUTES = [
