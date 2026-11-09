@@ -29,13 +29,13 @@ const DECISIONS: { value: RenewalResolution; label: string }[] = [
   { value: "other", label: "Other (explain in notes)" },
 ];
 
-export default function RenewalReviewQueuePage() {
+export default function RenewalReviewQueuePage({ initialSearch = "" }: { initialSearch?: string }) {
   const embedded = useContext(RegistrationEmbeddedContext);
   const [requestedCase, setRequestedCase] = useState<string | null>(null);
   useEffect(() => { setRequestedCase(new URLSearchParams(window.location.search).get("case")); }, []);
   const [status, setStatus] = useState<RenewalReviewStatus | "all">("open");
   const [items, setItems] = useState<SavedRenewalReview[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SavedRenewalReview | null>(null);
