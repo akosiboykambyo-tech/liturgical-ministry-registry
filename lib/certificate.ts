@@ -634,3 +634,47 @@ export async function downloadCertificateAsPdf(
   pdf.addImage(imageData, "JPEG", 0, 0, pageW, pageH);
   pdf.save(filename.replace(/\.(png|jpg|jpeg)$/i, ".pdf"));
 }
+
+
+/**
+ * Print a selected group of ministry certificates in a single PDF.
+ * Each page uses the identical Certificate Studio renderer, paper size,
+ * orientation, scaling and JPEG quality as the existing single PDF export.
+ * This admin export is read-only and does not allocate public issuance numbers.
+ */
+export async function downloadCertificateBatchAsPdf(
+  certificates: readonly CertificateData[],
+  settings: CertificateTemplateSettings,
+  signatories: Signatory[],
+  filename: string,
+  onProgress?: (completed: number, total: number) => void
+): Promise<void> {
+  if (certificates.length === 0 || certificates.length > 100) {
+    throw new Error("Select between 1 and 100 eligible ministry certificates per PDF.");
+  }
+
+  const { jsPDF } = await import("jspdf");
+  const canvas = document.createElement("canvas");
+  const canvasW = settings.canvas_width || 600;
+  const paperSize = settings.paper_size === "letter" ? "letter" : "a4";
+  const orientation = settings.orientation === "landscape" ? "landscape" : "portrait";
+  const pageW = paperSize === "a4"
+    ? (orientation === "portrait" ? 210 : 297)
+    : (orientation === "portrait" ? 215.9 : 279.4);
+  const pageH = paperSize === "a4"
+    ? (orientation === "portrait" ? 297 : 210)
+    : (orientation === "portrait" ? 279.4 : 215.9);
+  const scale = (pageW / 25.4 * 300) / canvasW;
+  const pdf = new jsPDF({ orientation, unit: "mm", format: paperSize, compress: true });
+
+  // Sequential rendering reuses a single canvas rather than retaining a canvas
+  // per member. A failed render aborts without saving an incomplete PDF.
+  for (let index = 0; index < certificates.length; index++) {
+    await renderCertificate(canvas, certificates[index], settings, signatories, scale);
+    if (index > 0) pdf.addPage(paperSize, orientation);
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, pageW, pageH);
+    onProgress?.(index + 1, certificates.length);
+  }
+
+  pdf.save(filename.replace(/\.(png|jpg|jpeg)$/i, ".pdf"));
+}

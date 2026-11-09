@@ -24,10 +24,10 @@ import { ebGaramond, inter } from "@/app/fonts";
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/verification", label: "Verification", icon: ShieldCheck },
-  { href: "/admin/members", label: "Members", icon: Users },
-  { href: "/admin/certificates", label: "Certificates and IDs", icon: FileBadge },
-  { href: "/admin/administration", label: "Administration", icon: Settings },
+  { href: "/admin/verification", label: "MEMBER MANAGEMENT", icon: ShieldCheck },
+  { href: "/admin/members", label: "RECORD MANAGEMENT", icon: Users },
+  { href: "/admin/certificates", label: "CERTIFICATE MANAGEMENT", icon: FileBadge },
+  { href: "/admin/administration", label: "SYSTEM MANAGEMENT", icon: Settings },
 ];
 
 const LOGIN_ROUTES = [

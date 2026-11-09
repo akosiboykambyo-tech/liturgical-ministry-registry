@@ -21,10 +21,10 @@ export default function AdministrationPage() {
   return (
     <div className="space-y-6 pb-10 text-[#1E1114]">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">Management</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">SYSTEM MANAGEMENT</p>
         <h1 className={ebGaramond.className + " mt-1 text-[42px] font-medium leading-none sm:text-[48px]"}>Administration</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6B5C62]">
-          Administrative records and settings are separate from daily member verification.
+          Manage system configuration, administrative records, and audit activity.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
