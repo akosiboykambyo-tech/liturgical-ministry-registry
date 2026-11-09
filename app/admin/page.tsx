@@ -55,10 +55,11 @@ export default function AdminLoginPage() {
         const reply = await fetch("/api/financial-stewardship/access?workspace=all", {
           headers: { Authorization: "Bearer " + token }, cache: "no-store",
         });
-        const data = await reply.json() as { home?: string | null };
+        const data = await reply.json() as { home?: string | null; access?: { cowl: string[]; curia: string[] } };
         if (cancelled) return;
         if (reply.ok && data.home) {
-          router.replace(data.home);
+          router.replace(data.access?.cowl.length && data.access?.curia.length
+            ? "/financial-stewardship/workspaces" : data.home);
         } else {
           router.replace(reply.status === 403
             ? "/admin/access-pending"
