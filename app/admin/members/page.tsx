@@ -8,6 +8,7 @@ import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verific
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { StatusBadge } from "@/components/status-badge";
 import { MemberDetailDrawer } from "@/components/member-detail-drawer";
+import { BulkCertificateDialog } from "@/components/member-bulk-certificate-dialog";
 import {
   MINISTRIES,
   PARISHES,
@@ -24,6 +25,7 @@ import {
   ChevronRight,
   Download,
   Printer,
+  FileBadge,
   X,
   Filter,
   SlidersHorizontal,
@@ -99,6 +101,7 @@ export default function MembersListPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectingAllFiltered, setSelectingAllFiltered] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [certificateBatchOpen, setCertificateBatchOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMembers, setReportMembers] = useState<MemberWithMemberships[]>([]);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
@@ -1198,6 +1201,18 @@ export default function MembersListPage() {
               Print Selected
             </button>
             <button
+              type="button"
+              onClick={() => setCertificateBatchOpen(true)}
+              disabled={filters.ministry.length === 0}
+              title={filters.ministry.length === 0
+                ? "Select at least one ministry in Search & Filters to print only its eligible certificates."
+                : "Generate one PDF for eligible certificates in the selected ministry filter."}
+              className="inline-flex shrink-0 items-center gap-1.5 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] transition-colors hover:bg-[#F7F2F3] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FileBadge className="h-4 w-4" />
+              Certificate PDF
+            </button>
+            <button
               onClick={() => void openAttendanceSheetForSelected()}
               disabled={loadingReport}
               className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors disabled:opacity-60"
@@ -1216,6 +1231,14 @@ export default function MembersListPage() {
           </div>
         </div>
       )}
+
+      <BulkCertificateDialog
+        open={certificateBatchOpen}
+        onOpenChange={setCertificateBatchOpen}
+        selectedMemberIds={Array.from(selected)}
+        selectedMinistries={filters.ministry}
+        loadMembers={fetchMembersByIds}
+      />
 
       {/* Printable Report Modal */}
       {reportOpen && (
