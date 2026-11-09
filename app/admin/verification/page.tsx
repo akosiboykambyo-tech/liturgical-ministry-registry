@@ -136,15 +136,14 @@ export default function VerificationWorkspacePage() {
   return (
     <div className="space-y-5 pb-10 text-[#1E1114]">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">Member Registration Desk</p>
-        <h1 className={ebGaramond.className + " mt-1 text-[42px] font-medium leading-none sm:text-[48px]"}>Verification</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">MEMBER MANAGEMENT</p>
+        <h1 className={ebGaramond.className + " mt-1 text-[42px] font-medium leading-none sm:text-[48px]"}>Registration</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6B5C62]">
-          Process member rosters, recommendation letters, approvals, and exceptions from one workspace.
-          New registrations remain pending until verified.
+          Review registrations, process renewals, and manage member verification.
         </p>
       </header>
 
-      <nav className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Verification workflow">
+      <nav className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Registration workflow">
         {WORKSPACE_TABS.map((entry) => {
           const Icon = entry.icon;
           const selected = tab === entry.key;
