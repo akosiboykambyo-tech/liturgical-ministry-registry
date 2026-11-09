@@ -1190,13 +1190,10 @@ export default function MembersListPage() {
               />
               <SelectionUtility
                 label="Generate certificates PDF for selected ministries"
-                hint="Certificate PDF"
+                hint={filters.ministry.length === 0 ? "Choose a ministry filter first" : "Certificate PDF"}
                 icon={<FileBadge className="h-5 w-5" aria-hidden="true" />}
                 disabled={filters.ministry.length === 0}
                 onClick={() => setCertificateBatchOpen(true)}
-                {...(filters.ministry.length === 0
-                  ? { hint: "Choose a ministry filter first" }
-                  : {})}
               />
               <SelectionUtility
                 label="Create attendance sheet for selected members"
