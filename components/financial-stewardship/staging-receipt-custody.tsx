@@ -255,11 +255,11 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const groups: PortalNavGroup[] = [
     { name: "Financial Stewardship", items: [
       { id: "stock", label: "Official Receipt Inventory", icon: BookOpenCheck, active: section === "custody",
-        onSelect: () => { setSection("custody"); void refresh(); } },
+        onSelect: () => { setSection("custody"); setFeedback(null); void refresh(); } },
       { id: "collections", label: "Collections and Receipts", icon: Database, active: section === "collections",
-        onSelect: () => setSection("collections") },
+        onSelect: () => { setSection("collections"); setFeedback(null); } },
       { id: "remittances", label: "Remittances & Curia", icon: ArrowLeftRight, active: section === "remittances",
-        onSelect: () => setSection("remittances") },
+        onSelect: () => { setSection("remittances"); setFeedback(null); } },
       ...(
         roles.some(role => role.startsWith("curia_"))
         && roles.some(role => role.startsWith("cowl_"))
@@ -269,6 +269,13 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     ] },
   ];
   const label = mode === "curia" ? "Curia Portal" : "COWL Portal";
+  // The existing sidebar is the only section navigation.
+  // Match the primary page title exactly to its active sidebar item.
+  const sectionTitle = section === "custody"
+    ? "Official Receipt Inventory"
+    : section === "collections"
+      ? "Collections and Receipts"
+      : "Remittances & Curia";
   return <PortalShell title={label} subtitle="Financial Stewardship · Test"
     homeHref={mode === "curia" ? "/curia" : "/admin/financial-stewardship"}
     navigationLabel="Financial staging navigation" groups={groups}
@@ -281,34 +288,28 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     <div className="mx-auto w-full max-w-[1350px] space-y-6 px-4 py-7 sm:px-7 lg:px-10">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#890022]">Financial Stewardship · Phase 4.3 operational staging</p>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#890022]">Financial Stewardship</p>
           <h1 className={ebGaramond.className + " mt-2 text-[38px] font-medium leading-tight sm:text-[47px]"}>
-            {mode === "curia" ? "Curia Portal" : "Financial Stewardship"}
+            {sectionTitle}
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#65575A]">{mode === "curia"
-            ? "Shared Curia receipt custody, incoming COWL remittances and independent accounting review."
-            : "Secure COWL receipt inventory, verified collections and accountable remittances to Curia."}</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#65575A]">
+            {section === "custody"
+              ? "Track registered receipt series, physical booklet custody, and individual printed serials."
+              : section === "collections"
+                ? "Verify QR Ph and OTC collections, and record official receipt issuance."
+                : "Reconcile recorded remittances and Curia treasury acknowledgment."}
+          </p>
         </div>
-        <button type="button" disabled={refreshing} onClick={() => void refresh()} className={outline}>
-          <RefreshCw className={"h-4 w-4 " + (refreshing ? "animate-spin" : "")}/> Refresh inventory
-        </button>
+        {section === "custody" && (
+          <button type="button" disabled={refreshing} onClick={() => void refresh()} className={outline}>
+            <RefreshCw className={"h-4 w-4 " + (refreshing ? "animate-spin" : "")} aria-hidden="true" /> Refresh inventory
+          </button>
+        )}
       </header>
       <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
         <strong>Isolated Supabase staging.</strong> These workspaces use the same database, but enforce distinct COWL and Curia staff privileges. They contain no approved real financial account or seeded receipt stock. Use fictional test stock and test-only entries until Curia authorizes official handling.
       </div>
       <ErrorMessage value={feedback} />
-      <nav aria-label="Financial Stewardship sections" className="flex flex-wrap gap-2 border-b border-[#E6DADC] pb-4">
-        {([
-          ["custody", "Receipt Inventory", BookOpenCheck],
-          ["collections", "Collections & Receipts", Database],
-          ["remittances", "Remittances & Curia", ArrowLeftRight],
-        ] as const).map(([key,label,Icon]) =>
-          <button key={key} type="button" onClick={() => { setSection(key); setFeedback(null); }}
-            className={"inline-flex min-h-11 items-center gap-2 rounded-sm border px-3 py-2 text-sm font-semibold " +
-              (section===key ? "border-[#890022] bg-[#890022] text-white" : "border-[#E6DADC] bg-white text-[#49363A] hover:border-[#890022]")}>
-            <Icon className="h-4 w-4" />{label}
-          </button>)}
-      </nav>
       {section === "custody" ? (custodyAllowed ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
