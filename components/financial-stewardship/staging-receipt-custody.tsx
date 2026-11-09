@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -61,6 +62,7 @@ function ErrorMessage({ value }: { value: Feedback | null }) {
 
 export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const client = useMemo(() => getFinancialStagingClient(), []);
+  const router = useRouter();
   const requiredRole = mode === "curia"
     ? "curia_receipt_custodian" : "cowl_receipt_issuer";
   const [section, setSection] = useState<"custody" | "collections" | "remittances">("custody");
@@ -70,9 +72,6 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const [roles, setRoles] = useState<string[]>([]);
   const [rolesForUser, setRolesForUser] = useState<string | null>(null);
   const [grantRefresh, setGrantRefresh] = useState(0);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [signingIn, setSigningIn] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [working, setWorking] = useState(false);
@@ -209,23 +208,17 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     await refresh();
   }
 
-  async function signIn(event: FormEvent) {
-    event.preventDefault();
-    if (!client || signingIn) return;
-    setSigningIn(true);
-    setFeedback(null);
-    const result = await client.auth.signInWithPassword({ email: email.trim(), password });
-    setSigningIn(false);
-    setPassword("");
-    if (result.error) setFeedback({ ok: false, message: "Staging sign-in failed. Check your test-project credentials." });
-  }
-
   async function signOut() {
     if (!client) return;
     await client.auth.signOut();
     setUser(null); setRoles([]); setRolesForUser(null); setBooklets([]); setNumbers([]); setSeries([]); setEvents([]);
     setFeedback(null);
+    router.replace("/admin");
   }
+
+  useEffect(() => {
+    if (!authLoading && client && !user) router.replace("/admin");
+  }, [authLoading, client, user, router]);
 
   if (!client) return <div className="min-h-screen bg-[#FBF9F9] px-5 py-16">
     <div className="mx-auto max-w-xl border border-[#E6DADC] bg-white p-8">
@@ -239,24 +232,12 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     <div role="status" className="flex items-center gap-3 text-sm text-[#890022]"><Loader2 className="h-5 w-5 animate-spin" /> Checking isolated staging access</div>
   </div>;
 
-  if (!user) return <div className="grid min-h-screen place-items-center bg-[#FBF9F9] p-5">
-    <section className="w-full max-w-md border border-[#E6DADC] bg-white p-7 shadow-sm sm:p-9">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#890022]">COWL-DOK · Isolated staging</p>
-      <h1 className={ebGaramond.className + " mt-3 text-4xl"}>{mode === "curia" ? "Curia Receipt Custody" : "COWL Receipt Custody"}</h1>
-      <p className="mt-3 text-sm leading-6 text-[#5F4A4F]">Sign in using an approved <strong>Ministry-Registry-Test</strong> account. Your regular COWL-DOK administrator session does not authorize access here.</p>
-      <form onSubmit={signIn} className="mt-6 space-y-4">
-        <Field label="Test account email" value={email} setValue={setEmail} type="email" placeholder="name@example.com" />
-        <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[#635359]">Password</span>
-          <input className={control} type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
-        </label>
-        <button className={solid + " w-full"} type="submit" disabled={signingIn}>
-          {signingIn && <Loader2 className="h-4 w-4 animate-spin" />} Sign in to staging
-        </button>
-      </form>
-      <div className="mt-4"><ErrorMessage value={feedback} /></div>
-      <p className="mt-5 text-xs leading-5 text-[#72646A]">Test-project credentials and role grants are provisioned separately. No real diocesan receipt stock is loaded.</p>
-      <Link href={mode === "curia" ? "/curia" : "/admin/financial-stewardship-preview"} className="mt-4 inline-block text-sm font-semibold text-[#0B5C5A] underline underline-offset-4">Return to browser-only demo</Link>
-    </section>
+  if (!user) return <div className="grid min-h-screen place-items-center bg-[#FBF9F9] p-6">
+    <div className="max-w-md text-center">
+      <Loader2 className="mx-auto h-6 w-6 animate-spin text-[#890022]" />
+      <p className="mt-3 text-sm">Redirecting to the unified COWL-DOK sign-in…</p>
+      <Link href="/admin" className="mt-4 inline-block text-sm font-semibold text-[#0B5C5A] underline">Open sign-in page</Link>
+    </div>
   </div>;
 
   if (!allowed) return <div className="grid min-h-screen place-items-center bg-[#FBF9F9] p-5">
@@ -279,13 +260,13 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
         onSelect: () => setSection("collections") },
       { id: "remittances", label: "Remittances and Curia Review", icon: ArrowLeftRight, active: section === "remittances",
         onSelect: () => setSection("remittances") },
-      { id: "curia", label: "Curia workspace", icon: Landmark, href: "/staging/financial-stewardship/curia" },
-      { id: "cowl", label: "COWL workspace", icon: ShieldCheck, href: "/staging/financial-stewardship/cowl" },
+      { id: "curia", label: "Curia workspace", icon: Landmark, href: "/curia" },
+      { id: "cowl", label: "COWL workspace", icon: ShieldCheck, href: "/admin/financial-stewardship" },
     ] },
   ];
   const label = mode === "curia" ? "Curia Portal" : "COWL Financial Stewardship";
   return <PortalShell title={label} subtitle="Isolated staging · Receipt custody"
-    homeHref={mode === "curia" ? "/staging/financial-stewardship/curia" : "/staging/financial-stewardship/cowl"}
+    homeHref={mode === "curia" ? "/curia" : "/admin/financial-stewardship"}
     navigationLabel="Financial staging navigation" groups={groups}
     footer={<div className="space-y-2">
       <p className="truncate text-xs text-white/85" title={user.email}>{user.email}</p>
