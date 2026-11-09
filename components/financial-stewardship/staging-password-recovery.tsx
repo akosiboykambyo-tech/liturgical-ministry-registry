@@ -66,6 +66,14 @@ export function StagingForgotPassword() {
 }
 
 export function StagingSetNewPassword() {
+  // Capture the recovery fragment BEFORE creating the Supabase client, since
+  // detectSessionInUrl can consume the fragment during initialization.
+  const initialFragment = useMemo(
+    () => typeof window === "undefined" ? "" : window.location.hash, []
+  );
+  const initialQuery = useMemo(
+    () => typeof window === "undefined" ? "" : window.location.search, []
+  );
   const client = useMemo(() => getFinancialStagingClient(), []);
   const router = useRouter();
   const [valid,setValid] = useState(false);
@@ -82,8 +90,8 @@ export function StagingSetNewPassword() {
     let active = true;
     // A normal existing session is never sufficient authorization for the
     // *password recovery page*. Supabase must establish a recovery session.
-    const rawHash = window.location.hash;
-    const rawQuery = window.location.search;
+    const rawHash = initialFragment;
+    const rawQuery = initialQuery;
     const hasRecoveryFragment = /(?:^|[&#])type=recovery(?:&|$)/.test(rawHash)
       && /(?:^|[&#])access_token=/.test(rawHash);
     const hasRecoveryQuery = /(?:^|[?&])type=recovery(?:&|$)/.test(rawQuery)
@@ -112,14 +120,33 @@ export function StagingSetNewPassword() {
         }
       }
       if (hasRecoveryFragment) {
-        // The shared client exchanges the recovery link and emits
-        // PASSWORD_RECOVERY. Do not accept the fragment without that event.
-        await client.auth.initialize();
-        if (!active) return;
-        if (!recoveryEvent.current) {
-          setError("The recovery link could not be verified. Request a new link.");
+        // Verify the actual recovery token pair, not merely the text
+        // 'type=recovery' or an already-signed-in browser session.
+        const params = new URLSearchParams(rawHash.slice(1));
+        const access_token = params.get("access_token");
+        const refresh_token = params.get("refresh_token");
+        if (!access_token || !refresh_token) {
+          setError("The recovery link is missing authentication data.");
           setChecking(false);
+          return;
         }
+        const { error: linkError } = await client.auth.setSession({ access_token, refresh_token });
+        if (!active) return;
+        if (linkError) {
+          setError("The recovery link is invalid or expired. Request a new one.");
+          setChecking(false);
+          return;
+        }
+        const {data, error:verifyError} = await client.auth.getUser();
+        if (!active) return;
+        if (verifyError || !data.user) {
+          setError("Unable to verify the recovery session.");
+          setChecking(false);
+          return;
+        }
+        recoveryEvent.current=true;
+        setValid(true);setChecking(false);
+        window.history.replaceState({}, "", "/admin/reset-password");
       } else {
         // Allow the SDK's recovery event to run before deciding the URL
         // lacks authorization; ordinary signed-in sessions are rejected.
@@ -132,7 +159,7 @@ export function StagingSetNewPassword() {
       }
     })();
     return()=>{active=false;authSub.subscription.unsubscribe();};
-  },[client]);
+  },[client,initialFragment,initialQuery]);
 
   const submit=async(e:FormEvent)=>{
     e.preventDefault();
