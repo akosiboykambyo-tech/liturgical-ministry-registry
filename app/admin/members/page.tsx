@@ -706,9 +706,10 @@ export default function MembersListPage() {
       )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>Members Registry</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage liturgical ministers, parish assignments, and verification records.
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">RECORD MANAGEMENT</p>
+          <h1 className={`${ebGaramond.className} mt-1 text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>Member Records</h1>
+          <p className="mt-2 text-sm leading-6 text-[#6B5C62]">
+            Manage registered liturgical ministers, parish assignments, and ministry records.
             <span className="block pt-1 text-xs font-medium text-[#66565A]">
               {loading ? "Loading members…" : `${totalCount.toLocaleString()} matching member${totalCount === 1 ? "" : "s"}`}
               {selected.size > 0 && ` · ${selected.size.toLocaleString()} selected`}
