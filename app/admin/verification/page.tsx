@@ -8,6 +8,8 @@ import {
 } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
+import { SubmissionsOverview } from "./submissions-overview";
+import RenewalBatchPreparationPage from "@/app/admin/renewal-batches/page";
 import CsvImportPage from "@/app/admin/import/page";
 import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification-workspace-context";
 import { RegistrationEmbeddedContext } from "@/lib/registration-embedded-context";
@@ -115,6 +117,8 @@ export default function VerificationWorkspacePage() {
   const [reviewKind, setReviewKind] = useState<ReviewKind>("approvals");
   const [historyKind, setHistoryKind] = useState<HistoryKind>("registration");
   const [newSubmissionOpen, setNewSubmissionOpen] = useState(false);
+  const [intakeActive, setIntakeActive] = useState(false);
+  const [advancedRosterOpen, setAdvancedRosterOpen] = useState(false);
   const [criticalOperation, setCriticalOperation] = useState(false);
   const [navigationNotice, setNavigationNotice] = useState("");
 
@@ -126,9 +130,15 @@ export default function VerificationWorkspacePage() {
     } else if (requested === "renewals") {
       setView("submissions");
       setSubmissionKind("renewal");
+      setIntakeActive(true);
     } else if (requested === "registrations") {
       setView("submissions");
       setSubmissionKind("new");
+      setIntakeActive(true);
+    }
+    if (params.get("mode") === "intake") setIntakeActive(true);
+    if (params.get("advanced") === "1") {
+      setView("submissions"); setSubmissionKind("renewal"); setIntakeActive(true); setAdvancedRosterOpen(true);
     }
     const kind = params.get("type");
     if (kind === "new" || kind === "renewal") setSubmissionKind(kind);
@@ -155,8 +165,26 @@ export default function VerificationWorkspacePage() {
     setCriticalOperation(active);
   }, []);
 
-  // All imported state remains mounted while staff switch between workspace
-  // views. A critical active import / renewal blocks manual navigation.
+  const startIntake = (kind: SubmissionKind) => {
+    if (criticalOperation) {
+      setNavigationNotice("Finish the current processing operation before starting another submission.");
+      return;
+    }
+    setNewSubmissionOpen(false);
+    setView("submissions");
+    setSubmissionKind(kind);
+    setIntakeActive(true);
+    setNavigationNotice("");
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "submissions");
+    url.searchParams.set("type", kind);
+    url.searchParams.set("mode", "intake");
+    url.searchParams.delete("view");
+    url.searchParams.delete("advanced");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search);
+  };
+
+  // Keep the existing importer mounted so session-staged duplicate data remains available.
   const navigate = (next: WorkspaceView, selection?: string, fromImport = false) => {
     if (criticalOperation && !fromImport) {
       setNavigationNotice("A registration or renewal operation is still running. Complete it before changing tasks.");
@@ -164,6 +192,8 @@ export default function VerificationWorkspacePage() {
     }
     setNavigationNotice("");
     setView(next);
+    if (next === "submissions") setIntakeActive(false);
+    if (next !== "submissions") setAdvancedRosterOpen(false);
     if (next === "submissions" && (selection === "new" || selection === "renewal")) {
       setSubmissionKind(selection);
     }
@@ -178,6 +208,8 @@ export default function VerificationWorkspacePage() {
     url.searchParams.set("tab", next);
     url.searchParams.delete("view");
     url.searchParams.delete("type");
+    url.searchParams.delete("mode");
+    url.searchParams.delete("advanced");
     if (next === "submissions") {
       url.searchParams.set("type", selection === "new" || selection === "renewal" ? selection : submissionKind);
     } else if (next === "reviews") {
@@ -189,8 +221,8 @@ export default function VerificationWorkspacePage() {
   };
 
   const onImportTabChange = (next: CsvImportTab) => {
-    if (next === "import") navigate("submissions", "new", true);
-    if (next === "renewal") navigate("submissions", "renewal", true);
+    if (next === "import") startIntake("new");
+    if (next === "renewal") startIntake("renewal");
     if (next === "history") navigate("history", "renewal", true);
     if (next === "pending") navigate("reviews", "duplicates", true);
   };
@@ -198,7 +230,7 @@ export default function VerificationWorkspacePage() {
   const csvTab: CsvImportTab =
     view === "submissions" ? (submissionKind === "new" ? "import" : "renewal") :
     view === "history" ? "history" : "pending";
-  const showCsv = view === "submissions" ||
+  const showCsv = (view === "submissions" && intakeActive) ||
     (view === "history" && historyKind === "renewal") ||
     (view === "reviews" && reviewKind === "duplicates");
 
@@ -239,46 +271,56 @@ export default function VerificationWorkspacePage() {
       )}
 
       {view === "submissions" && (
-        <section className="space-y-4" aria-label="Parish submissions">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className={ebGaramond.className + " text-[30px] font-medium leading-tight"}>Parish Submissions</h2>
-              <p className="mt-1 text-sm text-[#6B5C62]">New registrations and renewals, managed through one intake workspace.</p>
-            </div>
-            <button type="button" onClick={() => setNewSubmissionOpen(true)}
-              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#890022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#70001C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#970E24]">
-              <Plus className="h-4 w-4" aria-hidden="true" />New submission
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Submission type">
-            <button type="button" onClick={() => navigate("submissions", "new")}
-              aria-pressed={submissionKind === "new"}
-              className={"min-h-10 rounded-md border px-4 py-2 text-sm font-semibold " +
-                (submissionKind === "new" ? "border-[#890022] bg-[#FBF1F3] text-[#890022]" : "border-[#E6DADC] bg-white text-[#6A5960] hover:bg-[#FBF6F7]")}>
-              <Upload className="mr-2 inline h-4 w-4" aria-hidden="true" />New Registration
-            </button>
-            <button type="button" onClick={() => navigate("submissions", "renewal")}
-              aria-pressed={submissionKind === "renewal"}
-              className={"min-h-10 rounded-md border px-4 py-2 text-sm font-semibold " +
-                (submissionKind === "renewal" ? "border-[#890022] bg-[#FBF1F3] text-[#890022]" : "border-[#E6DADC] bg-white text-[#6A5960] hover:bg-[#FBF6F7]")}>
-              <RefreshCw className="mr-2 inline h-4 w-4" aria-hidden="true" />Renewal
-            </button>
-          </div>
-          {submissionKind === "new" ? (
-            <p className="rounded-md border-l-[3px] border-[#B27D88] bg-[#F9F3F5] px-4 py-3 text-xs leading-5 text-[#62434D]">
-              Current import behavior is preserved: confirmed CSV imports create Pending Verification records.
-              Persistent draft approval is a separate backend phase and is not yet enabled.
-            </p>
+        <section className="space-y-5" aria-label="Parish submissions">
+          {!intakeActive ? (
+            <>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className={ebGaramond.className + " text-[30px] font-medium leading-tight"}>Parish Submissions</h2>
+                  <p className="mt-1 text-sm text-[#6B5C62]">Prepare a new parish roster or review previously recorded batches.</p>
+                </div>
+                <button type="button" disabled={criticalOperation} onClick={() => setNewSubmissionOpen(true)}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#890022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#70001C] disabled:opacity-50">
+                  <Plus className="h-4 w-4" aria-hidden="true" /> New submission
+                </button>
+              </div>
+              <SubmissionsOverview
+                disabled={criticalOperation}
+                onStart={startIntake}
+                onHistory={(kind) => navigate("history", kind)}
+              />
+            </>
           ) : (
-            <details className="rounded-md border border-[#E6DADC] bg-white px-4 py-3 text-sm">
-              <summary className="cursor-pointer font-semibold text-[#673947]">Optional: prepare a parish renewal roster</summary>
-              <p className="mt-2 text-xs leading-5 text-[#6B5C62]">
-                The existing advanced roster-preparation tool is available when a parish needs a new draft CSV.
-              </p>
-              <Link href="/admin/renewal-batches" className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-[#890022] underline underline-offset-2">
-                Open roster preparation <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </Link>
-            </details>
+            <>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <button type="button" onClick={() => navigate("submissions")}
+                    className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-[#890022] hover:underline">
+                    <ArrowRight className="h-3.5 w-3.5 rotate-180" aria-hidden="true" /> Back to submissions
+                  </button>
+                  <h2 className={ebGaramond.className + " text-[30px] font-medium leading-tight"}>
+                    {submissionKind === "new" ? "New Registration" : "Parish Recommendation Renewal"}
+                  </h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-[#6B5C62]">
+                    {submissionKind === "new"
+                      ? "Upload and validate a parish roster. Confirmed imports currently create Pending Verification records."
+                      : "Upload the existing parish roster and signed recommendation letter, then review eligible ministry assignments."}
+                  </p>
+                </div>
+                {submissionKind === "renewal" && (
+                  <button type="button" onClick={() => setAdvancedRosterOpen(true)}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[#DCCFD2] bg-white px-4 py-2 text-sm font-semibold text-[#890022] hover:bg-[#FBF3F5]">
+                    <Users className="h-4 w-4" aria-hidden="true" /> Prepare roster manually
+                  </button>
+                )}
+              </div>
+              {submissionKind === "new" && (
+                <p className="rounded-md border-l-[3px] border-[#B27D88] bg-[#F9F3F5] px-4 py-3 text-xs leading-5 text-[#62434D]">
+                  <strong>Current processing rule:</strong> The import is not a persistent draft. The final confirmation writes Pending Verification records.
+                  The proposed save-draft → review → authorize workflow requires a separate audited backend implementation.
+                </p>
+              )}
+            </>
           )}
         </section>
       )}
@@ -351,6 +393,31 @@ export default function VerificationWorkspacePage() {
         {view === "reviews" && reviewKind === "renewal" && <RenewalReviewsPage />}
       </RegistrationEmbeddedContext.Provider>
 
+      {advancedRosterOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-[#210F16]/60" onMouseDown={event => {
+          if (event.target === event.currentTarget) setAdvancedRosterOpen(false);
+        }}>
+          <section role="dialog" aria-modal="true" aria-label="Advanced renewal roster preparation"
+            className="h-full w-full max-w-[1020px] overflow-y-auto bg-[#FBF9F9] px-4 py-5 shadow-2xl sm:px-7 sm:py-7">
+            <div className="mb-5 flex items-start justify-between gap-3 border-b border-[#E6DADC] pb-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">REGISTRATION · ADVANCED TOOL</p>
+                <h2 className={ebGaramond.className + " mt-1 text-[30px] font-medium leading-tight"}>Prepare Renewal Roster</h2>
+                <p className="mt-1 text-sm text-[#6B5C62]">Select existing registry members and export a draft CSV without changing member records.</p>
+              </div>
+              <button type="button" onClick={() => setAdvancedRosterOpen(false)}
+                aria-label="Close renewal roster preparation"
+                className="rounded-md p-2 text-[#785762] hover:bg-[#F7EFF1]">
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+            <RegistrationEmbeddedContext.Provider value={true}>
+              <RenewalBatchPreparationPage />
+            </RegistrationEmbeddedContext.Provider>
+          </section>
+        </div>
+      )}
+
       {newSubmissionOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#210F16]/60 p-4"
           onMouseDown={(event) => { if (event.target === event.currentTarget) setNewSubmissionOpen(false); }}>
@@ -376,7 +443,7 @@ export default function VerificationWorkspacePage() {
                 return (
                   <button type="button" key={item.kind} onClick={() => {
                       setNewSubmissionOpen(false);
-                      navigate("submissions", item.kind);
+                      startIntake(item.kind);
                     }}
                     className="flex flex-col gap-2 rounded-md border border-[#E6DADC] bg-white p-4 text-left hover:border-[#890022] hover:bg-[#FBF5F7]">
                     <Icon className="h-6 w-6 text-[#890022]" aria-hidden="true" />
@@ -387,7 +454,7 @@ export default function VerificationWorkspacePage() {
               })}
             </div>
             <p className="mt-4 text-xs leading-5 text-[#6B5C62]">
-              This opens the current authorized workflow; it does not create a saved draft by itself.
+              Your selection opens a dedicated CSV intake screen. No registry records are created until you explicitly confirm processing.
             </p>
           </section>
         </div>
