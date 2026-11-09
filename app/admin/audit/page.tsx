@@ -11,7 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 
 const PAGE_SIZE = 30;
 

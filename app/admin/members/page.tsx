@@ -30,7 +30,7 @@ import {
   Trash2,
   Eye,
   CircleAlert,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,

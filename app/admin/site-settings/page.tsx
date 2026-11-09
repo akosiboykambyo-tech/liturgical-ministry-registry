@@ -11,7 +11,7 @@ import {
   RotateCcw,
   Save,
   Wrench,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const ANNOUNCEMENT_KEY = "public_marquee";

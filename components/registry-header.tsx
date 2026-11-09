@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { Menu, X } from "@/components/phosphor-icons";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type RegistryHeaderProps = {

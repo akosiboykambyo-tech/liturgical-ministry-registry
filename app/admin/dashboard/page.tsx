@@ -6,7 +6,7 @@ import {
   ArrowRight, CalendarClock, ClipboardCheck, CopyCheck, Download,
   FileCheck2, FileWarning, RefreshCw, Search, ShieldCheck,
   Upload, UserPlus, Users,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Member, MemberMinistry } from "@/lib/types";

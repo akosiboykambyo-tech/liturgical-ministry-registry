@@ -8,8 +8,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   ExternalLink, LayoutDashboard, Loader2, LogOut,
   Menu, ScrollText, Settings, ShieldCheck, Upload, Users, X,
-  FileBadge, UserPlus, ClipboardList,
-} from "lucide-react";
+  FileBadge, UserPlus, ClipboardList, Files, CalendarDots,
+} from "@/components/phosphor-icons";
 import { ebGaramond, inter } from "@/app/fonts";
 
 const NAV_GROUPS = [
@@ -19,8 +19,8 @@ const NAV_GROUPS = [
     { href: "/admin/members/add", label: "Add Member", icon: UserPlus },
     { href: "/admin/verify", label: "Quick-Scan Matrix", icon: ShieldCheck },
     { href: "/admin/import", label: "Bulk Registration Import", icon: Upload },
-    { href: "/admin/duplicate-review-preview", label: "Duplicate Queue Preview", icon: ClipboardList },
-    { href: "/admin/renewal-batches", label: "Renewal Batches", icon: ClipboardList },
+    { href: "/admin/duplicate-review-preview", label: "Duplicate Queue Preview", icon: Files },
+    { href: "/admin/renewal-batches", label: "Renewal Batches", icon: CalendarDots },
     { href: "/admin/renewal-reviews", label: "Renewal Review Queue", icon: ShieldCheck },
   ] },
   { name: "Documents", items: [{ href: "/admin/certificates", label: "Certificate Templates", icon: FileBadge }] },
@@ -134,8 +134,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   {group.items.map(item => {
                     const Icon = item.icon;
                     const active = isActive(item.href);
-                    return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)} className={`flex min-h-10 items-center gap-3 border-l-[3px] px-3 py-2 text-[14px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15 hover:text-white"}`}>
-                      <Icon className="h-[16px] w-[16px] shrink-0" aria-hidden="true" />{item.label}
+                    return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} onClick={() => setSidebarOpen(false)} className={`flex min-h-11 items-center gap-3 border-l-[3px] px-3 py-2 text-[14px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15 hover:text-white"}`}>
+                      <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />{item.label}
                     </Link>;
                   })}
                 </div>

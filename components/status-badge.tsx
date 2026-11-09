@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import type { MemberStatus } from "@/lib/constants";
 import { getExpirationStatus, type ExpirationStatus } from "@/lib/constants";
-import { CheckCircle2, Clock, XCircle, RefreshCw, AlertTriangle, CalendarClock } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, RefreshCw, AlertTriangle, CalendarClock, Hourglass, CircleAlert } from "@/components/phosphor-icons";
 
 const EXPIRATION_CONFIG: Record<
   Exclude<ExpirationStatus, "none">,
@@ -17,12 +17,12 @@ const EXPIRATION_CONFIG: Record<
   expiring_soon: {
     label: "Expiring Soon",
     className: "bg-[#FFF4DC] text-[#7A4E00] ring-[#7A4E00]/25",
-    icon: CalendarClock,
+    icon: Hourglass,
   },
   expired: {
     label: "Expired",
     className: "bg-red-100 text-red-800 ring-red-600/20",
-    icon: AlertTriangle,
+    icon: CircleAlert,
   },
 };
 
@@ -81,7 +81,7 @@ export function StatusBadge({
           className
         )}
       >
-        {showIcon && <Icon className="h-3 w-3" />}
+        {showIcon && <Icon weight="regular" className="h-3.5 w-3.5" />}
         {cfg.label}
       </span>
       {expCfg && (
@@ -91,7 +91,7 @@ export function StatusBadge({
             expCfg.className
           )}
         >
-          <expCfg.icon className="h-3 w-3" />
+          <expCfg.icon weight="regular" className="h-3.5 w-3.5" />
           {expCfg.label}
         </span>
       )}

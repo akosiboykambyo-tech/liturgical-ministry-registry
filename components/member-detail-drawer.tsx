@@ -30,7 +30,7 @@ import {
   Archive,
   Printer,
   Pencil,
-} from "lucide-react";
+} from "@/components/phosphor-icons";
 import { useToast } from "@/hooks/use-toast";
 import {
   CertificateDesign,

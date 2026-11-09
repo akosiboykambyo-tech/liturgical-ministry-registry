@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRight, ClipboardCheck, RotateCcw, Search, ShieldAlert } from "lucide-react";
+import { ArrowRight, ClipboardCheck, RotateCcw, Search, ShieldAlert } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import {
   filterReviewQueue,

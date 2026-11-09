@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, Clock, MinusCircle } from "lucide-react";
+import { Check, Clock, MinusCircle } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { PublicMaintenanceGate } from "@/components/public-maintenance-gate";
 import { RegistryFooter } from "@/components/registry-footer";

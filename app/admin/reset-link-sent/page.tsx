@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle } from "@/components/phosphor-icons";
 import { ebGaramond, inter } from "@/app/fonts";
 
 function Coat() {

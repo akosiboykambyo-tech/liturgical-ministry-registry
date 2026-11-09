@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ClipboardCheck, Loader2, RefreshCw, Search } from "lucide-react";
+import { ClipboardCheck, Loader2, RefreshCw, Search } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { comparePossibleDuplicateMembers, listRenewalReviews, resolveRenewalReview,
   type DuplicateComparison,

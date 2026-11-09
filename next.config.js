@@ -4,6 +4,9 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: { unoptimized: true },
+  experimental: {
+    optimizePackageImports: ["@phosphor-icons/react", "@phosphor-icons/react/ssr"],
+  },
 };
 
 module.exports = nextConfig;
