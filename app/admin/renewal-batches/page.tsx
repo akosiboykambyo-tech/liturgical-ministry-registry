@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useContext } from "react";
+import { RegistrationEmbeddedContext } from "@/lib/registration-embedded-context";
 import Link from "next/link";
 import { ClipboardList, FileDown, FileSpreadsheet, History, Loader2, Search, Users } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
@@ -17,6 +18,7 @@ const labelClass = "mb-1.5 block text-xs font-semibold text-[#514449]";
 const csvCell = (value: string | number) => '"' + String(value).replace(/"/g, '""') + '"';
 
 export default function RenewalBatchPreparationPage() {
+  const embedded = useContext(RegistrationEmbeddedContext);
   const [parish, setParish] = useState<string>("");
   const [ministry, setMinistry] = useState<string>("");
   const [year, setYear] = useState(todayYear);
@@ -78,30 +80,22 @@ export default function RenewalBatchPreparationPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-12">
-      <div className="border-b border-[#E5D9DC] pb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#890022]">Commission Renewal Desk</p>
-        <h1 className={`${ebGaramond.className} mt-2 text-4xl text-[#271C20]`}>Parish–Ministry Batches</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6B5C62]">Prepare a consolidated parish submission and match its members to the registry. The manual-selection method below prepares a draft only; the existing CSV-based renewal processor remains available through its dedicated link. Payment collection and treasury remittance are not enabled.</p>
-      </div>
-      <div className="border border-[#E2D7DA] border-l-4 border-l-[#890022] bg-[#F8F1F3] px-4 py-3 text-sm leading-6 text-[#592C3A]">
-        <strong>Preparation only.</strong> You can download a draft CSV manifest for review. Final batch saving, supplemental submission tracking, payment collection and treasury remittance remain disabled until the database controls are approved.
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="border border-[#D9CED1] bg-white p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#42262F]"><Users className="h-4 w-4 text-[#890022]" /> Select members from registry</div>
-          <p className="mt-2 text-xs leading-5 text-[#6B5C62]">Build a draft roster directly from existing member records using the form below. Draft export does not change registrations.</p>
-        </div>
-        <div className="border border-[#D9CED1] bg-white p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#42262F]"><FileSpreadsheet className="h-4 w-4 text-[#890022]" /> Upload a parish renewal CSV</div>
-          <p className="mt-2 text-xs leading-5 text-[#6B5C62]">Open the existing validated CSV renewal processor, including shared recommendation-letter upload and review of uncertain matches.</p>
-          <div className="mt-3 flex flex-wrap gap-3">
-            <Link href="/admin/import?tab=renewal" className="text-xs font-semibold text-[#890022] underline underline-offset-2">Open CSV Renewal Processor</Link>
-            <Link href="/admin/import?tab=history" className="inline-flex items-center gap-1 text-xs font-semibold text-[#890022] underline underline-offset-2"><History className="h-3.5 w-3.5" /> Renewal History</Link>
-            <Link href="/admin/renewal-reviews" className="text-xs font-semibold text-[#890022] underline underline-offset-2">Renewal Review Queue</Link>
+    <div className={embedded ? "min-w-0 space-y-5 pb-5" : "mx-auto max-w-6xl space-y-6 pb-12"}>
+      {!embedded && (
+        <>
+          <div className="border-b border-[#E5D9DC] pb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#890022]">MEMBER MANAGEMENT</p>
+            <h1 className={ebGaramond.className + " mt-2 text-4xl text-[#271C20]"}>Prepare Renewal Roster</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6B5C62]">
+              Select members from the registry to create a draft renewal CSV. This does not change their registration status.
+            </p>
           </div>
-        </div>
-      </div>
+        </>
+      )}
+      <p className="rounded-md border-l-[3px] border-[#B27D88] bg-[#F9F3F5] px-4 py-3 text-xs leading-5 text-[#62434D]">
+        <strong>Roster preparation only.</strong> You can download a CSV manifest. Final renewal processing, recommendation letter review,
+        and authorization take place in the Registration workspace. Payment and remittance are not enabled.
+      </p>
       <section className="space-y-4 border border-[#E2D7DA] bg-white p-5">
         <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-[#890022]" /><h2 className="text-base font-semibold">Batch details</h2></div>
         <div className="grid gap-4 md:grid-cols-2">
