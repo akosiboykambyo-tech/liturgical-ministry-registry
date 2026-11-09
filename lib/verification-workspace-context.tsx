@@ -12,6 +12,7 @@ export type CsvImportWorkspaceOptions = {
   onWorkspaceTabChange?: (next: CsvImportTab) => void;
   // Used only to stop switching workspace sections during an active DB write.
   onCriticalOperationChange?: (active: boolean) => void;
+  onPendingDuplicateCountChange?: (count: number) => void;
 };
 
 export const CsvImportWorkspaceContext = createContext<CsvImportWorkspaceOptions>({});
