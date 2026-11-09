@@ -24,14 +24,14 @@ const MAX_PENDING = 1000;
 /** Phase-two UI: only displayed when the separate secure-RPC release flag is set.
  * Never falls back to legacy member-wide writes when the RPC is unavailable.
  */
-export default function SecureMinistryVerification() {
+export default function SecureMinistryVerification({ initialSearch = "" }: { initialSearch?: string }) {
   const embedded = useContext(RegistrationEmbeddedContext);
   const supabase = getSupabaseBrowserClient();
   const [members, setMembers] = useState<PendingMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
