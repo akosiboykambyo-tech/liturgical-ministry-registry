@@ -24,7 +24,7 @@ export function StagingForgotPassword() {
     inFlight.current = true;setLoading(true);setError(null);
     try {
       const { error: err } = await client.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: window.location.origin + "/admin/reset-password",
+        redirectTo: "https://liturgical-ministry-registry-dcwd-git-feature-f-e3ad5a-cowl-dok.vercel.app/admin/reset-password",
       });
       if (err && /rate.?limit|too many|429/i.test(err.message)) {
         setError("The email service is temporarily limiting reset requests. Check for an earlier message before requesting another link.");
