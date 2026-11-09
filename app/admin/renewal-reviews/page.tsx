@@ -2,7 +2,8 @@
 
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useContext } from "react";
+import { RegistrationEmbeddedContext, RegistrationReviewSearchContext } from "@/lib/registration-embedded-context";
 import Link from "next/link";
 import { ClipboardCheck, Loader2, RefreshCw, Search } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
@@ -29,11 +30,13 @@ const DECISIONS: { value: RenewalResolution; label: string }[] = [
 ];
 
 export default function RenewalReviewQueuePage() {
+  const initialSearch = useContext(RegistrationReviewSearchContext);
+  const embedded = useContext(RegistrationEmbeddedContext);
   const [requestedCase, setRequestedCase] = useState<string | null>(null);
   useEffect(() => { setRequestedCase(new URLSearchParams(window.location.search).get("case")); }, []);
   const [status, setStatus] = useState<RenewalReviewStatus | "all">("open");
   const [items, setItems] = useState<SavedRenewalReview[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SavedRenewalReview | null>(null);
@@ -120,8 +123,9 @@ export default function RenewalReviewQueuePage() {
     } finally { setSaving(false); }
   };
   return (
-    <div className="mx-auto max-w-6xl space-y-5 pb-14 text-[#24191D]">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#E5D9DC] pb-4">
+    <div className={embedded ? "min-w-0 space-y-5 pb-14 text-[#24191D]" : "mx-auto max-w-6xl space-y-5 pb-14 text-[#24191D]"}>
+      {!embedded && (
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#E5D9DC] pb-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">Commission Renewal Desk</p>
           <h1 className={`${ebGaramond.className} mt-2 text-4xl`}>Renewal Review Queue</h1>
@@ -129,6 +133,7 @@ export default function RenewalReviewQueuePage() {
         </div>
         <Link href="/admin/renewal-batches" className="text-sm font-semibold text-[#890022] underline underline-offset-2">Back to Renewal Batches</Link>
       </div>
+      )}
       <div className="border border-[#DFC7CE] bg-[#F8F1F3] px-4 py-3 text-sm text-[#62313F]">
         Marking a review resolved documents your decision only. To add a missing ministry, correct member details, or process a renewal, use the existing authorized registry tools. Restage a corrected CSV before renewing.
       </div>

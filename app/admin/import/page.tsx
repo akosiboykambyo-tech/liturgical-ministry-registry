@@ -188,7 +188,7 @@ function getDefaultNextRenewalDate(renewalDate: string): string {
 }
 
 export default function CsvImportPage() {
-  const { embedded = false, workspaceTab, onWorkspaceTabChange } =
+  const { embedded = false, workspaceTab, onWorkspaceTabChange, onCriticalOperationChange, onPendingDuplicateCountChange } =
     useContext(CsvImportWorkspaceContext);
   const supabase = getSupabaseBrowserClient();
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -276,6 +276,18 @@ export default function CsvImportPage() {
     keptSeparate: number;
     discarded: number;
   } | null>(null);
+
+  useEffect(() => {
+    onPendingDuplicateCountChange?.(pendingMerges.length);
+  }, [pendingMerges.length, onPendingDuplicateCountChange]);
+
+  // Keep the surrounding Registration workspace stationary while a write or
+  // finalization is in flight. Staged rows/duplicates remain mounted across views.
+  useEffect(() => {
+    onCriticalOperationChange?.(
+      processing || renewalProcessing || reviewQueueSaving || actionLoading
+    );
+  }, [processing, renewalProcessing, reviewQueueSaving, actionLoading, onCriticalOperationChange]);
 
   const handleFile = useCallback(async (file: File) => {
     if (processing) return;
@@ -1404,11 +1416,12 @@ export default function CsvImportPage() {
             </div>
           )}
 
+          {!embedded && (
           <div>
-            <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
+            <h2 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <Upload className="h-6 w-6 text-primary" />
               Bulk CSV Import
-            </h1>
+            </h2>
             <p className="text-sm text-muted-foreground mt-1">
               Import members at the start of the liturgical year. Supports up to{" "}
               {MAX_ROWS.toLocaleString()} rows per file. All imported records
@@ -1421,6 +1434,7 @@ export default function CsvImportPage() {
               misspellings and internal batch deduplication.
             </p>
           </div>
+          )}
 
           <div className="rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white p-5 shadow-none space-y-4">
             <div className="rounded-none border border-primary/20 bg-primary/5 p-4">
@@ -1696,11 +1710,12 @@ export default function CsvImportPage() {
       {/* ============================================================ */}
       {activeTab === "renewal" && (
         <div className="space-y-5">
+          {!embedded && (
           <div>
-            <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
+            <h2 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <FileCheck2 className="h-6 w-6 text-primary" />
               Parish Recommendation Renewal
-            </h1>
+            </h2>
             <p className="text-sm text-muted-foreground mt-1">
               Upload one parish renewal roster CSV and one shared recommendation
               letter. Exact existing member + ministry matches can be renewed in
@@ -1708,6 +1723,7 @@ export default function CsvImportPage() {
               changed automatically.
             </p>
           </div>
+          )}
 
           {renewalSuccess && (
             <div className="rounded-none border border-emerald-300 bg-emerald-50 p-5 shadow-sm">
@@ -1920,7 +1936,7 @@ export default function CsvImportPage() {
                       {reviewQueueSaved !== null ? (
                         <div className="mt-3 flex flex-wrap items-center gap-3">
                           <p role="status" className="text-sm font-semibold text-[#582D3A]">{reviewQueueSaved.saved} new cases saved; {reviewQueueSaved.alreadyOpen} already in the open queue.</p>
-                          <Link href="/admin/renewal-reviews" className="text-xs font-semibold text-[#890022] underline underline-offset-2">Open Renewal Review Queue</Link>
+                          <Link href="/admin/verification?tab=reviews&view=renewal" className="text-xs font-semibold text-[#890022] underline underline-offset-2">Open Renewal Review Queue</Link>
                         </div>
                       ) : (
                         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -2186,10 +2202,10 @@ export default function CsvImportPage() {
         <div className="space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
+              <h3 className={`${ebGaramond.className} text-[24px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
                 <History className="h-6 w-6 text-primary" />
                 Renewal History
-              </h1>
+              </h3>
               <p className="text-sm text-muted-foreground mt-1">
                 Durable audit history for parish recommendation renewal batches,
                 including the shared document, processing dates, and the exact
@@ -2428,15 +2444,17 @@ export default function CsvImportPage() {
       {/* ============================================================ */}
       {activeTab === "pending" && (
         <div className="space-y-5">
+          {!embedded && (
           <div>
-            <h1 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
+            <h2 className={`${ebGaramond.className} text-[29px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
               <GitMerge className="h-6 w-6 text-primary" />
               Registration Import — Temporary Duplicate Review
-            </h1>
+            </h2>
             <p className="text-sm text-muted-foreground mt-1">
               These duplicate cases are held only in this browser session. Switching Verification tabs preserves them, but leaving or refreshing loses them. They are not saved to the database. Resolve or document them before leaving. Renewal review cases use a separate queue.
             </p>
           </div>
+          )}
 
           {actionError && (
             <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
