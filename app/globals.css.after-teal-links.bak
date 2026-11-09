@@ -1,0 +1,577 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Background: warm off-white with the faintest red blush */
+    --background: 0 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Diocesan red: #970e24 */
+    --primary: 350 83% 32%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: light red-tinted neutral */
+    --secondary: 355 12% 96%;
+    --secondary-foreground: 355 30% 20%;
+
+    /* Muted: near-white red tint */
+    --muted: 355 8% 94%;
+    --muted-foreground: 215 16% 44%;
+
+    /* Accent: pale rose — used for ministry chips, highlights */
+    --accent: 355 40% 93%;
+    --accent-foreground: 355 70% 28%;
+
+    /* Destructive keeps a slightly different red to distinguish from primary */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 355 10% 88%;
+    --input: 355 10% 88%;
+    --ring: 350 83% 32%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --radius: 0.625rem;
+
+    /* Institutional text links: Registry Teal #0B5C5A */
+    --registry-link: #0B5C5A;
+    --registry-link-hover: #084644;
+
+    /* Registry design tokens */
+    --content-reading: 42rem;
+    --content-service: 48rem;
+    --content-wide: 72rem;
+    --focus-ring: 0 0 0 3px hsl(var(--primary) / 0.18);
+
+    --chart-1: 350 83% 32%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 355 60% 65%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 0 10% 96%;
+    --card: 222 45% 10%;
+    --card-foreground: 0 10% 96%;
+    --popover: 222 45% 10%;
+    --popover-foreground: 0 10% 96%;
+
+    --primary: 355 96% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 0 10% 96%;
+    --muted: 222 30% 16%;
+    --muted-foreground: 215 16% 65%;
+    --accent: 222 30% 18%;
+    --accent-foreground: 0 10% 96%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 30% 20%;
+    --input: 222 30% 20%;
+    --ring: 355 96% 55%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 100%;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 1.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgba(151, 14, 36, 0.16);
+  }
+}
+
+/*
+ * Registry text-link system.
+ * These low-specificity defaults color ordinary links without overriding
+ * explicit Tailwind link colors or button-like, menu, and sidebar links.
+ * For links with an explicit text color, apply .registry-text-link directly.
+ */
+@layer base {
+  :where(a[href]:not([role="button"]):not([class*="bg-"]):not([class*="text-white"]):not([class*="text-primary"]):not([class*="text-destructive"]):not([class*="text-red-"]):not([class*="text-rose-"])):not(:where(nav a, aside a, [role="navigation"] a)) {
+    color: var(--registry-link);
+  }
+
+  :where(a[href]:not([role="button"]):not([class*="bg-"]):not([class*="text-white"]):not([class*="text-primary"]):not([class*="text-destructive"]):not([class*="text-red-"]):not([class*="text-rose-"])):not(:where(nav a, aside a, [role="navigation"] a)):hover {
+    color: var(--registry-link-hover);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+}
+
+@layer utilities {
+  .registry-text-link {
+    color: var(--registry-link);
+    text-underline-offset: 0.2em;
+  }
+  .registry-text-link:hover {
+    color: var(--registry-link-hover);
+    text-decoration: underline;
+  }
+  .registry-text-link:focus-visible {
+    outline: 2px solid var(--registry-link);
+    outline-offset: 3px;
+  }
+}
+
+/*
+ * Public-site motion polish.
+ * Kept restrained so typography and content remain the focus.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .public-page-motion {
+    animation: publicPageEnter 440ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: center top;
+    transition:
+      opacity 140ms ease,
+      transform 180ms cubic-bezier(0.4, 0, 1, 1);
+  }
+
+  html[data-route-pending="true"] .public-page-motion {
+    opacity: 0.94;
+    transform: translateY(3px);
+  }
+
+  .public-page-motion a[href],
+  .public-page-motion button:not(:disabled),
+  .public-page-motion input,
+  .public-page-motion select,
+  .public-page-motion textarea {
+    transition:
+      color 180ms ease,
+      background-color 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      opacity 180ms ease,
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .public-page-motion a[href]:active,
+  .public-page-motion button:not(:disabled):active {
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .public-page-motion input:hover,
+  .public-page-motion select:hover,
+  .public-page-motion textarea:hover {
+    border-color: rgba(151, 14, 36, 0.34);
+  }
+
+  .public-page-motion input:focus-visible,
+  .public-page-motion select:focus-visible,
+  .public-page-motion textarea:focus-visible {
+    box-shadow: 0 0 0 3px rgba(151, 14, 36, 0.12);
+  }
+
+  @keyframes publicPageEnter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+  }
+  .animate-in-fade {
+    animation: fadeIn 0.3s ease-out;
+  }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-page-in {
+    animation: pageIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes pageIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .hover-lift:hover,
+  .hover-lift:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -8px hsl(var(--foreground) / 0.15);
+  }
+
+  .focus-ring:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  .font-display {
+    font-family: var(--font-eb-garamond), Georgia, serif;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body.member-certificate-print-mode .member-certificate-print-canvas {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.member-certificate-print-mode .member-certificate-print-target ~ * {
+  visibility: hidden !important;
+}
+
+/*
+ * Member drawer certificate printing.
+ * The drawer prints the actual certificate canvas instead of navigating
+ * to the public verification page.
+ */
+
+@media print {
+  @page {
+    size: auto;
+    margin: 0mm;
+  }
+  body {
+    margin: 1.5cm;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  aside,
+  nav,
+  header,
+  [data-print-hidden="true"] {
+    display: none !important;
+  }
+  input,
+  select,
+  textarea,
+  button {
+    display: none !important;
+  }
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    width: 100% !important;
+    font-size: 11pt;
+    color: #000 !important;
+  }
+  .print-area,
+  .print-report-table {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+  th,
+  td {
+    border: 1px solid #d4d4d8 !important;
+    padding: 4px 8px !important;
+    color: #000 !important;
+    text-align: left;
+  }
+  th {
+    background: #f4f4f5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  h1,
+  h2,
+  h3 {
+    color: #000 !important;
+  }
+}
+
+@media print {
+  body.member-certificate-print-mode > * {
+    visibility: hidden !important;
+  }
+
+  body.member-certificate-print-mode .member-certificate-direct-print {
+    visibility: visible !important;
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    z-index: 2147483647 !important;
+  }
+
+  body.member-certificate-print-mode
+    .member-certificate-direct-print-canvas {
+    visibility: visible !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* Certificate printing */
+.print-certificate-canvas {
+  display: none !important;
+}
+
+@media print {
+  body.member-certificate-print-mode > * {
+    visibility: hidden !important;
+  }
+
+  body.member-certificate-print-mode
+    .member-certificate-direct-print {
+    visibility: visible !important;
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    z-index: 2147483647 !important;
+  }
+
+  body.member-certificate-print-mode
+    .member-certificate-direct-print-canvas {
+    visibility: visible !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+@media print {
+  body:has(.certificate-print-mode) > * {
+    visibility: hidden !important;
+  }
+
+  body:has(.certificate-print-mode) .certificate-print-mode {
+    visibility: visible !important;
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body:has(.certificate-print-mode) .certificate-print-mode > * {
+    visibility: hidden !important;
+  }
+
+  body:has(.certificate-print-mode) .certificate-print-mode .print-certificate-canvas {
+    visibility: visible !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+  }
+}
+
+/* ------------------------------------------------------------
+   Public motion system v2
+   Visible enough to feel polished, still restrained.
+   ------------------------------------------------------------ */
+@media (prefers-reduced-motion: no-preference) {
+  .public-page-motion [data-motion-reveal="true"] {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 620ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--motion-delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  .public-page-motion [data-motion-reveal="true"][data-motion-visible="true"] {
+    opacity: 1;
+    transform: translateY(0);
+    will-change: auto;
+  }
+
+  .public-page-motion main a[href]:not([class*="rounded-full"]),
+  .public-page-motion footer a[href] {
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.22em;
+  }
+
+  .public-page-motion main a[href]:hover,
+  .public-page-motion footer a[href]:hover {
+    text-underline-offset: 0.3em;
+  }
+
+  .public-page-motion button:not(:disabled),
+  .public-page-motion a[href][class*="bg-"],
+  .public-page-motion a[href][class*="border"] {
+    transform: translateZ(0);
+  }
+
+  .public-page-motion button:not(:disabled):hover,
+  .public-page-motion a[href][class*="bg-"]:hover,
+  .public-page-motion a[href][class*="border"]:hover {
+    transform: translateY(-1px);
+  }
+
+  .public-page-motion button:not(:disabled):active,
+  .public-page-motion a[href][class*="bg-"]:active,
+  .public-page-motion a[href][class*="border"]:active {
+    transform: translateY(0) scale(0.985);
+  }
+
+  .public-page-motion article,
+  .public-page-motion [data-motion-card="true"] {
+    transition:
+      transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 260ms ease,
+      border-color 220ms ease,
+      background-color 220ms ease;
+  }
+
+  .public-page-motion article:hover,
+  .public-page-motion [data-motion-card="true"]:hover {
+    transform: translateY(-2px);
+  }
+
+  .public-page-motion input,
+  .public-page-motion select,
+  .public-page-motion textarea {
+    transition:
+      border-color 180ms ease,
+      box-shadow 220ms ease,
+      background-color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .public-page-motion input:focus-visible,
+  .public-page-motion select:focus-visible,
+  .public-page-motion textarea:focus-visible {
+    transform: translateY(-1px);
+  }
+
+  .public-page-motion header a,
+  .public-page-motion nav a {
+    transition:
+      color 180ms ease,
+      opacity 180ms ease,
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .public-page-motion header a:hover,
+  .public-page-motion nav a:hover {
+    transform: translateY(-1px);
+  }
+
+  .public-page-motion [role="dialog"] > div {
+    animation: publicDialogIn 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes publicDialogIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.992);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+}

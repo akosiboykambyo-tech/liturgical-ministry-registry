@@ -1,0 +1,63 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { AdminAuthShell, AuthAlert, AuthHeading, AuthSupport, authButton, authInput } from "@/components/admin-auth-shell";
+
+const GENERIC_ERROR = "We could not sign you in. Check your email and password, then try again.";
+
+export default function AdminLoginPage() {
+  const { signIn, session, loading } = useAuth();
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [visible, setVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const inFlight = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rateLimited, setRateLimited] = useState(false);
+
+  useEffect(() => { if (!loading && session) router.replace("/admin/dashboard"); }, [session, loading, router]);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (inFlight.current || rateLimited) return;
+    inFlight.current = true;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await signIn(email.trim(), password);
+      if (result.error) {
+        const throttled = /too many|rate limit|over_request_rate_limit|429/i.test(result.error);
+        if (throttled) {
+          setRateLimited(true);
+          setError("Too many sign-in attempts. For your security, sign in is temporarily paused. Please try again later or reset your password.");
+        } else {
+          setError(GENERIC_ERROR);
+        }
+      }
+    } catch {
+      setError("Unable to sign in right now. Please try again later.");
+    } finally {
+      inFlight.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  return <AdminAuthShell>
+    <AuthHeading title="Sign in" description="Authorized Head Office access only." />
+    {error && <AuthAlert>{error}</AuthAlert>}
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="space-y-2"><label htmlFor="admin-email" className="block text-sm font-medium">Email</label><input id="admin-email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={submitting || loading || rateLimited} className={authInput} /></div>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2"><label htmlFor="admin-password" className="text-sm font-medium">Password</label><Link href="/admin/forgot-password" className="text-xs font-semibold text-[#0B5C5A] hover:underline">Forgot your password?</Link></div>
+        <div className="relative"><input id="admin-password" type={visible ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} disabled={submitting || loading || rateLimited} className={`${authInput} pr-20`} /><button type="button" disabled={submitting || loading || rateLimited} onClick={() => setVisible((v) => !v)} aria-label={visible ? "Hide password" : "Show password"} className="absolute inset-y-0 right-0 px-4 text-xs font-semibold text-[#0B5C5A] disabled:opacity-50">{visible ? "Hide" : "Show"}</button></div>
+      </div>
+      <button className={authButton} disabled={submitting || loading || rateLimited} aria-busy={submitting} type="submit">{submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Signing in…</> : rateLimited ? "Sign in is paused" : "Sign in"}</button>
+    </form>
+    {rateLimited ? <AuthSupport prefix="You can reset your password now, or" /> : <AuthSupport />}
+  </AdminAuthShell>;
+}

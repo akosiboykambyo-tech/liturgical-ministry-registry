@@ -1,0 +1,494 @@
+"use client";
+
+import QRCode from "qrcode";
+import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
+
+export interface CertificateData {
+  firstName: string;
+  lastName: string;
+  parish: string;
+  ministries: string[];
+  uid: string;
+  liturgicalYear: string;
+  verifyUrl: string;
+  selectedMinistry?: string | null;
+  reprintSuffix?: string;
+}
+
+const CANVAS_W = 600;
+const CANVAS_H = 850;
+
+let fontLoadPromise: Promise<void> | null = null;
+
+function ensureFontsLoaded(): Promise<void> {
+  if (fontLoadPromise) return fontLoadPromise;
+  fontLoadPromise = (async () => {
+    const families = ["EB Garamond", "Montserrat", "Playfair Display"];
+    await Promise.all(
+      families.map(async (family) => {
+        try {
+          const font = new FontFace(
+            family,
+            `url(https://fonts.gstatic.com/s/${family.toLowerCase().replace(/ /g, "")}/v1/regular.woff2)`
+          );
+          await font.load();
+          (document.fonts as FontFaceSet).add(font);
+        } catch {
+          // Font load failed; fallback to Georgia/sans-serif via CSS font stack
+        }
+      })
+    );
+    try {
+      await (document.fonts as FontFaceSet).ready;
+    } catch {
+      // ignore
+    }
+  })();
+  return fontLoadPromise;
+}
+
+function drawDefaultBackground(ctx: CanvasRenderingContext2D) {
+  const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+  grad.addColorStop(0, "#fff5f6");
+  grad.addColorStop(1, "#ffe8eb");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  ctx.strokeStyle = "#b8071a";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(20, 20, CANVAS_W - 40, CANVAS_H - 40);
+  ctx.strokeStyle = "#e85461";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(28, 28, CANVAS_W - 56, CANVAS_H - 56);
+}
+
+function drawWrappedText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  width: number,
+  height: number,
+  alignment: "left" | "center" | "right" | "justify"
+) {
+  const maxWidth = Math.max(1, width);
+  const maxHeight = Math.max(1, height);
+  const lineHeight = Math.max(1, Number.parseFloat(ctx.font) * 1.2);
+
+  const words = text.trim().split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const testLine = currentLine
+      ? `${currentLine} ${word}`
+      : word;
+
+    if (ctx.measureText(testLine).width <= maxWidth) {
+      currentLine = testLine;
+      continue;
+    }
+
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    if (ctx.measureText(word).width > maxWidth) {
+      let chunk = "";
+
+      for (const character of word) {
+        const testChunk = chunk + character;
+
+        if (
+          chunk &&
+          ctx.measureText(testChunk).width > maxWidth
+        ) {
+          lines.push(chunk);
+          chunk = character;
+        } else {
+          chunk = testChunk;
+        }
+      }
+
+      currentLine = chunk;
+    } else {
+      currentLine = word;
+    }
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  if (!lines.length) return;
+
+  const maxLines = Math.max(
+    1,
+    Math.floor(maxHeight / lineHeight)
+  );
+
+  const visibleLines = lines.slice(0, maxLines);
+  const totalHeight = visibleLines.length * lineHeight;
+  const startY = -totalHeight / 2 + lineHeight / 2;
+
+  for (let index = 0; index < visibleLines.length; index++) {
+    const line = visibleLines[index];
+    const y = startY + index * lineHeight;
+    const isLastLine = index === visibleLines.length - 1;
+
+    if (alignment === "justify" && !isLastLine) {
+      const parts = line.split(" ");
+
+      if (parts.length > 1) {
+        const wordsWidth = parts.reduce(
+          (total, part) => total + ctx.measureText(part).width,
+          0
+        );
+
+        const gap =
+          (maxWidth - wordsWidth) /
+          (parts.length - 1);
+
+        let x = -maxWidth / 2;
+
+        ctx.textAlign = "left";
+
+        for (const part of parts) {
+          ctx.fillText(part, x, y);
+          x += ctx.measureText(part).width + gap;
+        }
+
+        continue;
+      }
+    }
+
+    if (alignment === "left") {
+      ctx.textAlign = "left";
+      ctx.fillText(line, -maxWidth / 2, y);
+    } else if (alignment === "right") {
+      ctx.textAlign = "right";
+      ctx.fillText(line, maxWidth / 2, y);
+    } else {
+      ctx.textAlign = "center";
+      ctx.fillText(line, 0, y);
+    }
+  }
+}
+
+export async function renderCertificate(
+  canvas: HTMLCanvasElement,
+  data: CertificateData,
+  settings: CertificateTemplateSettings,
+  signatories: Signatory[] = []
+): Promise<void> {
+  await ensureFontsLoaded();
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  canvas.width = CANVAS_W;
+  canvas.height = CANVAS_H;
+
+  const fontFam = settings.font_family || "Georgia, serif";
+  const selectedMinistry = data.selectedMinistry ?? null;
+  const ministryDisplay = selectedMinistry ?? data.ministries.join(", ");
+  const uidDisplay = data.reprintSuffix
+    ? `${data.uid}${data.reprintSuffix}`
+    : data.uid;
+
+  const drawOverlay = async () => {
+    const elements = [...(settings.elements ?? [])]
+      .filter((element) => element.visible !== false)
+      .sort((a, b) => (a.z_index ?? 0) - (b.z_index ?? 0));
+
+    const loadImage = async (
+  url: string
+): Promise<HTMLImageElement | null> => {
+  try {
+    const image = new Image();
+
+    image.crossOrigin = "anonymous";
+
+    await new Promise<void>((resolve) => {
+      image.onload = () => resolve();
+      image.onerror = () => resolve();
+      image.src = url;
+    });
+
+    return image.naturalWidth > 0 ? image : null;
+  } catch {
+    return null;
+  }
+};
+
+    const getTextValue = (
+      element: CertificateTemplateSettings["elements"][number]
+    ): string => {
+      switch (element.type) {
+        case "text":
+          return element.text ?? "";
+
+        case "member_name":
+          return `${data.firstName} ${data.lastName}`;
+
+        case "parish":
+          return data.parish;
+
+        case "ministry":
+          return selectedMinistry ?? data.ministries.join(", ");
+
+        case "liturgical_year":
+          return `Liturgical Year ${data.liturgicalYear}`;
+
+        case "uid":
+          return `UID: ${uidDisplay}`;
+
+        default:
+          return "";
+      }
+    };
+
+    for (const element of elements) {
+      ctx.save();
+
+      ctx.globalAlpha = element.opacity ?? 1;
+
+      if (element.rotation) {
+        ctx.translate(element.x, element.y);
+        ctx.rotate((element.rotation * Math.PI) / 180);
+      } else {
+        ctx.translate(element.x, element.y);
+      }
+
+      switch (element.type) {
+        case "text":
+        case "member_name":
+        case "parish":
+        case "ministry":
+        case "liturgical_year":
+        case "uid": {
+          const value = getTextValue(element);
+
+          if (value) {
+            const fontFamily =
+              element.font_family ||
+              settings.font_family ||
+              "Georgia, serif";
+
+            const fontSize = element.font_size ?? 14;
+            const fontWeight = element.font_weight ?? "normal";
+            const fontStyle = element.font_style ?? "normal";
+            const alignment = element.text_align ?? "center";
+
+            ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+            ctx.fillStyle = element.color || "#0f172a";
+            ctx.textBaseline = "middle";
+            ctx.textAlign = alignment as CanvasTextAlign;
+
+drawWrappedText(
+  ctx,
+  value,
+  element.width,
+  element.height,
+  alignment
+);
+          }
+
+          break;
+        }
+
+        case "qr": {
+          try {
+            const qrDataUrl = await QRCode.toDataURL(data.verifyUrl, {
+              width: Math.max(1, Math.round(element.width)),
+              margin: 1,
+              color: {
+                dark: "#0f172a",
+                light: "#ffffff",
+              },
+            });
+
+            const qrImage = new Image();
+
+            await new Promise<void>((resolve) => {
+              qrImage.onload = () => resolve();
+              qrImage.onerror = () => resolve();
+              qrImage.src = qrDataUrl;
+            });
+
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(
+              -element.width / 2 - 4,
+              -element.height / 2 - 4,
+              element.width + 8,
+              element.height + 8
+            );
+
+            ctx.drawImage(
+              qrImage,
+              -element.width / 2,
+              -element.height / 2,
+              element.width,
+              element.height
+            );
+          } catch {
+            // QR generation failed; leave the element blank.
+          }
+
+          break;
+        }
+
+        case "image": {
+          if (element.image_url) {
+            const image = await loadImage(element.image_url);
+
+            if (image) {
+              ctx.drawImage(
+                image,
+                -element.width / 2,
+                -element.height / 2,
+                element.width,
+                element.height
+              );
+            }
+          }
+
+          break;
+        }
+
+                case "signatory": {
+  const signatory = element.signatory_id
+    ? signatories.find(
+        (item) => item.id === element.signatory_id
+      )
+    : null;
+
+  if (signatory && signatory.is_active) {
+    const contentWidth = Math.max(1, element.width - 16);
+    const contentHeight = Math.max(1, element.height - 8);
+
+    const nameFontSize = element.font_size || 12;
+    const titleFontSize = Math.max(8, nameFontSize - 2);
+    const fontFamily =
+      element.font_family || "Georgia, serif";
+    const fontWeight =
+      element.font_weight || "bold";
+    const fontStyle =
+      element.font_style || "normal";
+
+    const textAlign =
+      element.text_align || "center";
+
+    ctx.textAlign = textAlign as CanvasTextAlign;
+    ctx.textBaseline = "middle";
+
+    let textX = 0;
+
+    if (textAlign === "left") {
+      textX = -contentWidth / 2;
+    } else if (textAlign === "right") {
+      textX = contentWidth / 2;
+    }
+
+    let currentY = -contentHeight / 2;
+
+    // Signature
+    if (signatory.signature_url) {
+      const signature = await loadImage(
+        signatory.signature_url
+      );
+
+      if (signature && signature.naturalWidth > 0) {
+        const maxSignatureWidth = contentWidth;
+        const maxSignatureHeight =
+          contentHeight * 0.42;
+
+        const scale = Math.min(
+          maxSignatureWidth / signature.naturalWidth,
+          maxSignatureHeight / signature.naturalHeight
+        );
+
+        const signatureWidth =
+          signature.naturalWidth * scale;
+        const signatureHeight =
+          signature.naturalHeight * scale;
+
+        ctx.drawImage(
+          signature,
+          -signatureWidth / 2,
+          currentY,
+          signatureWidth,
+          signatureHeight
+        );
+
+        currentY += signatureHeight + 4;
+      }
+    }
+
+    // Name
+    ctx.font = `${fontStyle} ${fontWeight} ${nameFontSize}px ${fontFamily}`;
+    ctx.fillStyle = element.color || "#0f172a";
+
+    ctx.fillText(
+      signatory.name,
+      textX,
+      currentY + nameFontSize / 2
+    );
+
+    currentY += nameFontSize + 2;
+
+    // Title
+    ctx.font = `normal ${titleFontSize}px ${fontFamily}`;
+    ctx.fillStyle = "#71717a";
+
+    ctx.fillText(
+      signatory.title,
+      textX,
+      currentY + titleFontSize / 2
+    );
+  }
+
+  break;
+}
+      }
+
+      ctx.restore();
+    }
+  };
+  // Background
+  const templateUrl = settings.template_url;
+  if (templateUrl) {
+    try {
+      const response = await fetch(templateUrl);
+      if (response.ok) {
+        const blob = await response.blob();
+        const dataUrl: string = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        const img = new Image();
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            ctx.drawImage(img, 0, 0, CANVAS_W, CANVAS_H);
+            resolve();
+          };
+          img.onerror = () => resolve();
+          img.src = dataUrl;
+        });
+      } else {
+        drawDefaultBackground(ctx);
+      }
+    } catch {
+      drawDefaultBackground(ctx);
+    }
+  } else {
+    drawDefaultBackground(ctx);
+  }
+
+  await drawOverlay();
+}
+
+export function downloadCanvasAsPng(canvas: HTMLCanvasElement, filename: string) {
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}

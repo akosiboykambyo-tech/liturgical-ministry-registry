@@ -1,0 +1,94 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { createHmac, randomUUID } from "node:crypto";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const GENERIC = "We could not sign you in. Check your email and password, then try again.";
+const LOCKED = "Too many failed sign-in attempts. Please try again after the temporary security pause.";
+const BUSY = "Too many sign-in requests are in progress. Please wait briefly, then try again.";
+const UNAVAILABLE = "Sign in is temporarily unavailable. Please try again later.";
+
+function respond(status: number, error: string, retryAfter?: number) {
+  const headers = new Headers({ "Cache-Control": "no-store" });
+  if (retryAfter && retryAfter > 0) headers.set("Retry-After", String(Math.ceil(retryAfter)));
+  return NextResponse.json({ error, locked: status === 429 && error === LOCKED }, { status, headers });
+}
+
+export async function POST(request: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const hmacSecret = process.env.ADMIN_LOCKOUT_HMAC_SECRET;
+  if (!url || !anonKey || !serviceKey || !hmacSecret || hmacSecret.length < 32) {
+    console.error("Admin sign-in: required server configuration missing");
+    return respond(503, UNAVAILABLE);
+  }
+
+  let payload: unknown;
+  try { payload = await request.json(); } catch { return respond(400, GENERIC); }
+  if (!payload || typeof payload !== "object") return respond(400, GENERIC);
+  const { email, password } = payload as Record<string, unknown>;
+  if (typeof email !== "string" || typeof password !== "string" ||
+      email.length > 254 || password.length > 1024 || !email.trim() || !password ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return respond(400, GENERIC);
+
+  const identifier = createHmac("sha256", hmacSecret)
+    .update(email.trim().toLowerCase(), "utf8").digest("hex");
+  const token = randomUUID();
+  const admin = createClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const auth = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  try {
+    const admission = await admin.rpc("admin_login_begin", {
+      p_identifier: identifier, p_token: token,
+    });
+    if (admission.error || !admission.data) {
+      console.error("Admin sign-in: admission RPC failed", admission.error?.code);
+      return respond(503, UNAVAILABLE);
+    }
+    if (!admission.data.allowed) {
+      const delay = Math.max(1, Number(admission.data.retry_after_seconds) || 60);
+      return respond(429, admission.data.locked ? LOCKED : BUSY, delay);
+    }
+
+    // Use one explicitly bounded request so failed/abandoned requests do not
+    // reserve capacity indefinitely. Database reservations expire after 60 seconds.
+    let attempt;
+    try {
+      attempt = await auth.auth.signInWithPassword({ email: email.trim(), password });
+    } catch {
+      return respond(503, UNAVAILABLE);
+    }
+
+    if (attempt.error?.status === 429) return respond(429, BUSY, 60);
+    if (attempt.error?.status && attempt.error.status >= 500) return respond(503, UNAVAILABLE);
+    const success = Boolean(!attempt.error && attempt.data.session);
+    const finished = await admin.rpc("admin_login_finish", {
+      p_identifier: identifier, p_token: token, p_success: success,
+    });
+    if (finished.error || !finished.data) {
+      console.error("Admin sign-in: finish RPC failed", finished.error?.code);
+      return respond(503, UNAVAILABLE);
+    }
+    if (!success) {
+      if (finished.data.locked) {
+        return respond(429, LOCKED, Math.max(1, Number(finished.data.retry_after_seconds) || 900));
+      }
+      return respond(401, GENERIC);
+    }
+
+    return NextResponse.json({
+      access_token: attempt.data.session!.access_token,
+      refresh_token: attempt.data.session!.refresh_token,
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("Admin sign-in: unexpected server error", error instanceof Error ? error.name : "unknown");
+    return respond(503, UNAVAILABLE);
+  }
+}
