@@ -61,7 +61,7 @@ export default function ForgotPasswordPage() {
               Diocesan Commission on Worship &amp; Liturgy
             </p>
             <p className={`${ebGaramond.className} mt-1 text-[48px] font-medium leading-[0.95] sm:text-[60px] lg:text-[64px]`}>
-              Admin Portal
+              COWL-DOK Portal
             </p>
           </div>
           <Image
@@ -76,7 +76,7 @@ export default function ForgotPasswordPage() {
         </aside>
 
         <section className="flex min-w-0 flex-col px-6 pb-12 pt-5 sm:px-12 lg:px-12 lg:pt-9">
-          <Link href="/" className="inline-flex w-fit items-center gap-1.5 text-[12px] font-semibold text-[#0B5C5A] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0B5C5A]">
+          <Link href="/" className="inline-flex w-fit items-center gap-1.5 text-[14px] font-semibold text-[#0B5C5A] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0B5C5A]">
             <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> Back to the public site
           </Link>
           <div className="flex flex-1 items-center justify-center py-8 lg:py-10">
@@ -89,7 +89,7 @@ export default function ForgotPasswordPage() {
               {submitted ? (
                 <>
                   <CheckCircle2 aria-hidden="true" className="mb-4 h-7 w-7 text-[#0B5C5A]" />
-                  <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.15] text-[#1E1114] sm:text-[48px]`}>Check your email</h1>
+                  <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.1] text-[#1E1114] sm:text-[48px]`}>Check your email</h1>
                   <p className="mt-3 text-sm leading-6 text-[#706167]">
                     If that address matches an admin account, a password reset link is on its way.
                   </p>
@@ -102,7 +102,7 @@ export default function ForgotPasswordPage() {
                 </>
               ) : (
                 <>
-                  <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.15] text-[#1E1114] sm:text-[48px]`}>Reset your password</h1>
+                  <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.1] text-[#1E1114] sm:text-[48px]`}>Reset your password</h1>
                   <p className="mt-3 text-sm leading-6 text-[#706167]">
                     Enter your email. If it matches an admin account, we will send you a link to reset the password.
                   </p>
@@ -139,7 +139,7 @@ export default function ForgotPasswordPage() {
                       {sending ? <><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /> Sending…</> : "Send reset link"}
                     </button>
                   </form>
-                  <Link href="/admin" className="mt-6 inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B5C5A] underline-offset-4 hover:underline">
+                  <Link href="/admin" className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-[#0B5C5A] underline-offset-4 hover:underline">
                     <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> Back to sign in
                   </Link>
                 </>

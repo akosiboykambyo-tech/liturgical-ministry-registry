@@ -75,7 +75,7 @@ export default function AdminLoginPage() {
               Diocesan Commission on Worship &amp; Liturgy
             </p>
             <p className={`${ebGaramond.className} mt-1 text-[48px] font-medium leading-[0.95] sm:text-[60px] lg:text-[64px]`}>
-              Admin Portal
+              COWL-DOK Portal
             </p>
           </div>
           <Image
@@ -100,7 +100,7 @@ export default function AdminLoginPage() {
                 <p className={`${ebGaramond.className} text-[19px] leading-tight text-[#1E1114]`}>Liturgical Ministry Registry</p>
               </div>
 
-            <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>Sign in</h1>
+            <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.1] text-[#1E1114] sm:text-[48px]`}>Sign in</h1>
             <p className="mt-3 text-sm text-[#706167]">Authorized Head Office access only.</p>
 
             {rateLimited && error && (
