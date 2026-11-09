@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useContext } from "react";
+import { RegistrationEmbeddedContext } from "@/lib/registration-embedded-context";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ebGaramond } from "@/app/fonts";
@@ -24,6 +25,7 @@ const MAX_PENDING = 1000;
  * Never falls back to legacy member-wide writes when the RPC is unavailable.
  */
 export default function SecureMinistryVerification() {
+  const embedded = useContext(RegistrationEmbeddedContext);
   const supabase = getSupabaseBrowserClient();
   const [members, setMembers] = useState<PendingMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,7 +193,15 @@ export default function SecureMinistryVerification() {
 
   return (
     <section className="space-y-5 pb-12 text-[#28191E]" aria-label="Secure ministry verification">
-      <header className="border-b border-[#E6DADC] pb-4">
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className={ebGaramond.className + " text-[27px] font-medium text-[#28191E]"}>
+            Verify ministry assignments
+          </h3>
+          <p className="text-xs text-[#6B5C62]">Assignment-level verification</p>
+        </div>
+      ) : (
+        <header className="border-b border-[#E6DADC] pb-4">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#890022]">Verification · assignment-level</p>
         <h2 className={ebGaramond.className + " mt-2 text-4xl"}>Verify Ministry Assignments</h2>
         <p className="mt-2 max-w-3xl text-sm text-[#65545A]">
@@ -200,6 +210,7 @@ export default function SecureMinistryVerification() {
           Renewals with recommendation letters are handled in the Renewals tab.
         </p>
       </header>
+      )}
       {notice && <p role="status" className="border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{notice}</p>}
       {error && <p role="alert" className="border border-[#B66C7D] bg-[#FBF0F2] px-4 py-3 text-sm text-[#7B1834]">{error}</p>}
       <div className="flex flex-wrap items-center gap-3">
