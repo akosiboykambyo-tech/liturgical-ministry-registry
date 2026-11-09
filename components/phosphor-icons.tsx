@@ -7,10 +7,12 @@ import * as React from "react";
 import type { Icon, IconProps } from "@phosphor-icons/react";
 import {
   ArchiveIcon as PhosphorArchive,
+  BankIcon as PhosphorBank,
   ArrowCounterClockwiseIcon as PhosphorArrowCounterClockwise,
   ArrowLeftIcon as PhosphorArrowLeft,
   ArrowRightIcon as PhosphorArrowRight,
   ArrowSquareOutIcon as PhosphorArrowSquareOut,
+  ArrowsLeftRightIcon as PhosphorArrowsLeftRight,
   ArrowsClockwiseIcon as PhosphorArrowsClockwise,
   CalendarDotsIcon as PhosphorCalendarDots,
   CaretDownIcon as PhosphorCaretDown,
@@ -53,6 +55,7 @@ import {
   PlusIcon as PhosphorPlus,
   PrinterIcon as PhosphorPrinter,
   QrCodeIcon as PhosphorQrCode,
+  ReceiptIcon as PhosphorReceipt,
   ShieldCheckIcon as PhosphorShieldCheck,
   ShieldWarningIcon as PhosphorShieldWarning,
   SignOutIcon as PhosphorSignOut,
@@ -75,6 +78,7 @@ import {
   WarningIcon as PhosphorWarning,
   WarningCircleIcon as PhosphorWarningCircle,
   WrenchIcon as PhosphorWrench,
+  WalletIcon as PhosphorWallet,
   XIcon as PhosphorX,
   XCircleIcon as PhosphorXCircle
 } from "@phosphor-icons/react/ssr";
@@ -102,6 +106,10 @@ export const X = withDefaultLight(PhosphorX);
 export const ArrowLeft = withDefaultLight(PhosphorArrowLeft);
 export const ArrowRight = withDefaultLight(PhosphorArrowRight);
 export const QrCode = withDefaultLight(PhosphorQrCode);
+export const Bank = withDefaultLight(PhosphorBank);
+export const Wallet = withDefaultLight(PhosphorWallet);
+export const Receipt = withDefaultLight(PhosphorReceipt);
+export const ArrowsLeftRight = withDefaultLight(PhosphorArrowsLeftRight);
 export const ShieldCheck = withDefaultLight(PhosphorShieldCheck);
 export const Menu = withDefaultLight(PhosphorList);
 export const CheckCircle2 = withDefaultLight(PhosphorCheckCircle);
