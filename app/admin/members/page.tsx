@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -8,6 +8,7 @@ import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verific
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { StatusBadge } from "@/components/status-badge";
 import { MemberDetailDrawer } from "@/components/member-detail-drawer";
+import { BulkCertificateDialog } from "@/components/member-bulk-certificate-dialog";
 import {
   MINISTRIES,
   PARISHES,
@@ -24,6 +25,9 @@ import {
   ChevronRight,
   Download,
   Printer,
+  FileBadge,
+  ClipboardList,
+  CheckSquare,
   X,
   Filter,
   SlidersHorizontal,
@@ -85,6 +89,53 @@ const EMPTY_FILTERS: Filters = {
   status: [],
 };
 
+
+/** Compact, keyboard-accessible utilities used only by the selected-member bar.
+ * Tooltips preserve clarity without making the floating bar horizontally scroll.
+ */
+function SelectionUtility({
+  label,
+  icon,
+  onClick,
+  disabled = false,
+  variant = "light",
+  hint,
+}: {
+  label: string;
+  icon: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "light" | "outline";
+  hint?: string;
+}) {
+  return (
+    <span className="group relative inline-flex shrink-0">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        disabled={disabled}
+        className={
+          "inline-flex h-11 w-11 items-center justify-center border transition-colors " +
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white " +
+          "disabled:cursor-not-allowed disabled:opacity-45 " +
+          (variant === "outline"
+            ? "border-white/60 bg-transparent text-white hover:bg-white/15"
+            : "border-white bg-white text-[#890022] hover:bg-[#F7F2F3]")
+        }
+      >
+        {icon}
+      </button>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap border border-[#E6DADC] bg-white px-2.5 py-1.5 text-xs font-medium text-[#492A35] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {hint ?? label}
+      </span>
+    </span>
+  );
+}
+
 export default function MembersListPage() {
   const supabase = getSupabaseBrowserClient();
   const { toast } = useToast();
@@ -99,6 +150,7 @@ export default function MembersListPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectingAllFiltered, setSelectingAllFiltered] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [certificateBatchOpen, setCertificateBatchOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMembers, setReportMembers] = useState<MemberWithMemberships[]>([]);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
@@ -392,36 +444,6 @@ export default function MembersListPage() {
 
     return Array.from(new Set(ids));
   }, [buildFilteredMembersQuery]);
-
-  const fetchAllFilteredMembers = useCallback(
-    async (): Promise<MemberWithMemberships[]> => {
-      const all: MemberWithMemberships[] = [];
-      const pageSize = 1000;
-
-      for (let from = 0; ; from += pageSize) {
-        const { data, error } = await buildFilteredMembersQuery("full")
-          .range(from, from + pageSize - 1)
-          .order("created_at", { ascending: false });
-
-        if (error) throw new Error(error.message);
-
-        const batch = ((data ?? []) as unknown as Array<
-          MemberWithMemberships & { matched_memberships?: unknown }
-        >).map(({ matched_memberships: _matchedMemberships, ...member }) => ({
-          ...member,
-          member_ministries: [...(member.member_ministries ?? [])].sort((a, b) =>
-            a.ministry.localeCompare(b.ministry)
-          ),
-        }));
-
-        all.push(...batch);
-        if (batch.length < pageSize) break;
-      }
-
-      return all;
-    },
-    [buildFilteredMembersQuery]
-  );
 
   const fetchMembersByIds = useCallback(
     async (ids: string[]): Promise<MemberWithMemberships[]> => {
@@ -717,36 +739,6 @@ export default function MembersListPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={async () => {
-              setLoadingReport(true);
-              try {
-                const filteredMembers = await fetchAllFilteredMembers();
-                setReportMembers(filteredMembers);
-                setReportOpen(true);
-              } catch (error) {
-                toast({
-                  title: "Report failed",
-                  description:
-                    error instanceof Error
-                      ? error.message
-                      : "Unable to load the filtered member list.",
-                  variant: "destructive",
-                });
-              } finally {
-                setLoadingReport(false);
-              }
-            }}
-            disabled={loadingReport}
-            className="inline-flex min-h-10 items-center gap-2 border border-[#D7CACC] bg-white px-4 py-2 text-sm font-semibold text-[#682336] transition-colors hover:bg-[#fcf5f6] print:hidden disabled:opacity-60"
-          >
-            {loadingReport ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Printer className="h-4 w-4" />
-            )}
-            Print List
-          </button>
           <Link
             href="/admin/members/add"
             className="inline-flex min-h-10 items-center gap-2 bg-[#890022] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#6d1027] print:hidden"
@@ -1148,74 +1140,89 @@ export default function MembersListPage() {
         </div>
       )}
 
-      {/* Floating Action Bar */}
+      {/* Floating utilities: icon-only actions, responsive wrapping, no horizontal scroll. */}
       {selected.size > 0 && (
-        <div className="fixed bottom-3 left-2 right-2 z-40 animate-in slide-in-from-bottom-4 duration-200 sm:bottom-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2">
-          <div className="flex max-w-full items-center gap-2 overflow-x-auto border border-[#69001A] bg-[#890022] px-3 py-3 text-white shadow-lg sm:gap-3 sm:px-5">
-            <span className="inline-flex items-center gap-2 shrink-0 bg-white/15 px-3 py-1 text-sm font-semibold text-white">
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              {selected.size} Member{selected.size > 1 ? "s" : ""} Selected
+        <div className="pointer-events-none fixed bottom-3 left-2 right-2 z-40 flex justify-center animate-in slide-in-from-bottom-4 duration-200 sm:bottom-6">
+          <div className="pointer-events-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-2 border border-[#69001A] bg-[#890022] px-3 py-2.5 text-white shadow-lg sm:gap-3">
+            <span
+              role="status"
+              aria-live="polite"
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 bg-white/15 px-3 py-1 text-sm font-semibold text-white"
+            >
+              <CheckSquare className="h-[18px] w-[18px]" aria-hidden="true" />
+              {selected.size.toLocaleString()} selected
             </span>
-            <div className="h-5 w-px shrink-0 bg-white/30" />
-            <button
-              onClick={exportCsv}
-              className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors"
-            >
-              <Download className="h-4 w-4" />
-              Export Data (CSV)
-            </button>
-            <button
-              onClick={async () => {
-                const ids = Array.from(selected);
-                if (ids.length === 0) return;
-
-                setLoadingReport(true);
-                try {
-                  const selectedMembers = await fetchMembersByIds(ids);
-                  setReportMembers(selectedMembers);
-                  setReportOpen(true);
-                } catch (error) {
-                  toast({
-                    title: "Report failed",
-                    description:
-                      error instanceof Error
-                        ? error.message
-                        : "Unable to load selected members.",
-                    variant: "destructive",
-                  });
-                } finally {
-                  setLoadingReport(false);
-                }
-              }}
-              disabled={loadingReport}
-              className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors disabled:opacity-60"
-            >
-              {loadingReport ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Printer className="h-4 w-4" />
-              )}
-              Print Selected
-            </button>
-            <button
-              onClick={() => void openAttendanceSheetForSelected()}
-              disabled={loadingReport}
-              className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors disabled:opacity-60"
-            >
-              <Printer className="h-4 w-4" />
-              Attendance Sheet
-            </button>
-            <div className="h-5 w-px shrink-0 bg-white/30" />
-            <button
-              onClick={clearSelection}
-              className="inline-flex items-center gap-1.5 shrink-0 border border-white/60 px-3 py-2 text-sm font-medium text-white hover:bg-white/15 transition-colors"
-            >
-              <X className="h-4 w-4" />
-              Clear Selection
-            </button>
+            <div role="group" aria-label="Selected member utilities" className="flex max-w-full flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+              <SelectionUtility
+                label="Export selected members as CSV"
+                hint="Export CSV"
+                icon={<Download className="h-5 w-5" aria-hidden="true" />}
+                onClick={() => void exportCsv()}
+              />
+              <SelectionUtility
+                label="Print selected member list"
+                hint="Print Selected"
+                icon={loadingReport
+                  ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                  : <Printer className="h-5 w-5" aria-hidden="true" />}
+                disabled={loadingReport}
+                onClick={async () => {
+                  const ids = Array.from(selected);
+                  if (ids.length === 0) return;
+                  setLoadingReport(true);
+                  try {
+                    const selectedMembers = await fetchMembersByIds(ids);
+                    setReportMembers(selectedMembers);
+                    setReportOpen(true);
+                  } catch (error) {
+                    toast({
+                      title: "Report failed",
+                      description:
+                        error instanceof Error
+                          ? error.message
+                          : "Unable to load selected members.",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setLoadingReport(false);
+                  }
+                }}
+              />
+              <SelectionUtility
+                label="Generate certificates PDF for selected ministries"
+                hint={filters.ministry.length === 0 ? "Choose a ministry filter first" : "Certificate PDF"}
+                icon={<FileBadge className="h-5 w-5" aria-hidden="true" />}
+                disabled={filters.ministry.length === 0}
+                onClick={() => setCertificateBatchOpen(true)}
+              />
+              <SelectionUtility
+                label="Create attendance sheet for selected members"
+                hint="Attendance Sheet"
+                icon={loadingReport
+                  ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                  : <ClipboardList className="h-5 w-5" aria-hidden="true" />}
+                disabled={loadingReport}
+                onClick={() => void openAttendanceSheetForSelected()}
+              />
+              <SelectionUtility
+                label="Clear member selection"
+                hint="Clear Selection"
+                icon={<X className="h-5 w-5" aria-hidden="true" />}
+                variant="outline"
+                onClick={clearSelection}
+              />
+            </div>
           </div>
         </div>
       )}
+
+      <BulkCertificateDialog
+        open={certificateBatchOpen}
+        onOpenChange={setCertificateBatchOpen}
+        selectedMemberIds={Array.from(selected)}
+        selectedMinistries={filters.ministry}
+        loadMembers={fetchMembersByIds}
+      />
 
       {/* Printable Report Modal */}
       {reportOpen && (
