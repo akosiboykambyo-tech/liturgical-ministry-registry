@@ -43,20 +43,20 @@ const EMPTY_FILTERS: Filters = {
   ministry: "All",
 };
 
-export default function QuickScanMatrixPage() {
+export default function QuickScanMatrixPage({ initialSearch = "" }: { initialSearch?: string } = {}) {
   return secureMinistryVerificationEnabled
-    ? <SecureMinistryVerification />
-    : <LegacyQuickScanMatrixPage />;
+    ? <SecureMinistryVerification initialSearch={initialSearch} />
+    : <LegacyQuickScanMatrixPage initialSearch={initialSearch} />;
 }
 
 // Keep the legacy UI unchanged until the secure RPC has been separately
 // installed, granted to approved administrators, and fully tested.
-function LegacyQuickScanMatrixPage() {
+function LegacyQuickScanMatrixPage({ initialSearch }: { initialSearch: string }) {
   const embedded = useContext(RegistrationEmbeddedContext);
   const supabase = getSupabaseBrowserClient();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [optimisticIds, setOptimisticIds] = useState<Record<string, string>>({});
