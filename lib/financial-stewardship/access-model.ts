@@ -59,7 +59,7 @@ export function isFinancialRoleCode(role: unknown): role is FinancialRoleCode {
 
 export function calculateFinanceAccess(roleCodes: readonly string[]): FinanceAccess {
   const access: FinanceAccess = { cowl: [], curia: [] };
-  for (const role of new Set(roleCodes)) {
+  for (const role of Array.from(new Set(roleCodes))) {
     if (!isFinancialRoleCode(role)) continue;
     for (const [workspace, section] of ROLE_SECTIONS[role]) {
       if (!access[workspace].includes(section)) access[workspace].push(section);
@@ -82,7 +82,7 @@ export function financeHome(access: FinanceAccess): string | null {
 }
 
 export function financeRolesLabel(roleCodes: readonly string[], workspace: FinanceWorkspace): string {
-  const roles = [...new Set(roleCodes)].filter(isFinancialRoleCode).filter(role =>
+  const roles = Array.from(new Set(roleCodes)).filter(isFinancialRoleCode).filter(role =>
     ROLE_SECTIONS[role].some(([w]) => w === workspace)
   );
   return roles.map(role => TITLES[role]).join(" · ") || "Unassigned";
