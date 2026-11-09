@@ -188,7 +188,7 @@ function getDefaultNextRenewalDate(renewalDate: string): string {
 }
 
 export default function CsvImportPage() {
-  const { embedded = false, workspaceTab, onWorkspaceTabChange, onCriticalOperationChange } =
+  const { embedded = false, workspaceTab, onWorkspaceTabChange, onCriticalOperationChange, onPendingDuplicateCountChange } =
     useContext(CsvImportWorkspaceContext);
   const supabase = getSupabaseBrowserClient();
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -276,6 +276,10 @@ export default function CsvImportPage() {
     keptSeparate: number;
     discarded: number;
   } | null>(null);
+
+  useEffect(() => {
+    onPendingDuplicateCountChange?.(pendingMerges.length);
+  }, [pendingMerges.length, onPendingDuplicateCountChange]);
 
   // Keep the surrounding Registration workspace stationary while a write or
   // finalization is in flight. Staged rows/duplicates remain mounted across views.
