@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, Menu, X, type LucideIcon } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ebGaramond, inter } from "@/app/fonts";
 
 export type PortalNavItem = {
@@ -34,12 +33,16 @@ export function DiocesanCoat({ size = 48 }: { size?: number }) {
 }
 
 /**
- * Consistent simplified diocesan navigation:
- * - Desktop: a fixed-width icon rail, with contextual menus for admin groups.
- * - Mobile: a drawer showing the same items with full text labels.
+ * Match the original COWL-DOK Admin Dashboard interaction shown in the
+ * 2026-11-09 reference recording:
+ * - Desktop: chevron toggles the entire sidebar between its 260px labeled
+ *   navigation and 76px icon rail. Content reflows with its width.
+ * - No detached popover/flyout menu for primary navigation.
+ * - Mobile/tablet: independent labeled overlay drawer (unchanged).
+ * - Groups with deeper admin destinations expand inline, never in a popup.
  *
- * The legacy desktop expanded/collapsed preference is intentionally ignored:
- * a saved "expanded" flag must not revive the cluttered sidebar.
+ * The preference persists across navigation within the same browser; a
+ * fresh session starts expanded to match the original dashboard.
  */
 export default function PortalShell({
   title, subtitle, homeHref, navigationLabel, groups, footer,
@@ -57,13 +60,23 @@ export default function PortalShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
-  const [allOpen, setAllOpen] = useState(false);
+  const [desktopExpanded, setDesktopExpanded] = useState(true);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+
+  useEffect(() => {
+    // A visitor can collapse the rail and keep it that way across routes.
+    try {
+      const value = window.localStorage.getItem("cowl-dok-sidebar-expanded-v1");
+      if (value === "false") setDesktopExpanded(false);
+      else if (value === "true") setDesktopExpanded(true);
+    } catch {
+      // Private browsing or disabled storage still supports the toggle.
+    }
+  }, []);
 
   useEffect(() => {
     setMobileOpen(false);
-    setOpenGroup(null);
-    setAllOpen(false);
+    setExpandedGroup(null);
   }, [pathname]);
 
   useEffect(() => {
@@ -75,23 +88,33 @@ export default function PortalShell({
     return () => window.removeEventListener("keydown", onEscape);
   }, [mobileOpen]);
 
+  const toggleDesktop = () => {
+    const next = !desktopExpanded;
+    setDesktopExpanded(next);
+    if (!next) setExpandedGroup(null);
+    try {
+      window.localStorage.setItem("cowl-dok-sidebar-expanded-v1", String(next));
+    } catch {
+      // No persistent storage is required for navigation to work.
+    }
+  };
+
   const selectItem = (item: PortalNavItem) => {
     setMobileOpen(false);
-    setOpenGroup(null);
-    setAllOpen(false);
+    setExpandedGroup(null);
     item.onSelect?.();
   };
 
   function NavLink({ item, compact = false }: { item: PortalNavItem; compact?: boolean }) {
     const Icon = item.icon;
     const className = compact
-      ? "grid h-11 w-11 place-items-center rounded-sm border-l-[3px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
+      ? "grid h-11 w-11 shrink-0 place-items-center rounded-sm border-l-[3px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
         (item.active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15")
-      : "flex min-h-11 items-center gap-3 border-l-[3px] px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
+      : "flex min-h-11 w-full items-center gap-3 border-l-[3px] px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
         (item.active ? "border-white bg-white text-[#890022]" : "border-transparent text-white/90 hover:bg-white/15");
     const children = <>
       <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-      {!compact && <span className="min-w-0">{item.label}</span>}
+      {!compact && <span className="min-w-0 whitespace-nowrap">{item.label}</span>}
     </>;
     const props = {
       "aria-current": item.active ? "page" as const : undefined,
@@ -131,121 +154,111 @@ export default function PortalShell({
         className="fixed inset-0 z-40 bg-black/50 lg:hidden" />}
 
       <aside id="portal-sidebar" aria-label={navigationLabel}
-        className={"fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#890022] text-white transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[76px] lg:shrink-0 lg:translate-x-0 " +
-          (mobileOpen ? "translate-x-0" : "-translate-x-full")}>
+        className={"fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#890022] text-white transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:shrink-0 lg:translate-x-0 lg:transition-[width] lg:duration-300 lg:ease-in-out motion-reduce:transition-none " +
+          (mobileOpen ? "translate-x-0 " : "-translate-x-full ") +
+          (desktopExpanded ? "lg:w-[260px]" : "lg:w-[76px]")}>
 
-        <div className="flex min-h-[88px] items-center gap-3 border-b border-white/20 px-5 py-4 lg:justify-center lg:px-1">
+        <div className={"flex min-h-[88px] items-center gap-3 overflow-hidden border-b border-white/20 py-4 " +
+          (desktopExpanded ? "lg:px-5" : "lg:justify-center lg:px-1") +
+          " px-5"}>
           <Link href={homeHref} onClick={() => setMobileOpen(false)}
             aria-label={title + " home"} title={title + " home"}
             className="flex h-14 w-14 shrink-0 items-center justify-center lg:h-12 lg:w-12">
-            <DiocesanCoat size={38} />
+            <DiocesanCoat size={desktopExpanded ? 44 : 38} />
           </Link>
-          <div className="min-w-0 lg:sr-only">
+          <div className={"min-w-0 whitespace-nowrap " + (desktopExpanded ? "" : "lg:sr-only")}>
             <p className={ebGaramond.className + " text-[23px] font-medium leading-none"}>{title}</p>
             <p className="mt-1 text-[13px] leading-4 text-white/80">{subtitle}</p>
           </div>
         </div>
 
-        {/* Desktop compact rail: the chevron opens the detailed navigation only on request. */}
-        <div className="hidden h-[72px] shrink-0 items-center justify-center border-b border-white/20 lg:flex">
-          <Popover open={allOpen} onOpenChange={setAllOpen}>
-            <PopoverTrigger asChild>
-              <button type="button" title="Show all navigation"
-                aria-label="Show all navigation" aria-expanded={allOpen}
-                className={"grid h-11 w-11 place-items-center rounded-sm transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
-                  (allOpen ? "bg-white text-[#890022]" : "text-white")}>
-                <ChevronRight className={"h-[18px] w-[18px] transition-transform " + (allOpen ? "rotate-180" : "")} aria-hidden="true" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent side="right" sideOffset={12} align="start"
-              className="max-h-[min(80vh,650px)] w-[290px] overflow-y-auto rounded-sm border border-[#E6DADC] bg-white p-3 shadow-xl">
-              <p className="px-2 pb-3 text-xs font-bold uppercase tracking-wider text-[#890022]">Navigation</p>
-              <div className="space-y-3">
-                {groups.map((group, index) => <div key={group.name || index}>
-                  {group.name && <p className="px-2 pb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#79676D]">{group.name}</p>}
-                  {group.items.map(item => {
-                    const Icon = item.icon;
-                    return item.href
-                      ? <Link key={item.id} href={item.href}
-                          aria-current={item.active ? "page" : undefined}
-                          target={item.external ? "_blank" : undefined}
-                          rel={item.external ? "noopener noreferrer" : undefined}
-                          onClick={() => selectItem(item)}
-                          className={"flex min-h-9 items-center gap-2 rounded-sm px-2 py-2 text-sm " +
-                            (item.active ? "bg-[#F8EDEF] font-semibold text-[#890022]" : "text-[#49363A] hover:bg-[#FBF9F9]")}>
-                          <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />{item.label}
-                        </Link>
-                      : <button key={item.id} type="button" onClick={() => selectItem(item)}
-                          className={"flex min-h-9 w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm " +
-                            (item.active ? "bg-[#F8EDEF] font-semibold text-[#890022]" : "text-[#49363A] hover:bg-[#FBF9F9]")}>
-                          <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />{item.label}
-                        </button>;
-                  })}
-                </div>)}
-              </div>
-            </PopoverContent>
-          </Popover>
+        {/* The original dashboard chevron COLLAPSES the whole desktop sidebar.
+            It does not open a detached menu or change the mobile drawer. */}
+        <div className="hidden h-[72px] shrink-0 items-center justify-end border-b border-white/20 px-4 lg:flex">
+          <button type="button" title={desktopExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            aria-label={desktopExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            aria-expanded={desktopExpanded} aria-controls="portal-desktop-navigation"
+            onClick={toggleDesktop}
+            className={"grid h-11 w-11 shrink-0 place-items-center rounded-sm transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
+              (!desktopExpanded ? "mx-auto" : "")}>
+            <ChevronRight className={"h-[18px] w-[18px] transition-transform duration-300 " +
+              (desktopExpanded ? "rotate-180" : "")} aria-hidden="true" />
+          </button>
         </div>
 
-        {/* Desktop: only top-level icons; deeper actions appear on demand. */}
-        <nav aria-label={navigationLabel + " compact"} className="hidden min-h-0 flex-1 flex-col items-center gap-0 overflow-y-auto px-2 py-1 lg:flex">
+        <nav id="portal-desktop-navigation" aria-label={navigationLabel + " desktop"}
+          className={"hidden min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden py-3 lg:flex " +
+            (desktopExpanded ? "px-2" : "items-center px-2")}>
           {desktopMode === "groups"
             ? groups.map((group, index) => {
                 const id = group.name || String(index);
                 const active = group.items.some(item => item.active);
                 const Icon = group.icon || group.items[0]?.icon;
                 if (!Icon) return null;
-                if (group.items.length === 1) return <div key={id} className={group.separatorBefore ? "mt-2 border-t border-white/20 pt-2" : ""}>
-                  <NavLink item={{ ...group.items[0], icon: Icon }} compact />
+                const single = group.items.length === 1;
+                const expanded = expandedGroup === id;
+                return <div key={id} className={"min-w-0 w-full " +
+                  (group.separatorBefore ? "mt-2 border-t border-white/20 pt-2" : "")}>
+                  {single
+                    ? <div className={desktopExpanded ? "" : "flex justify-center"}>
+                        <NavLink item={{ ...group.items[0], icon: Icon }} compact={!desktopExpanded} />
+                      </div>
+                    : <button type="button"
+                        aria-label={group.name + " navigation"}
+                        title={group.name}
+                        aria-expanded={expanded}
+                        onClick={() => {
+                          if (!desktopExpanded) {
+                            setDesktopExpanded(true);
+                            try { window.localStorage.setItem("cowl-dok-sidebar-expanded-v1", "true"); } catch {}
+                            setExpandedGroup(id);
+                          } else {
+                            setExpandedGroup(expanded ? null : id);
+                          }
+                        }}
+                        className={(desktopExpanded
+                          ? "flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left"
+                          : "mx-auto grid h-11 w-11 place-items-center") +
+                          " rounded-sm border-l-[3px] text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
+                          (active || expanded
+                            ? "border-white bg-white text-[#890022]"
+                            : "border-transparent text-white/90 hover:bg-white/15")}>
+                        <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                        {desktopExpanded && <span className="min-w-0 flex-1 whitespace-nowrap">{group.name}</span>}
+                        {desktopExpanded && <ChevronRight className={"h-4 w-4 shrink-0 transition-transform " +
+                          (expanded ? "rotate-90" : "")} aria-hidden="true" />}
+                      </button>}
+                  {desktopExpanded && !single && expanded &&
+                    <div className="mb-1 ml-5 border-l border-white/25 pl-2">
+                      {group.items.map(item => <NavLink key={item.id} item={item} />)}
+                    </div>}
                 </div>;
-                return <Popover key={id} open={openGroup === id}
-                  onOpenChange={opened => setOpenGroup(opened ? id : null)}>
-                  <PopoverTrigger asChild>
-                    <button type="button" aria-label={group.name + " navigation"}
-                      title={group.name} aria-expanded={openGroup === id}
-                      className={"grid h-11 w-11 place-items-center rounded-sm border-l-[3px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
-                        (active || openGroup === id
-                          ? "border-white bg-white text-[#890022]"
-                          : "border-transparent text-white/90 hover:bg-white/15")}>
-                      <Icon className="h-[19px] w-[19px]" aria-hidden="true" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent side="right" align="start" sideOffset={12}
-                    className="w-[280px] rounded-sm border border-[#E6DADC] bg-white p-2 shadow-xl">
-                    <p className="px-3 py-2 text-xs font-bold uppercase tracking-[0.11em] text-[#890022]">{group.name}</p>
-                    <div className="space-y-1">
-                      {group.items.map(item => {
-                        const ItemIcon = item.icon;
-                        const cls = "flex min-h-10 w-full items-center gap-3 rounded-sm px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#890022] " +
-                          (item.active ? "bg-[#F8EDEF] font-semibold text-[#890022]" : "text-[#49363A] hover:bg-[#FBF9F9]");
-                        const label = <><ItemIcon className="h-4 w-4 shrink-0" aria-hidden="true" />{item.label}</>;
-                        return item.href
-                          ? <Link key={item.id} href={item.href} aria-current={item.active ? "page" : undefined}
-                              target={item.external ? "_blank" : undefined}
-                              rel={item.external ? "noopener noreferrer" : undefined}
-                              className={cls} onClick={() => selectItem(item)}>{label}</Link>
-                          : <button key={item.id} type="button" className={cls}
-                              onClick={() => selectItem(item)}>{label}</button>;
-                      })}
-                    </div>
-                  </PopoverContent>
-                </Popover>;
               })
-            : groups.flatMap(group => group.items).map(item =>
-                <NavLink key={item.id} item={item} compact />)}
+            : groups.map((group, index) =>
+                <div key={group.name || index} className={"w-full " +
+                  (group.separatorBefore ? "mt-2 border-t border-white/20 pt-2" : "")}>
+                  <div className={desktopExpanded ? "space-y-1" : "flex flex-col items-center gap-1"}>
+                    {group.items.map(item =>
+                      <NavLink key={item.id} item={item} compact={!desktopExpanded} />)}
+                  </div>
+                </div>)}
         </nav>
 
-        {/* Phone and tablet: full labels are inside the drawer, never left open on the page. */}
-        <nav aria-label={navigationLabel + " mobile"} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-6 lg:hidden">
+        {/* Phone and tablet keep their original full-label drawer. */}
+        <nav aria-label={navigationLabel + " mobile"}
+          className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-6 lg:hidden">
           {groups.map((group, index) => <div key={group.name || index}>
             {group.name && <p className="px-3 pb-2 text-xs font-bold uppercase tracking-[0.12em] text-white/75">{group.name}</p>}
             <div className="space-y-1">{group.items.map(item => <NavLink key={item.id} item={item} />)}</div>
           </div>)}
         </nav>
 
-        <div className="border-t border-white/25 px-5 py-4 lg:px-2">
+        <div className={"border-t border-white/25 py-4 " +
+          (desktopExpanded ? "lg:px-5" : "lg:px-2") + " px-5"}>
           <div className="lg:hidden">{footer}</div>
-          <div className="hidden justify-center lg:flex">{compactFooter}</div>
+          <div className={desktopExpanded ? "hidden lg:block" : "hidden justify-center lg:flex"}>
+            {desktopExpanded ? footer : compactFooter}
+          </div>
         </div>
       </aside>
 
