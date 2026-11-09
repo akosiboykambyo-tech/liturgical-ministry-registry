@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { AlertCircle, ArrowLeft, Loader2 } from "@/components/phosphor-icons";
 import { useAuth } from "@/lib/auth-context";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ebGaramond, inter } from "@/app/fonts";
 
 const SUPPORT_EMAIL = "help@cowl-dok.online";
@@ -35,8 +36,40 @@ export default function AdminLoginPage() {
   const [rateLimited, setRateLimited] = useState(false);
 
   useEffect(() => {
-    if (!loading && session) router.replace("/admin/dashboard");
-  }, [loading, session, router]);
+    if (loading || !session?.access_token) return;
+    let cancelled = false;
+    const token = session.access_token;
+    void (async () => {
+      try {
+        const registry = await getSupabaseBrowserClient().rpc("registration_is_admin");
+        if (cancelled) return;
+        if (registry.error) {
+          router.replace("/admin/access-pending?verification=unavailable");
+          return;
+        }
+        if (registry.data === true) {
+          router.replace("/admin/dashboard");
+          return;
+        }
+        // Use a verified server role check, not client-provided metadata.
+        const reply = await fetch("/api/financial-stewardship/access?workspace=all", {
+          headers: { Authorization: "Bearer " + token }, cache: "no-store",
+        });
+        const data = await reply.json() as { home?: string | null };
+        if (cancelled) return;
+        if (reply.ok && data.home) {
+          router.replace(data.home);
+        } else {
+          router.replace(reply.status === 403
+            ? "/admin/access-pending"
+            : "/admin/access-pending?verification=unavailable");
+        }
+      } catch {
+        if (!cancelled) router.replace("/admin/access-pending?verification=unavailable");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loading, session?.access_token, router]);
 
   const busy = loading || submitting || Boolean(session);
 
@@ -101,7 +134,7 @@ export default function AdminLoginPage() {
               </div>
 
             <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.1] text-[#1E1114] sm:text-[48px]`}>Sign in</h1>
-            <p className="mt-3 text-sm text-[#706167]">Authorized Head Office access only.</p>
+            <p className="mt-3 text-sm text-[#706167]">Authorized Registry, Commission, and Curia personnel only.</p>
 
             {rateLimited && error && (
               <div role="alert" className="mt-6 flex items-start gap-3 border border-[#B42330] bg-[#FFF0F0] px-4 py-3 text-sm leading-6 text-[#92202A]">
