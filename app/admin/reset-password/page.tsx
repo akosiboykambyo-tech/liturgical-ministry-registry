@@ -82,7 +82,7 @@ export default function ResetPasswordPage() {
     finally { inFlight.current = false; setSaving(false); }
   }
 
-  return <AdminAuthShell showSupport>
+  return <AdminAuthShell showSupport backHref="/admin" backLabel="Back to sign in">
     {status === "checking" ? <><h1 className={authTitleClass}>Checking reset link</h1><p role="status" className="mt-5 flex gap-2 text-sm text-[#706167]"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Please wait…</p></> : null}
     {status === "invalid" ? <><h1 className={authTitleClass}>Reset link unavailable</h1><AuthError className="mt-5">This reset link is invalid, expired, or has already been used. Please request a new link.</AuthError><Link href="/admin/forgot-password" className={authPrimaryButtonClass + " mt-6"}>Request a new reset link</Link></> : null}
     {status === "saved" ? <><CheckCircle2 className="mb-3 h-7 w-7 text-[#0B5C5A]" aria-hidden="true" /><h1 className={authTitleClass}>Password updated</h1><p className="mt-3 text-sm leading-6 text-[#706167]">Your password has been changed. Sign in using your new password.</p><Link href="/admin" className={authPrimaryButtonClass + " mt-6"}>Back to sign in</Link></> : null}
