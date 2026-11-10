@@ -273,7 +273,9 @@ export default function MembersListPage() {
     }
 
     if (dashboardAttention === "missing-documents") {
-      query = query.is("matched_memberships.document_url", null);
+      query = query
+          .is("matched_memberships.document_url", null)
+          .in("matched_memberships.status", ["Renewed", "Inactive"]);
     }
 
     if (dashboardAttention === "expiring") {
@@ -395,7 +397,9 @@ export default function MembersListPage() {
       }
 
       if (dashboardAttention === "missing-documents") {
-        query = query.is("matched_memberships.document_url", null);
+        query = query
+          .is("matched_memberships.document_url", null)
+          .in("matched_memberships.status", ["Renewed", "Inactive"]);
       }
 
       if (dashboardAttention === "expiring") {
@@ -703,16 +707,16 @@ export default function MembersListPage() {
           <div className="min-w-0">
             <p className="text-sm font-semibold">
               {attention === "pending" && "Pending Verification"}
-              {attention === "missing-documents" && "Recommendation Letter Needed"}
+              {attention === "missing-documents" && "Renewal Documents Missing"}
               {attention === "expiring" && "Expiring Soon"}
             </p>
             <p className="text-xs text-muted-foreground">
               {attention === "pending" &&
                 "Members currently waiting for approval."}
               {attention === "missing-documents" &&
-                "Members who still need a recommendation letter uploaded."}
+                "Previously registered or inactive ministries missing supporting renewal documents. New registrations are exempt."}
               {attention === "expiring" &&
-                "Members whose recommendation letters expire within 30 days."}
+                "Members whose ministry registration validity expires within 30 days."}
             </p>
           </div>
 
@@ -929,7 +933,10 @@ export default function MembersListPage() {
                     (membership) => membership.status === "Pending Verification"
                   );
                   const missingLetterMinistries = memberships
-                    .filter((membership) => !membership.document_url)
+                    .filter((membership) =>
+                      !membership.document_url &&
+                      (membership.status === "Inactive" || membership.status === "Renewed")
+                    )
                     .map((membership) => shortMinistry(membership.ministry));
                   const needsLetter = missingLetterMinistries.length > 0;
                   // Legacy documents are stored at member level, not linked to
@@ -941,7 +948,7 @@ export default function MembersListPage() {
                       : `Ministry recommendation letter missing: ${missingLetterMinistries.join(", ")}`
                     : null;
                   const registrationExpiringSoon = memberships.some((membership) => {
-                    if (!membership.document_url || !membership.expiration_date) return false;
+                    if (!membership.expiration_date) return false;
                     const expirationDate = new Date(`${membership.expiration_date}T00:00:00`);
                     return expirationDate >= today && expirationDate <= in30Days;
                   });
