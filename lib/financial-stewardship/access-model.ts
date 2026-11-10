@@ -7,6 +7,8 @@
  */
 export const FINANCIAL_ROLE_CODES = [
   "cowl_registry_reviewer",
+  "cowl_financial_workspace_viewer",
+  "curia_financial_workspace_viewer",
   "cowl_finance_verifier",
   "cowl_receipt_issuer",
   "cowl_remittance_preparer",
@@ -21,6 +23,10 @@ export type FinanceAccess = Record<FinanceWorkspace, FinanceSection[]>;
 
 const ROLE_SECTIONS: Record<FinancialRoleCode, readonly (readonly [FinanceWorkspace, FinanceSection])[]> = {
   cowl_registry_reviewer: [],
+  // Non-transactional oversight: can view every section in the assigned workspace,
+  // but is NEVER sufficient authorization for posting, issuing or acknowledging.
+  cowl_financial_workspace_viewer: [["cowl", "inventory"], ["cowl", "collections"], ["cowl", "remittances"]],
+  curia_financial_workspace_viewer: [["curia", "inventory"], ["curia", "remittances"]],
   cowl_finance_verifier: [["cowl", "collections"]],
   cowl_receipt_issuer: [["cowl", "inventory"], ["cowl", "collections"]],
   cowl_remittance_preparer: [["cowl", "collections"], ["cowl", "remittances"]],
@@ -32,6 +38,8 @@ const ROLE_SECTIONS: Record<FinancialRoleCode, readonly (readonly [FinanceWorksp
 
 const TITLES: Record<FinancialRoleCode, string> = {
   cowl_registry_reviewer: "COWL Registry Reviewer",
+  cowl_financial_workspace_viewer: "COWL Financial Administrator (Read-only)",
+  curia_financial_workspace_viewer: "Curia Financial Administrator (Read-only)",
   cowl_finance_verifier: "COWL Finance Verifier",
   cowl_receipt_issuer: "COWL Receipt Issuer",
   cowl_remittance_preparer: "COWL Remittance Preparer",
