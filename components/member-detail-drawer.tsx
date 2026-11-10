@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import {
@@ -33,6 +33,12 @@ import {
   Pencil,
 } from "@/components/phosphor-icons";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { attachSignatureCompositions, SIGNATURE_LAYOUT_KEY_PREFIX } from "@/lib/signature-layout";
 import {
   CertificateDesign,
@@ -83,6 +89,9 @@ export function MemberDetailDrawer({
     useState<Signatory[]>([]);
   const certificateRef = useRef<CertificateDesignHandle>(null);
   const [printingCertificate, setPrintingCertificate] = useState(false);
+  const [certificateThumbnail, setCertificateThumbnail] = useState<{ key: string; src: string } | null>(null);
+  const [certificatePreviewError, setCertificatePreviewError] = useState<string | null>(null);
+  const [certificatePreviewOpen, setCertificatePreviewOpen] = useState(false);
   const [notes, setNotes] = useState("");
   const [uploading, setUploading] = useState(false);
   const [signedMembershipDocUrl, setSignedMembershipDocUrl] = useState<string | null>(null);
@@ -593,6 +602,82 @@ export function MemberDetailDrawer({
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/verify?uid=${member.uid}`
     : "";
 
+  // Use the exact same certificate data and renderer for the thumbnail and print
+  // source. Memoizing prevents thumbnail updates from triggering new canvas renders.
+  const certificateData = useMemo(() => {
+    if (!member) return null;
+    return {
+      firstName: member.first_name,
+      lastName: member.last_name,
+      parish: member.parish,
+      ministries: member.ministries,
+      uid: member.uid,
+      liturgicalYear: certificateSettings.liturgical_year,
+      verifyUrl: publicVerifyUrl,
+      selectedMinistry:
+        selectedMinistry ??
+        (member.ministries.length === 1 ? member.ministries[0] : null),
+    };
+  }, [member, certificateSettings.liturgical_year, publicVerifyUrl, selectedMinistry]);
+
+  const certificatePreviewKey = useMemo(
+    () => certificateData
+      ? JSON.stringify({
+          data: certificateData,
+          settings: certificateSettings,
+          signatories: certificateSignatories,
+        })
+      : "",
+    [certificateData, certificateSettings, certificateSignatories]
+  );
+
+  const visibleCertificateThumbnail =
+    certificateThumbnail?.key === certificatePreviewKey
+      ? certificateThumbnail.src
+      : null;
+
+  useEffect(() => {
+    if (!open || !certificateData) {
+      setCertificateThumbnail(null);
+      setCertificatePreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setCertificatePreviewError(null);
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) setCertificatePreviewError("Certificate preview is taking longer than expected.");
+    }, 20000);
+
+    const prepareThumbnail = async () => {
+      try {
+        // The shared canvas only becomes visible as a bitmap after all fonts,
+        // background images, elements and signatories finish rendering.
+        const canvas = await certificateRef.current?.render();
+        if (cancelled) return;
+        if (!canvas || !canvas.width || !canvas.height) {
+          setCertificatePreviewError("Certificate preview is unavailable.");
+          return;
+        }
+        const src = canvas.toDataURL("image/png");
+        if (!cancelled) {
+          setCertificateThumbnail({ key: certificatePreviewKey, src });
+          setCertificatePreviewError(null);
+        }
+      } catch {
+        if (!cancelled) setCertificatePreviewError("Certificate preview could not be rendered.");
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    };
+
+    void prepareThumbnail();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [open, certificateData, certificatePreviewKey]);
+
   const handlePrintCertificate = () => {
   if (!member?.uid || member.uid === "PENDING" || !selectedCertificateEligible) return;
 
@@ -926,24 +1011,13 @@ export function MemberDetailDrawer({
                 </div>
               </div>
 
-              <div className="member-certificate-print-target" aria-hidden="true">
+              {/* Preserve the full-resolution renderer as the print source, but
+                  never expose its partially drawn canvas in the drawer. */}
+              <div className="member-certificate-print-target absolute h-0 w-0 overflow-hidden pointer-events-none" aria-hidden="true">
                 <CertificateDesign
                   ref={certificateRef}
                   settings={certificateSettings}
-                  data={{
-                    firstName: member.first_name,
-                    lastName: member.last_name,
-                    parish: member.parish,
-                    ministries: member.ministries,
-                    uid: member.uid,
-                    liturgicalYear: certificateSettings.liturgical_year,
-                    verifyUrl: publicVerifyUrl,
-                    selectedMinistry:
-                      selectedMinistry ??
-                      (member.ministries.length === 1
-                        ? member.ministries[0]
-                        : null),
-                  }}
+                  data={certificateData!}
                   signatories={certificateSignatories}
                   className="member-certificate-print-canvas"
                 />
@@ -955,6 +1029,55 @@ export function MemberDetailDrawer({
                   <Printer className="h-4 w-4" />
                   UID Certificate
                 </h3>
+                <div className="flex h-[390px] w-full items-center justify-center overflow-hidden border border-[#E3D8DA] bg-[#FBF9F9] p-3">
+                  {visibleCertificateThumbnail ? (
+                    <button
+                      type="button"
+                      onClick={() => setCertificatePreviewOpen(true)}
+                      className="flex h-full w-full items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]"
+                      aria-label="Enlarge full certificate preview"
+                      title="View full certificate"
+                    >
+                      <img
+                        src={visibleCertificateThumbnail}
+                        alt={`Complete certificate preview for ${member.first_name} ${member.last_name}`}
+                        className="block max-h-[360px] max-w-full h-auto w-auto object-contain shadow-sm"
+                      />
+                    </button>
+                  ) : (
+                    <div role="status" className="flex flex-col items-center gap-2 px-4 text-center text-xs text-[#796870]">
+                      {certificatePreviewError ? (
+                        <span>{certificatePreviewError}</span>
+                      ) : (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin text-[#890022]" aria-hidden="true" />
+                          <span>Preparing certificate preview…</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {visibleCertificateThumbnail && (
+                  <p className="text-center text-xs text-[#796870]">Select the thumbnail to view the complete certificate.</p>
+                )}
+                <Dialog open={certificatePreviewOpen} onOpenChange={setCertificatePreviewOpen}>
+                  <DialogContent className="flex max-h-[95vh] w-[min(96vw,1100px)] max-w-[1100px] flex-col border-[#E3D8DA] bg-[#FBF9F9] p-4 sm:p-6">
+                    <DialogHeader>
+                      <DialogTitle className="text-[#211018]">Certificate Preview</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-2">
+                      {visibleCertificateThumbnail ? (
+                        <img
+                          src={visibleCertificateThumbnail}
+                          alt={`Full certificate for ${member.first_name} ${member.last_name}`}
+                          className="block max-h-[80vh] max-w-full h-auto w-auto object-contain"
+                        />
+                      ) : (
+                        <p className="text-sm text-[#796870]">Preparing certificate preview…</p>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 {membershipDrafts.length > 1 && (
                   <div className="space-y-1.5">
                     <label className="text-xs text-muted-foreground">
@@ -975,7 +1098,7 @@ export function MemberDetailDrawer({
                 )}
 
                 <button
-                  disabled={!selectedCertificateEligible || printingCertificate}
+                  disabled={!selectedCertificateEligible || printingCertificate || !visibleCertificateThumbnail}
                   className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#70001B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   onClick={() => {
                     if (member.uid && member.uid !== "PENDING") {
