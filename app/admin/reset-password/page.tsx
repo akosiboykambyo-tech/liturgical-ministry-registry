@@ -48,6 +48,20 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     let active = true;
+    // Branded links carry an explicit one-time token hash; verify that token
+    // with Supabase before accepting any currently active session.
+    const initialUrl = new URL(window.location.href);
+    const tokenHash = initialUrl.searchParams.get("token_hash");
+    const recoveryType = initialUrl.searchParams.get("type");
+    if (recoveryType === "recovery" && tokenHash) {
+      window.history.replaceState(null, "", "/admin/reset-password");
+      void supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash })
+        .then(({ data, error }) => {
+          if (active) setStatus(!error && data.user && data.session ? "ready" : "invalid");
+        }).catch(() => { if (active) setStatus("invalid"); });
+      return () => { active = false; };
+    }
+    // Preserve legacy Supabase recovery-link behavior for existing Registry users.
     // Only permit password changes when opened through a recovery URL.
     // A normal signed-in admin session is not sufficient.
     const url = new URL(window.location.href);

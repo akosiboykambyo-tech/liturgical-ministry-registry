@@ -37,6 +37,7 @@ const LOGIN_ROUTES = [
   "/admin/forgot-password",
   "/admin/reset-link-sent",
   "/admin/reset-password",
+  "/admin/accept-invite",
   "/admin/access-pending",
 ];
 

@@ -104,7 +104,7 @@ export default function ForgotPasswordPage() {
                 <>
                   <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.1] text-[#1E1114] sm:text-[48px]`}>Reset your password</h1>
                   <p className="mt-3 text-sm leading-6 text-[#706167]">
-                    Enter your email. If it matches an admin account, we will send you a link to reset the password.
+                    Enter your email. If it matches an authorized staff account, we will send you a secure link to create or reset your password.
                   </p>
 
                   {error && (
