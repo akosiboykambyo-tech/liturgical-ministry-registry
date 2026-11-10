@@ -37,6 +37,7 @@ const LOGIN_ROUTES = [
   "/admin/forgot-password",
   "/admin/reset-link-sent",
   "/admin/reset-password",
+  "/admin/access-pending",
 ];
 
 function DiocesanCoat({ size = 48 }: { size?: number }) {
@@ -76,7 +77,7 @@ function isActiveRoute(pathname: string | null, href: string): boolean {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, signOut } = useAuth();
+  const { user, session, loading, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -85,6 +86,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [focusOpen, setFocusOpen] = useState(false);
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [freshDisplayName, setFreshDisplayName] = useState<string | null>(null);
+  const [registryAccess, setRegistryAccess] = useState<"checking" | "granted" | "unavailable">("checking");
+  const [financeEntry, setFinanceEntry] = useState<string | null>(null);
 
   const isLoginPage = LOGIN_ROUTES.includes(pathname ?? "");
   const desktopExpanded = hoverOpen || focusOpen || pinnedOpen;
@@ -92,6 +95,56 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!loading && !user && !isLoginPage) router.replace("/admin");
   }, [loading, user, isLoginPage, router]);
+
+  useEffect(() => {
+    if (isLoginPage || loading || !user || !session?.access_token) return;
+    let cancelled = false;
+    const token = session.access_token;
+    setRegistryAccess("checking");
+    setFinanceEntry(null);
+    void (async () => {
+      try {
+        const registry = await getSupabaseBrowserClient().rpc("registration_is_admin");
+        if (cancelled) return;
+        if (registry.error) {
+          setRegistryAccess("unavailable");
+          return;
+        }
+        const financeRequest = fetch("/api/financial-stewardship/access?workspace=all", {
+          headers: { Authorization: "Bearer " + token }, cache: "no-store",
+        });
+        if (registry.data !== true) {
+          const result = await financeRequest;
+          const data = await result.json() as { home?: string | null; access?: { cowl: string[]; curia: string[] } };
+          if (cancelled) return;
+          if (result.ok && data.home) {
+            router.replace(data.access?.cowl.length && data.access?.curia.length
+              ? "/financial-stewardship/workspaces" : data.home);
+          } else if (result.status === 403) {
+            router.replace("/admin/access-pending");
+          } else {
+            setRegistryAccess("unavailable");
+          }
+          return;
+        }
+        setRegistryAccess("granted");
+        // Finance link discovery must NEVER block an authorized Registry Admin.
+        // A failed finance service only hides the optional financial link.
+        try {
+          const result = await financeRequest;
+          if (!cancelled && result.ok) {
+            const data = await result.json() as { home?: string | null };
+            setFinanceEntry(data.home ?? null);
+          }
+        } catch {
+          if (!cancelled) setFinanceEntry(null);
+        }
+      } catch {
+        if (!cancelled) setRegistryAccess("unavailable");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loading, user?.id, session?.access_token, isLoginPage, router]);
 
   useEffect(() => {
     if (!user?.id || isLoginPage) return;
@@ -144,8 +197,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [mobileOpen]);
 
   if (isLoginPage) return <>{children}</>;
-  if (loading) return <CenteredAdminLoader fullscreen label="Loading administration…" />;
+  if (loading || (user && registryAccess === "checking")) return <CenteredAdminLoader fullscreen label="Checking Registry authorization…" />;
   if (!user) return null;
+  if (registryAccess === "unavailable") return (
+    <main className="flex min-h-screen items-center justify-center bg-[#FBF9F9] px-5">
+      <section role="alert" className="w-full max-w-lg border border-[#E6DADC] border-t-4 border-t-[#890022] bg-white p-6">
+        <h1 className={ebGaramond.className + " text-3xl"}>Access verification unavailable</h1>
+        <p className="mt-3 text-sm text-[#5F4A4F]">Registry access could not be verified. No administrative pages have been opened.</p>
+        <button type="button" onClick={() => window.location.reload()} className="mt-4 bg-[#890022] px-4 py-2 text-sm font-semibold text-white">Retry verification</button>
+      </section>
+    </main>
+  );
 
   const rawName = user.user_metadata?.display_name;
   const displayName = freshDisplayName ||
@@ -159,13 +221,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const renderNavigation = (expanded: boolean, mobile = false) => (
     <>
       <nav aria-label={mobile ? "Mobile admin navigation" : "Admin navigation"} className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-2.5 py-5">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter(item => item.href !== "/financial-stewardship" || financeEntry).map((item) => {
           const Icon = item.icon;
           const active = isActiveRoute(pathname, item.href);
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={item.href === "/financial-stewardship" ? (financeEntry ?? item.href) : item.href}
               aria-label={item.label}
               aria-current={active ? "page" : undefined}
               title={!expanded ? item.label : undefined}
