@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { ebGaramond, inter } from "@/app/fonts";
 import { useAuth } from "@/lib/auth-context";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
-import { calculateFinanceAccess, financePath, financeRolesLabel, type FinanceAccess, type FinanceWorkspace } from "@/lib/financial-stewardship/access-model";
+import { financePath, financeRolesLabel, type FinanceAccess, type FinanceWorkspace } from "@/lib/financial-stewardship/access-model";
 import {
   ArrowLeft, ArrowsLeftRight, Bank, ChevronLeft, ChevronRight,
   ClipboardList, FileBadge, Lock, LogOut, Menu, Receipt, ShieldCheck, Wallet, X,
@@ -171,8 +171,8 @@ function RemittancesContent() {
   </div>;
 }
 
-type AccessResult = { roles?: string[]; access?: FinanceAccess; home?: string | null; error?: string };
-type AccessState = { status: "loading" | "authorized" | "denied" | "unavailable"; roles: string[]; access: FinanceAccess; home: string | null; reason: string };
+type AccessResult = { roles?: string[]; access?: FinanceAccess; home?: string | null; error?: string; registryAdmin?: boolean };
+type AccessState = { status: "loading" | "authorized" | "denied" | "unavailable"; roles: string[]; access: FinanceAccess; home: string | null; reason: string; registryAdmin: boolean };
 const EMPTY_ACCESS: FinanceAccess = { cowl: [], curia: [] };
 
 export default function LiveFinancialStewardship({ section, workspace = "cowl" }: {
@@ -180,7 +180,7 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
 }) {
   const { user, session, loading, signOut } = useAuth();
   const [authorization, setAuthorization] = useState<AccessState>({
-    status: "loading", roles: [], access: EMPTY_ACCESS, home: null, reason: "",
+    status: "loading", roles: [], access: EMPTY_ACCESS, home: null, reason: "", registryAdmin: false,
   });
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -207,7 +207,7 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
     if (loading || !user || !session?.access_token) return;
     const controller = new AbortController();
     setAuthorization({
-      status: "loading", roles: [], access: EMPTY_ACCESS, home: null, reason: "",
+      status: "loading", roles: [], access: EMPTY_ACCESS, home: null, reason: "", registryAdmin: false,
     });
 
     void (async () => {
@@ -229,13 +229,14 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
           roles: response.ok ? (data.roles ?? []) : [],
           access: nextAccess,
           home: data.home ?? null,
+          registryAdmin: Boolean(data.registryAdmin),
           reason: data.error ?? "Unable to verify your financial access.",
         });
       } catch {
         if (controller.signal.aborted) return;
         setAuthorization({
           status: "unavailable", roles: [], access: EMPTY_ACCESS,
-          home: null, reason: "Financial role verification is unavailable.",
+          home: null, reason: "Financial role verification is unavailable.", registryAdmin: false,
         });
       }
     })();
@@ -280,7 +281,7 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
       <section role="alert" className="w-full max-w-xl border border-[#E6DADC] border-t-[4px] border-t-[#890022] bg-white p-6 sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">FINANCIAL STEWARDSHIP</p>
         <h1 className={ebGaramond.className + " mt-2 text-[34px] leading-tight"}>
-          {authorization.status === "denied" ? "Role approval required" : "Financial access unavailable"}
+          {authorization.status === "denied" ? (authorization.home ? "Section not authorized" : "Role approval required") : "Financial access unavailable"}
         </h1>
         <p className="mt-3 text-sm leading-6 text-[#5F4A4F]">{authorization.reason}</p>
         <p className="mt-3 text-xs leading-5 text-[#5F4A4F]">
@@ -289,7 +290,7 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           {authorization.home && <Link className="border border-[#890022] bg-[#890022] px-4 py-2 text-sm font-semibold text-white" href={authorization.home}>Open permitted section</Link>}
-          <Link className="border border-[#E6DADC] px-4 py-2 text-sm font-semibold text-[#890022]" href="/admin/dashboard">Return to Registry</Link>
+          <Link className="border border-[#E6DADC] px-4 py-2 text-sm font-semibold text-[#890022]" href="/admin">Back to sign-in</Link>
         </div>
       </section>
     </main>;
@@ -311,13 +312,13 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
     })}
     <div className="mt-5 border-t border-white/20 pt-4">
       {switchTo && <Link href={switchTo} aria-label="Switch financial workspace" className="flex min-h-11 items-center gap-3 px-3 text-sm text-white/90 hover:bg-white/15"><ArrowsLeftRight size={19} aria-hidden="true"/>{isExpanded && <span>Switch to {otherWorkspace === "curia" ? "Curia" : "COWL"}</span>}</Link>}
-      <Link href="/admin/dashboard" aria-label="Return to Registry" title={!isExpanded ? "Return to Registry" : undefined}
+      {authorization.registryAdmin && <Link href="/admin/dashboard" aria-label="Return to Registry" title={!isExpanded ? "Return to Registry" : undefined}
         onClick={() => { if (mobile) setMobileOpen(false); }}
         className={"flex min-h-11 items-center gap-3 px-3 text-sm text-white/90 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white " +
           (!isExpanded ? "justify-center px-0" : "")}>
         <ArrowLeft size={19} className="shrink-0" aria-hidden="true"/>
         {isExpanded && <span>Return to Registry</span>}
-      </Link>
+      </Link>}
     </div>
   </nav>;
 
