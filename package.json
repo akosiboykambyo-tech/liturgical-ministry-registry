@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node --test tests/financial-access-model.test.cjs",
     "build": "next build",
+    "test:finance-access": "node --test tests/financial-access-model.test.cjs",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
