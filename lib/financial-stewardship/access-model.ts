@@ -57,6 +57,30 @@ export function isFinancialRoleCode(role: unknown): role is FinancialRoleCode {
   return typeof role === "string" && (FINANCIAL_ROLE_CODES as readonly string[]).includes(role);
 }
 
+
+/** Grant lifecycle is evaluated against the server clock, never client input.
+ * Revoked, future-dated, expired or malformed grants fail closed.
+ */
+export type FinanceGrant = {
+  role_code: string;
+  granted_at: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+};
+
+export function activeFinancialRoles(grants: readonly FinanceGrant[], nowMs: number): FinancialRoleCode[] {
+  if (!Number.isFinite(nowMs)) return [];
+  const roles = new Set<FinancialRoleCode>();
+  for (const grant of grants) {
+    if (!isFinancialRoleCode(grant.role_code) || grant.revoked_at) continue;
+    const startMs = Date.parse(grant.granted_at);
+    const endMs = grant.expires_at ? Date.parse(grant.expires_at) : Infinity;
+    if (!Number.isFinite(startMs) || Number.isNaN(endMs) || startMs > nowMs || endMs <= nowMs) continue;
+    roles.add(grant.role_code);
+  }
+  return Array.from(roles);
+}
+
 export function calculateFinanceAccess(roleCodes: readonly string[]): FinanceAccess {
   const access: FinanceAccess = { cowl: [], curia: [] };
   for (const role of Array.from(new Set(roleCodes))) {
