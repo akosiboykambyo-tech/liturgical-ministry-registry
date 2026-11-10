@@ -168,7 +168,7 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
     const ids = active.assignments
       .filter((assignment) => selected.has(assignment.id))
       .map((assignment) => assignment.id);
-    if (ids.length !== selected.size || ids.some((id) => !active.assignments.find((a) => a.id === id)?.document_url || !reviewedIds.has(id))) {
+    if (ids.length !== selected.size || ids.some((id) => (active.assignments.find((a) => a.id === id)?.document_url && !reviewedIds.has(id)))) {
       setError("Selection changed. Reopen this record before approving.");
       return;
     }
@@ -207,7 +207,7 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
         <p className="mt-2 max-w-3xl text-sm text-[#65545A]">
           Select the exact ministries approved for a minister. A verification date and one-year
           expiration are set by the database. Other ministries remain unchanged.
-          Renewals with recommendation letters are handled in the Renewals tab.
+          A recommendation letter is optional for first-time registration. Attached letters must still be reviewed before approval. Renewals are handled in the Renewals tab.
         </p>
       </header>
       )}
@@ -264,7 +264,7 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
               </p>
             </header>
             <p className="text-sm">
-              Open and inspect each ministry's private recommendation letter before selecting it for approval.
+              If a recommendation letter is attached, open and inspect it before selecting that ministry. A letter is not required for initial registration.
               The server will record a <strong>New</strong> verification valid for one calendar year.
             </p>
             <Link href={`/admin/members/${active.member.id}`}
@@ -276,7 +276,7 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
                 <div key={assignment.id} className="border border-[#E6DADC] p-3">
                   <label className="flex cursor-pointer items-start gap-3">
                     <input type="checkbox" checked={selected.has(assignment.id)}
-                      disabled={submitting || uploadingId !== null || signingId !== null || !assignment.document_url || !reviewedIds.has(assignment.id)}
+                      disabled={submitting || uploadingId !== null || signingId !== null || Boolean(assignment.document_url && !reviewedIds.has(assignment.id))}
                       onChange={(event) => setSelected((current) => {
                         const next = new Set(current);
                         if (event.target.checked) next.add(assignment.id);
@@ -285,7 +285,7 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
                       })} className="mt-1 accent-[#890022]" />
                     <span className="text-sm font-medium">{assignment.ministry}
                       <span className="block text-xs font-normal text-[#66545A]">
-                        {assignment.document_url ? "Recommendation letter on file" : "No ministry recommendation letter on file — upload before approval"}
+                        {assignment.document_url ? "Recommendation letter on file" : "No letter attached — optional for initial registration"}
                       </span>
                     </span>
                   </label>
