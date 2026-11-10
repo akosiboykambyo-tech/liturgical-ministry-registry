@@ -207,6 +207,7 @@ export default function AdminLoginPage() {
                 {submitting ? <><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /> Signing in…</> : rateLimited ? "Sign in is paused" : "Sign in"}
               </button>
             </form>
+            <p className="mt-5 text-center text-xs leading-6 text-[#706167]">Accepted an invitation without creating a password?{" "}<Link href="/admin/forgot-password" className="font-semibold text-[#0B5C5A] underline">Set up your password</Link>.</p>
             {rateLimited ? (
               <div className="mt-5 space-y-3 text-sm leading-6 text-[#706167]">
                 <p>
