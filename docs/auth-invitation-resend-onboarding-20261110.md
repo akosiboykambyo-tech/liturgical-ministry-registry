@@ -10,7 +10,7 @@ This change resolves the **website** portion of the problem. Authentication emai
 
 - New /admin/accept-invite with the diocesan sign-in aesthetic. It calls Supabase Auth verifyOtp using the one-time invitation token hash, then shows a password setup form only for a successfully verified invitation. It checks password complexity, asks for confirmation, calls updateUser and signs out after successful setup.
 - No existing authenticated session alone can unlock the invitation setup form. Expired/used invitation links instead point to /admin/forgot-password.
-- /admin/reset-password now verifies the actual recovery link with verifyOtp(type: recovery) or the link's token pair, rather than trusting an arbitrary reset-like URL plus a preexisting session.
+- /admin/reset-password verifies the **new branded recovery token hash** using verifyOtp(type: recovery), and retains the previous Supabase recovery-link path for compatibility with existing Registry users. A later isolated hardening pass should review the legacy recovery acceptance path before changing it.
 - The unified login includes a visible password-setup option for already-invited users.
 - Registry roles and COWL/Curia financial grants stay unchanged.
 
