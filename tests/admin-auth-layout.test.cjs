@@ -70,3 +70,16 @@ test("existing sign-in and reset authorization operations remain present", () =>
 test("informational reset-link page never invents a server-side retry countdown", () => {
   assert.doesNotMatch(source("app/admin/reset-link-sent/page.tsx"), /setInterval|setRemaining/);
 });
+
+test("invalid invitation and recovery routes retain the intended sign-in return action", () => {
+  for (const page of [
+    "app/admin/accept-invite/page.tsx",
+    "app/admin/reset-password/page.tsx",
+    "app/admin/reset-link-sent/page.tsx",
+    "app/admin/access-pending/page.tsx",
+  ]) {
+    const content = source(page);
+    assert.match(content, /backHref="\/admin" backLabel="Back to sign in"/, page);
+  }
+});
+
