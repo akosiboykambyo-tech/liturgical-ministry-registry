@@ -172,7 +172,7 @@ BEGIN
     'expires_on', v_expires
   );
 END;
-$function$
+$function$;
 
 REVOKE ALL ON FUNCTION public.registry_verify_ministries_v2(uuid,uuid[],text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.registry_verify_ministries_v2(uuid,uuid[],text) TO authenticated;
