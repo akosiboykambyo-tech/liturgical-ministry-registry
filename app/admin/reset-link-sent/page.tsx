@@ -12,7 +12,7 @@ import {
  */
 export default function ResetLinkSentPage() {
   return (
-    <AdminAuthShell showSupport>
+    <AdminAuthShell showSupport backHref="/admin" backLabel="Back to sign in">
       <CheckCircle2 aria-hidden="true" className="mb-4 h-7 w-7 text-[#0B5C5A]" />
       <h1 className={authTitleClass}>Check your email</h1>
       <p className={authTextClass}>
