@@ -114,8 +114,8 @@ export function MemberDetailDrawer({
         .from("members")
         .select("*")
         .eq("id", memberId)
-        .maybeSingle()
-        .abortSignal(controller.signal);
+        .abortSignal(controller.signal)
+        .maybeSingle();
 
       if (!isCurrent()) return;
       if (memberError) throw memberError;
