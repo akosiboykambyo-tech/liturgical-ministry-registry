@@ -40,7 +40,8 @@ CREATE INDEX IF NOT EXISTS fs_staff_grants_user_lookup
 
 ALTER TABLE public.fs_staff_grants ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.fs_staff_grants FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON TABLE public.fs_staff_grants TO authenticated;
+GRANT SELECT (user_id, role_code, granted_at, expires_at, revoked_at)
+  ON TABLE public.fs_staff_grants TO authenticated;
 
 -- Read only one's own grant metadata; grants may only be provisioned/revoked
 -- through an approved, audited administrative process outside browser clients.
