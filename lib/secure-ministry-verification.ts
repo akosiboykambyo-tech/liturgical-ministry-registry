@@ -1,6 +1,7 @@
 "use client";
 
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { attachRecommendationLetter } from "@/lib/registry-letter-attachments";
 
 export type SecureVerificationResult = {
   member_id: string;
@@ -28,7 +29,7 @@ export async function verifySelectedMinistries(
     throw new Error("Choose valid, distinct ministry assignments for one member.");
   }
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.rpc("registry_verify_ministries_v1", {
+  const { data, error } = await supabase.rpc("registry_verify_ministries_v2", {
     p_member_id: memberId,
     p_membership_ids: membershipIds,
     p_status: "New",
@@ -61,41 +62,9 @@ export async function attachPendingMinistryLetter(
   if (!UUID.test(memberId) || !UUID.test(membershipId)) {
     throw new Error("A valid member and ministry assignment must be selected.");
   }
-  const extensions: Record<string, string> = {
-    "application/pdf": "pdf",
-    "image/png": "png",
-    "image/jpeg": "jpg",
-  };
-  const extension = extensions[file.type];
-  if (!extension || file.size < 1 || file.size > 5 * 1024 * 1024) {
-    throw new Error("Upload a nonempty PDF, PNG or JPEG recommendation letter up to 5 MB.");
-  }
-  const path = `verification/${memberId}/${membershipId}/${crypto.randomUUID()}.${extension}`;
-  const storage = getSupabaseBrowserClient().storage.from("member-documents");
-  const uploaded = await storage.upload(path, file, {
-    upsert: false, contentType: file.type,
-  });
-  if (uploaded.error) {
-    throw new Error(`Private document upload failed: ${uploaded.error.message}`);
-  }
-  const { data, error } = await getSupabaseBrowserClient().rpc(
-    "registry_attach_ministry_letter_v1", {
-      p_member_id: memberId,
-      p_membership_id: membershipId,
-      p_document_path: path,
-    }
-  );
-  if (error || !data || typeof data !== "object" || Array.isArray(data) ||
-      data.attached !== true || data.member_id !== memberId ||
-      data.membership_id !== membershipId) {
-    // The RPC might have COMMITTED even if its HTTP response is missing or
-    // malformed. Do NOT delete the uploaded object based on ambiguous results:
-    // it could already be referenced by the membership record.
-    throw new Error(
-      "Letter attachment could not be confirmed. The uploaded private file was retained. " +
-      "Reload the registry and check the assignment before retrying or requesting cleanup."
-    );
-  }
+  // The shared v2 RPC verifies the exact assignment(s), private object,
+  // administrator, and no-overwrite guarantee.
+  await attachRecommendationLetter([membershipId], file);
 }
 
 /** Authorize document inspection through private Supabase Storage. The URL is
