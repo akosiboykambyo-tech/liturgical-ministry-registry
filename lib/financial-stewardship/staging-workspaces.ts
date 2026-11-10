@@ -13,12 +13,14 @@ export type FinancialWorkspace = keyof typeof WORKSPACES;
 
 const COWL_ROLES = new Set([
   "cowl_receipt_issuer",
+  "cowl_financial_workspace_viewer",
   "cowl_finance_verifier",
   "cowl_remittance_preparer",
 ]);
 
 const CURIA_ROLES = new Set([
   "curia_receipt_custodian",
+  "curia_financial_workspace_viewer",
   "curia_treasury_reviewer",
 ]);
 
