@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, Check, CheckCircle2, Circle, Loader2 } from "@/components/phosphor-icons";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { parseInviteChallenge } from "@/lib/auth-invitation-challenge";
 import { ebGaramond, inter } from "@/app/fonts";
 
 type State = "verifying" | "ready" | "invalid" | "saved";
@@ -49,14 +50,10 @@ export default function AcceptInvitationPage() {
       // Capture and immediately clear the one-use token to minimize leakage
       // through browser history, shared screen and future navigations.
       const url = new URL(window.location.href);
-      const queryToken = url.searchParams.get("token_hash");
-      const queryType = url.searchParams.get("type");
-      const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
-      const token = queryToken ?? fragment.get("token_hash");
-      const type = queryType ?? fragment.get("type");
+      const token = parseInviteChallenge(url.href);
       window.history.replaceState(null, "", "/admin/accept-invite");
 
-      if (type !== "invite" || !token || !/^[a-f0-9]{40,128}$/i.test(token)) {
+      if (!token) {
         if (mounted) setState("invalid");
         return;
       }
