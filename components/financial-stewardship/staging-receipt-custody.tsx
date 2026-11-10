@@ -12,6 +12,7 @@ import { ebGaramond } from "@/app/fonts";
 import PortalShell, { type PortalNavGroup } from "@/components/portal-shell";
 import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";
 import StagingFinancialOperations from "@/components/financial-stewardship/staging-financial-operations";
+import StagingReadOnlyViewer from "@/components/financial-stewardship/staging-readonly-viewer";
 
 type Mode = "curia" | "cowl";
 type Series = { id: string; issuing_entity: string; series_code: string };
@@ -239,6 +240,15 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
       <Link href="/admin" className="mt-4 inline-block text-sm font-semibold text-[#0B5C5A] underline">Open sign-in page</Link>
     </div>
   </div>;
+
+  // A temporary viewer can inspect the approved financial layouts but can never
+  // render interactive custody, collection, remittance or treasury controls.
+  const viewerRole = mode === "curia"
+    ? "curia_financial_workspace_viewer" : "cowl_financial_workspace_viewer";
+  if (rolesForUser === user.id && roles.includes(viewerRole)) {
+    return <StagingReadOnlyViewer mode={mode} email={user.email ?? "Test staff"}
+      roles={roles} onSignOut={signOut} />;
+  }
 
   if (!allowed) return <div className="grid min-h-screen place-items-center bg-[#FBF9F9] p-5">
     <section className="w-full max-w-lg border border-[#E6DADC] bg-white p-7">
