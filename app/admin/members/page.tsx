@@ -27,6 +27,7 @@ import {
   Download,
   Printer,
   FileBadge,
+  FileText,
   ClipboardList,
   CheckSquare,
   X,
