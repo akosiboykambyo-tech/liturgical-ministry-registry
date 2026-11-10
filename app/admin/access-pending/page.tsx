@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck } from "@/components/phosphor-icons";
 import { useAuth } from "@/lib/auth-context";
 import {
   AdminAuthShell, AuthError, authTitleClass, authTextClass,
@@ -23,7 +22,6 @@ export default function AccessPendingPage() {
 
   return (
     <AdminAuthShell showSupport backHref="/admin" backLabel="Back to sign in">
-      <ShieldCheck className="mb-4 h-7 w-7 text-[#890022]" aria-hidden="true" />
       <h1 className={authTitleClass}>
         {verificationUnavailable ? "Access verification unavailable" : "Role approval required"}
       </h1>
