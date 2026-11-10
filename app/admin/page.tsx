@@ -3,23 +3,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import { AlertCircle, ArrowLeft, Loader2 } from "@/components/phosphor-icons";
+import { AlertCircle, Loader2 } from "@/components/phosphor-icons";
+import { AdminAuthShell } from "@/components/admin-auth-ui";
 import { useAuth } from "@/lib/auth-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { ebGaramond, inter } from "@/app/fonts";
+import { ebGaramond } from "@/app/fonts";
 
 const SUPPORT_EMAIL = "help@cowl-dok.online";
-
-// Crop the coat of arms from the existing wide identity artwork.
-// The SVG itself remains unchanged in /public/images/Asset_1.svg.
-function DiocesanCoat() {
-  return (
-    <svg viewBox="705 0 277 230" width="36" height="34" role="img" aria-label="Diocesan coat of arms" className="shrink-0 overflow-hidden">
-      <image href="/images/Asset_1.svg" x="0" y="0" width="1686.95" height="444.5" />
-    </svg>
-  );
-}
 
 const GENERIC_ERROR =
   "We could not sign you in. Check your email and password, then try again.";
@@ -101,39 +91,7 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <main className={`${inter.className} min-h-screen bg-[#FBF9F9] text-[#271C20]`}>
-      <div className="grid min-h-screen lg:grid-cols-[minmax(320px,42%)_minmax(0,1fr)]">
-        <aside className="relative flex min-h-[205px] flex-col overflow-hidden bg-[#890022] px-6 pb-7 pt-9 text-white sm:px-10 lg:min-h-screen lg:px-12 lg:pt-14">
-          <div className="relative z-10">
-            <p className={`${ebGaramond.className} text-[16px] italic leading-tight text-white/90 sm:text-lg`}>
-              Diocesan Commission on Worship &amp; Liturgy
-            </p>
-            <p className={`${ebGaramond.className} mt-1 text-[48px] font-medium leading-[0.95] sm:text-[60px] lg:text-[64px]`}>
-              COWL-DOK Portal
-            </p>
-          </div>
-          <Image
-            src="/images/church-facade-placeholder.svg"
-            alt=""
-            aria-hidden="true"
-            width={900}
-            height={1000}
-            priority
-            className="pointer-events-none absolute bottom-[-95px] left-1/2 h-[330px] w-auto max-w-none -translate-x-1/2 object-contain opacity-40 sm:bottom-[-120px] sm:h-[410px] lg:bottom-[-4%] lg:h-[65%]"
-          />
-        </aside>
-
-        <section className="flex min-w-0 flex-col px-6 pb-12 pt-5 sm:px-12 lg:px-12 lg:pt-9">
-          <Link href="/" className="inline-flex w-fit items-center gap-1.5 text-[14px] font-semibold text-[#0B5C5A] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0B5C5A]">
-            <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> Back to the public site
-          </Link>
-          <div className="flex flex-1 items-center justify-center py-8 lg:py-10">
-            <div className="w-full max-w-[440px]">
-              <div className="mb-6 flex items-center gap-2.5">
-                <DiocesanCoat />
-                <p className={`${ebGaramond.className} text-[19px] leading-tight text-[#1E1114]`}>Liturgical Ministry Registry</p>
-              </div>
-
+    <AdminAuthShell>
             <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.1] text-[#1E1114] sm:text-[48px]`}>Sign in</h1>
             <p className="mt-3 text-sm text-[#706167]">Authorized Registry, Commission, and Curia personnel only.</p>
 
@@ -222,10 +180,6 @@ export default function AdminLoginPage() {
                 <a href={`mailto:${SUPPORT_EMAIL}`} className="font-semibold text-[#0B5C5A] underline">Write to {SUPPORT_EMAIL}</a>
               </p>
             )}
-            </div>
-          </div>
-        </section>
-      </div>
-    </main>
+    </AdminAuthShell>
   );
 }
