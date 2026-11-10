@@ -48,48 +48,44 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     let active = true;
-    // Recovery must be verified using credentials from THIS email link.
-    // A preexisting signed-in Registry or finance session is NOT sufficient.
-    void (async () => {
-      const url = new URL(window.location.href);
-      const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
-      const tokenHash = url.searchParams.get("token_hash") ?? fragment.get("token_hash");
-      const type = url.searchParams.get("type") ?? fragment.get("type");
-      const code = url.searchParams.get("code");
-      const rawAccess = fragment.get("access_token");
-      const rawRefresh = fragment.get("refresh_token");
-      // Strip one-time credentials from the visible URL without navigating.
+    // Branded links carry an explicit one-time token hash; verify that token
+    // with Supabase before accepting any currently active session.
+    const initialUrl = new URL(window.location.href);
+    const tokenHash = initialUrl.searchParams.get("token_hash");
+    const recoveryType = initialUrl.searchParams.get("type");
+    if (recoveryType === "recovery" && tokenHash) {
       window.history.replaceState(null, "", "/admin/reset-password");
-
-      try {
-        if (type === "recovery" && tokenHash) {
-          const { data, error } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash, type: "recovery",
-          });
+      void supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash })
+        .then(({ data, error }) => {
           if (active) setStatus(!error && data.user && data.session ? "ready" : "invalid");
-          return;
+        }).catch(() => { if (active) setStatus("invalid"); });
+      return () => { active = false; };
+    }
+    // Preserve legacy Supabase recovery-link behavior for existing Registry users.
+    // Only permit password changes when opened through a recovery URL.
+    // A normal signed-in admin session is not sufficient.
+    const url = new URL(window.location.href);
+    const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
+    const recoveryUrl = fragment.get("type") === "recovery" || url.searchParams.get("type") === "recovery" || url.searchParams.has("code") || url.searchParams.has("token_hash");
+    let recoveryEvent = false;
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (event === "PASSWORD_RECOVERY") recoveryEvent = true;
+      if (session && (recoveryEvent || recoveryUrl)) setStatus("ready");
+    });
+    void (async () => {
+      try {
+        // Give the Supabase client time to consume the recovery credentials.
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        if (!active) return;
+        if (!sessionError && data.session && (recoveryEvent || recoveryUrl)) setStatus("ready");
+        else {
+          await new Promise(resolve => setTimeout(resolve, 700));
+          if (active) setStatus(current => current === "ready" ? current : "invalid");
         }
-        if (type === "recovery" && rawAccess && rawRefresh) {
-          const { data, error } = await supabase.auth.setSession({
-            access_token: rawAccess, refresh_token: rawRefresh,
-          });
-          if (!error && data.session && data.user) {
-            const verified = await supabase.auth.getUser();
-            if (active) setStatus(!verified.error && verified.data.user?.id === data.user.id ? "ready" : "invalid");
-          } else if (active) setStatus("invalid");
-          return;
-        }
-        if (code && type === "recovery") {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-          if (active) setStatus(!error && data.session && data.user ? "ready" : "invalid");
-          return;
-        }
-        if (active) setStatus("invalid");
-      } catch {
-        if (active) setStatus("invalid");
-      }
+      } catch { if (active) setStatus("invalid"); }
     })();
-    return () => { active = false; };
+    return () => { active = false; authListener.subscription.unsubscribe(); };
   }, [supabase]);
 
   const rules = [
