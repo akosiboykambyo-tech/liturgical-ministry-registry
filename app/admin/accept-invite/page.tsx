@@ -83,7 +83,7 @@ export default function AcceptInvitationPage() {
     return () => { mounted = false; };
   }, []);
 
-  const checks = PASSWORD_RULES.map(([label, test]) => ({ label, passed: test(password) }));
+  const checks: Array<{ label: string; passed: boolean }> = PASSWORD_RULES.map(([label, test]) => ({ label, passed: test(password) }));
   checks.push({ label: "Passwords match", passed: Boolean(confirm) && confirm === password });
   const valid = checks.every(rule => rule.passed);
 
