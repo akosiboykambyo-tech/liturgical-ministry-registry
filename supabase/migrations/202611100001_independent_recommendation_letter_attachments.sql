@@ -124,7 +124,7 @@ BEGIN
   FROM public.member_ministries AS mm
   WHERE mm.id = ANY(v_ids)
     AND (
-      (p_status = 'New' AND (mm.status <> 'Pending Verification'))
+      (p_status = 'New' AND (mm.status <> 'Pending Verification' OR mm.start_date IS NOT NULL OR mm.renewal_date IS NOT NULL OR mm.expiration_date IS NOT NULL))
       OR (p_status = 'Renewed' AND
           (mm.status NOT IN ('New','Renewed') OR mm.document_url IS NULL))
     );
