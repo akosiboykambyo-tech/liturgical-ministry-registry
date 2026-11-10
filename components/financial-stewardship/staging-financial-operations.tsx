@@ -275,8 +275,10 @@ export default function StagingFinancialOperations({
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 className={ebGaramond.className + " text-[30px]"}>{section === "collections" ? "Collections and Official Receipts" : "Remittances and Curia Reconciliation"}</h2>
-        <p className="mt-1 text-xs leading-5 text-[#6F6265]">Shared isolated Supabase ledger · no browser-local financial records</p></div>
+      <p className="text-sm leading-6 text-[#5F4A4F]">
+        {section === "collections" ? "Collection and receipt operations" : "Remittance and treasury operations"}
+        <span className="ml-2 text-xs text-[#6F6265]">· Shared isolated Supabase ledger</span>
+      </p>
       <button type="button" disabled={loading || busy} onClick={reload} className={secondary}>
         <RefreshCw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} /> Refresh
       </button>
