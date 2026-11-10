@@ -53,7 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [freshDisplayName, setFreshDisplayName] = useState<string | null>(null);
-  const isLoginPage = ["/admin", "/admin/forgot-password", "/admin/reset-link-sent", "/admin/reset-password"].includes(pathname);
+  const isLoginPage = ["/admin", "/admin/forgot-password", "/admin/reset-link-sent", "/admin/reset-password", "/admin/accept-invite", "/admin/access-pending"].includes(pathname);
 
   useEffect(() => {
     if (!loading && !user && !isLoginPage) router.replace("/admin");
