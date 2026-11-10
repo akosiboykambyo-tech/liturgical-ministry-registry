@@ -89,130 +89,170 @@ export function MemberDetailDrawer({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Each opened member gets its own loading generation. Stale requests must never
+  // overwrite the details for a different member or a closed drawer.
+  const loadVersion = useRef(0);
+
   const load = useCallback(async () => {
     if (!memberId) return;
+    const version = ++loadVersion.current;
+    const isCurrent = () => loadVersion.current === version;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase
-      .from("members")
-      .select("*")
-      .eq("id", memberId)
-      .maybeSingle();
-    if (error || !data) {
-      setError("Member not found.");
-      setLoading(false);
-      return;
+    setMember(null);
+    setAudits([]);
+    setMembershipDrafts([]);
+    setPersistedMembershipIds([]);
+    setCertificateSettings(DEFAULT_TEMPLATE_SETTINGS);
+    setCertificateSignatories([]);
+
+    try {
+      const { data, error: memberError } = await supabase
+        .from("members")
+        .select("*")
+        .eq("id", memberId)
+        .abortSignal(controller.signal)
+        .maybeSingle();
+
+      if (!isCurrent()) return;
+      if (memberError) throw memberError;
+      if (!data) {
+        setError("Member not found.");
+        return;
+      }
+
+      const m = data as Member;
+      setMember(m);
+      setEditMinistries(m.ministries ?? []);
+      setEditFirstName(m.first_name);
+      setEditLastName(m.last_name);
+      setEditingName(false);
+      setNotes(m.notes ?? "");
+
+      const { data: membershipRows, error: membershipError } = await supabase
+        .from("member_ministries")
+        .select("*")
+        .eq("member_id", m.id)
+        .order("created_at")
+        .abortSignal(controller.signal);
+
+      if (!isCurrent()) return;
+      if (!membershipError) {
+        const rows = (membershipRows as MemberMinistry[]) ?? [];
+        setMembershipTableAvailable(true);
+        setMembershipDrafts(
+          rows.map((row) => ({
+            id: row.id,
+            ministry: row.ministry,
+            status: row.status,
+            start_date: row.start_date,
+            expiration_date: row.expiration_date,
+            renewal_date: row.renewal_date,
+            document_url: row.document_url,
+            document_uploaded_at: row.document_uploaded_at,
+            archived_documents: row.archived_documents ?? [],
+          }))
+        );
+        setPersistedMembershipIds(rows.map((row) => row.id));
+        setEditMinistries(rows.map((row) => row.ministry));
+        setSelectedMinistry((current) =>
+          current && rows.some((row) => row.ministry === current)
+            ? current
+            : rows[0]?.ministry ?? null
+        );
+      } else {
+        // A failed assignment query must not silently enable assignment editing.
+        setMembershipTableAvailable(false);
+        setMembershipDrafts(
+          (m.ministries ?? []).map((ministry) => ({
+            id: "",
+            ministry,
+            status: m.status,
+            start_date: m.created_at.slice(0, 10),
+            expiration_date: m.expiration_date,
+            renewal_date: null,
+            document_url: m.document_url,
+            document_uploaded_at: null,
+            archived_documents: m.archived_documents ?? [],
+          }))
+        );
+        setPersistedMembershipIds([]);
+        setSelectedMinistry((current) =>
+          current && (m.ministries ?? []).includes(current)
+            ? current
+            : m.ministries?.[0] ?? null
+        );
+        setError("Ministry assignments could not be loaded. Reopen the record before making changes.");
+      }
+
+      // The drawer is usable now; certificate metadata and audit history must
+      // never prolong its primary loading spinner.
+      void Promise.allSettled([
+        (async () => {
+          const { data: templateRows } = await supabase
+            .from("system_settings")
+            .select("*")
+            .like("key", "certificate_template%")
+            .order("key");
+          if (!isCurrent()) return;
+          const defaultTemplate =
+            (templateRows ?? []).find((row) => Boolean(row.is_default)) ??
+            (templateRows ?? [])[0];
+          setCertificateSettings(
+            defaultTemplate
+              ? {
+                  ...DEFAULT_TEMPLATE_SETTINGS,
+                  ...(defaultTemplate.value as CertificateTemplateSettings),
+                }
+              : DEFAULT_TEMPLATE_SETTINGS
+          );
+        })(),
+        (async () => {
+          const [signatoryResult, layoutResult] = await Promise.all([
+            supabase.from("signatories").select("*").order("sort_order"),
+            supabase.from("system_settings").select("key,value")
+              .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`),
+          ]);
+          if (!isCurrent()) return;
+          setCertificateSignatories(
+            attachSignatureCompositions(
+              (signatoryResult.data as Signatory[]) ?? [],
+              layoutResult.error ? [] : (layoutResult.data ?? [])
+            )
+          );
+        })(),
+        (async () => {
+          const { data: logs } = await supabase
+            .from("audit_logs")
+            .select("*")
+            .eq("member_id", m.id)
+            .order("timestamp", { ascending: false })
+            .limit(10);
+          if (isCurrent()) setAudits((logs as AuditLog[]) ?? []);
+        })(),
+      ]);
+    } catch (loadError) {
+      if (isCurrent()) {
+        setError(
+          controller.signal.aborted
+            ? "Member details timed out. Close the drawer and try again."
+            : "Unable to load member details. Close the drawer and try again."
+        );
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (isCurrent()) setLoading(false);
     }
-    const m = data as Member;
-    setMember(m);
-    setEditMinistries(m.ministries);
-    setEditFirstName(m.first_name);
-    setEditLastName(m.last_name);
-    setEditingName(false);
-    setNotes(m.notes ?? "");
-
-    const { data: membershipRows, error: membershipError } = await supabase
-      .from("member_ministries")
-      .select("*")
-      .eq("member_id", m.id)
-      .order("created_at");
-
-    if (!membershipError) {
-      const rows = (membershipRows as MemberMinistry[]) ?? [];
-      setMembershipTableAvailable(true);
-      setMembershipDrafts(
-        rows.map((row) => ({
-          id: row.id,
-          ministry: row.ministry,
-          status: row.status,
-          start_date: row.start_date,
-          expiration_date: row.expiration_date,
-          renewal_date: row.renewal_date,
-          document_url: row.document_url,
-          document_uploaded_at: row.document_uploaded_at,
-          archived_documents: row.archived_documents ?? [],
-        }))
-      );
-      setPersistedMembershipIds(rows.map((row) => row.id));
-      setEditMinistries(rows.map((row) => row.ministry));
-      setSelectedMinistry((current) =>
-        current && rows.some((row) => row.ministry === current)
-          ? current
-          : rows[0]?.ministry ?? null
-      );
-    } else {
-      // Compatibility fallback until the member_ministries migration is applied.
-      setMembershipTableAvailable(false);
-      const fallbackRows: MembershipDraft[] = m.ministries.map((ministry) => ({
-        id: "",
-        ministry,
-        status: m.status,
-        start_date: m.created_at.slice(0, 10),
-        expiration_date: m.expiration_date,
-        renewal_date: null,
-        document_url: m.document_url,
-        document_uploaded_at: null,
-        archived_documents: m.archived_documents ?? [],
-      }));
-      setPersistedMembershipIds([]);
-      setMembershipDrafts(fallbackRows);
-      setSelectedMinistry((current) =>
-        current && m.ministries.includes(current)
-          ? current
-          : m.ministries[0] ?? null
-      );
-    }
-
-    // Load the certificate template marked as the system default.
-    // This keeps the member drawer certificate identical to the template
-    // selected as Default in the Certificate Template Manager.
-    const { data: templateRows } = await supabase
-      .from("system_settings")
-      .select("*")
-      .like("key", "certificate_template%")
-      .order("key");
-
-    const defaultTemplate =
-      (templateRows ?? []).find((row) => Boolean(row.is_default)) ??
-      (templateRows ?? [])[0];
-
-    if (defaultTemplate) {
-      setCertificateSettings({
-        ...DEFAULT_TEMPLATE_SETTINGS,
-        ...(defaultTemplate.value as CertificateTemplateSettings),
-      });
-    } else {
-      setCertificateSettings(DEFAULT_TEMPLATE_SETTINGS);
-    }
-
-    // Load certificate signatories using the same source as the
-    // Certificate Template Manager.
-    const [signatoryResult, layoutResult] = await Promise.all([
-      supabase.from("signatories").select("*").order("sort_order"),
-      supabase.from("system_settings").select("key,value")
-        .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`),
-    ]);
-
-    setCertificateSignatories(attachSignatureCompositions(
-      (signatoryResult.data as Signatory[]) ?? [],
-      layoutResult.error ? [] : (layoutResult.data ?? [])
-    ));
-
-    const { data: logs } = await supabase
-      .from("audit_logs")
-      .select("*")
-      .eq("member_id", m.id)
-      .order("timestamp", { ascending: false })
-      .limit(10);
-    setAudits((logs as AuditLog[]) ?? []);
-
-    setLoading(false);
   }, [memberId, supabase]);
 
   useEffect(() => {
-    if (open && memberId) {
-      load();
-    }
+    if (open && memberId) void load();
+    return () => {
+      loadVersion.current += 1;
+    };
   }, [open, memberId, load]);
 
   const selectedMembership =
@@ -609,7 +649,7 @@ export function MemberDetailDrawer({
           </div>
         ) : !member ? (
           <div className="flex items-center justify-center h-full min-h-[400px]">
-            <p className="text-sm text-muted-foreground">Member not found.</p>
+            <p role="alert" className="max-w-sm px-6 text-center text-sm text-muted-foreground">{error ?? "Member not found."}</p>
           </div>
         ) : (
           <div className="flex flex-col h-full">
