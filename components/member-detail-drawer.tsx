@@ -472,6 +472,10 @@ export function MemberDetailDrawer({
       return;
     }
     if (!selectedMembership?.id || !selectedMembership.document_url) return;
+    if (selectedMembership.document_url.startsWith("attachments/")) {
+      setError("Immutable attachments cannot be deleted from the member drawer. Contact a registry administrator for a documented correction.");
+      return;
+    }
 
     setError(null);
 
@@ -669,8 +673,8 @@ export function MemberDetailDrawer({
           <div className="flex flex-col h-full">
             {secureMinistryVerificationEnabled && (
               <p role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs text-amber-950">
-                Read-only during secure rollout. Approve selected assignments in Verification;
-                legacy editing and document-renewal shortcuts are disabled.
+                Member fields are read-only during secure rollout. Ministry approval occurs in Verification;
+                supporting letters can be attached separately without renewing the membership.
               </p>
             )}
             {/* Header */}
@@ -1109,6 +1113,7 @@ export function MemberDetailDrawer({
                         delete the stored batch file or its renewal history.
                       </div>
                     )}
+                    {!selectedMembership.document_url.startsWith("attachments/") && (
                     <button
                       disabled={secureMinistryVerificationEnabled}
                       onClick={handleDeleteDocument}
@@ -1117,6 +1122,13 @@ export function MemberDetailDrawer({
                       <Trash2 className="h-3 w-3" />{" "}
                       {selectedDocumentIsSharedBatch ? "Detach from membership" : "Remove document"}
                     </button>
+                    )}
+                    {selectedMembership.document_url.startsWith("attachments/") && (
+                      <p className="text-xs text-muted-foreground">
+                        This attachment is immutable and may be shared with other ministry records.
+                        Detachment requires an audited administrative correction.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <label className="block">
