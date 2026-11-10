@@ -17,10 +17,11 @@ CREATE OR REPLACE FUNCTION public.registration_resolve_review_v1(
 ) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
 DECLARE v_actor uuid:=auth.uid();v_status text;v_existing uuid;
 BEGIN
- IF v_actor IS NULL OR NOT EXISTS (
-  SELECT 1 FROM registry_private.registration_administrators
-  WHERE user_id=v_actor AND active AND revoked_at IS NULL
- ) THEN RAISE EXCEPTION 'Registration not authorized' USING ERRCODE='42501'; END IF;
+ -- Hold an administrator grant row lock through review disposition so a
+ -- simultaneous revocation cannot commit before an authorized decision.
+ PERFORM 1 FROM registry_private.registration_administrators
+ WHERE user_id=v_actor AND active AND revoked_at IS NULL FOR SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Registration not authorized' USING ERRCODE='42501'; END IF;
  IF p_review IS NULL OR p_action IS NULL OR p_action NOT IN ('approved','dismissed')
   OR p_note IS NULL OR length(btrim(p_note)) NOT BETWEEN 5 AND 1000 THEN
   RAISE EXCEPTION 'Invalid review disposition' USING ERRCODE='22023'; END IF;

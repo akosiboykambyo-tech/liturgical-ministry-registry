@@ -63,16 +63,30 @@ DECLARE
   v_review uuid;
 BEGIN
   -- Mandatory database-side authorization, independent of HTTP preflight.
-  IF v_actor IS NULL OR NOT EXISTS (
-    SELECT 1 FROM registry_private.registration_administrators a
-    WHERE a.user_id = v_actor AND a.active AND a.revoked_at IS NULL
-  ) THEN
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'Registration not authorized' USING ERRCODE = '42501';
+  END IF;
+  -- Lock the ACTIVE administrator row until COMMIT/ROLLBACK. A concurrent
+  -- revocation UPDATE must wait; if revocation commits first, this fails.
+  -- The HTTP preflight alone cannot prevent an authorization race.
+  PERFORM 1 FROM registry_private.registration_administrators a
+  WHERE a.user_id = v_actor AND a.active = true AND a.revoked_at IS NULL
+  FOR SHARE;
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'Registration not authorized' USING ERRCODE = '42501';
   END IF;
   IF p_request IS NULL OR v_first IS NULL OR v_last IS NULL OR v_parish IS NULL
-     OR length(v_first) NOT BETWEEN 1 AND 160 OR length(v_last) NOT BETWEEN 1 AND 160
-     OR length(v_parish) NOT BETWEEN 1 AND 200
-     OR p_year NOT BETWEEN 1000 AND 9999
+     OR length(v_first) NOT BETWEEN 1 AND 100 OR length(v_last) NOT BETWEEN 1 AND 100
+     OR length(v_parish) NOT BETWEEN 1 AND 255
+     OR length(btrim(regexp_replace(v_first, '[[:space:]]+', ' ', 'g'))) = 0
+     OR length(btrim(regexp_replace(v_last, '[[:space:]]+', ' ', 'g'))) = 0
+     OR length(btrim(regexp_replace(v_parish, '[[:space:]]+', ' ', 'g'))) = 0
+     OR octet_length(v_first) > 255 OR octet_length(v_last) > 255
+     OR EXISTS (SELECT 1 FROM pg_catalog.generate_series(1, pg_catalog.length(v_first)) AS cp(i)
+                WHERE pg_catalog.octet_length(pg_catalog.substr(v_first, cp.i, 1)) = 4)
+     OR EXISTS (SELECT 1 FROM pg_catalog.generate_series(1, pg_catalog.length(v_last)) AS cp(i)
+                WHERE pg_catalog.octet_length(pg_catalog.substr(v_last, cp.i, 1)) = 4)
+     OR p_year IS NULL OR p_year NOT BETWEEN 1000 AND 9999
      OR p_ministries IS NULL OR cardinality(p_ministries) NOT BETWEEN 1 AND 6 THEN
     RAISE EXCEPTION 'Invalid registration request' USING ERRCODE = '22023';
   END IF;
@@ -111,34 +125,60 @@ BEGIN
       'memberId',v_prior.member_id,'reviewId',v_prior.review_id);
   END IF;
 
-  -- Mirror registration-matching.ts: normalize case and whitespace;
-  -- exact full-name across parishes or two >=0.8 Levenshtein similarities.
-  -- Numeric suffixes must match and <=3-char non-exact names do not fuzzy-match.
-  -- SQL/JS Unicode case mapping and UTF-16 length remain staging parity risks.
+  -- Four-byte UTF-8 code points (supplementary Unicode) have different
+  -- Levenshtein denominators in SQL code points vs JS UTF-16 units.
+  -- Fail closed rather than silently missing a duplicate. Reconsider this
+  -- guard only after cross-language parity is explicitly certified.
+  -- Fail closed rather than silently overlooking an existing name which
+  -- fuzzystrmatch cannot compare (the extension has a 255-byte input limit).
+  -- A future Unicode-safe matcher must replace this emergency guard.
+  IF EXISTS (
+    SELECT 1 FROM public.members m
+    WHERE octet_length(m.first_name) > 255 OR octet_length(m.last_name) > 255
+       OR EXISTS (SELECT 1 FROM pg_catalog.generate_series(1, pg_catalog.length(m.first_name)) AS cp(i)
+                  WHERE pg_catalog.octet_length(pg_catalog.substr(m.first_name, cp.i, 1)) = 4)
+       OR EXISTS (SELECT 1 FROM pg_catalog.generate_series(1, pg_catalog.length(m.last_name)) AS cp(i)
+                  WHERE pg_catalog.octet_length(pg_catalog.substr(m.last_name, cp.i, 1)) = 4)
+  ) THEN
+    RAISE EXCEPTION 'Registry matching requires manual reconciliation'
+      USING ERRCODE = '55000';
+  END IF;
+
+  -- Mirror JS: exact equality bypasses fuzzy short-name and digit safeguards
+  -- for that component; the *other* name component may still match fuzzily.
+  -- Both parts must match. SQL/JS Unicode and UTF-16 parity remain open.
   SELECT m.id INTO v_match FROM public.members m
   CROSS JOIN LATERAL (SELECT
-    lower(regexp_replace(btrim(m.first_name), '[[:space:]]+', ' ', 'g')) AS mf,
-    lower(regexp_replace(btrim(m.last_name), '[[:space:]]+', ' ', 'g')) AS ml
+    lower(btrim(regexp_replace(m.first_name, '[[:space:]]+', ' ', 'g'))) AS mf,
+    lower(btrim(regexp_replace(m.last_name, '[[:space:]]+', ' ', 'g'))) AS ml
   ) AS normalized
+  CROSS JOIN LATERAL (SELECT
+    lower(btrim(regexp_replace(v_first, '[[:space:]]+', ' ', 'g'))) AS vf,
+    lower(btrim(regexp_replace(v_last, '[[:space:]]+', ' ', 'g'))) AS vl
+  ) AS incoming
   WHERE btrim(m.parish) <> ''
     AND (
-      (normalized.mf = lower(regexp_replace(v_first, '[[:space:]]+', ' ', 'g'))
-        AND normalized.ml = lower(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')))
+      normalized.mf = incoming.vf
       OR (
-        length(normalized.mf) > 3
-        AND length(normalized.ml) > 3
-        AND length(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')) > 3
-        AND length(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')) > 3
+        length(normalized.mf) > 3 AND length(incoming.vf) > 3
         AND btrim(regexp_replace(normalized.mf, '[^0-9]+', '|', 'g'), '|') =
-            btrim(regexp_replace(lower(v_first), '[^0-9]+', '|', 'g'), '|')
+            btrim(regexp_replace(incoming.vf, '[^0-9]+', '|', 'g'), '|')
+        AND octet_length(normalized.mf) <= 255
+        AND octet_length(incoming.vf) <= 255
+        AND (1 - extensions.levenshtein(normalized.mf, incoming.vf)::numeric /
+          greatest(length(normalized.mf), length(incoming.vf))) >= 0.8
+      )
+    )
+    AND (
+      normalized.ml = incoming.vl
+      OR (
+        length(normalized.ml) > 3 AND length(incoming.vl) > 3
         AND btrim(regexp_replace(normalized.ml, '[^0-9]+', '|', 'g'), '|') =
-            btrim(regexp_replace(lower(v_last), '[^0-9]+', '|', 'g'), '|')
-        AND (1 - extensions.levenshtein(normalized.mf,
-          lower(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')))::numeric /
-          greatest(length(normalized.mf),length(regexp_replace(v_first, '[[:space:]]+', ' ', 'g')))) >= 0.8
-        AND (1 - extensions.levenshtein(normalized.ml,
-          lower(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')))::numeric /
-          greatest(length(normalized.ml),length(regexp_replace(v_last, '[[:space:]]+', ' ', 'g')))) >= 0.8
+            btrim(regexp_replace(incoming.vl, '[^0-9]+', '|', 'g'), '|')
+        AND octet_length(normalized.ml) <= 255
+        AND octet_length(incoming.vl) <= 255
+        AND (1 - extensions.levenshtein(normalized.ml, incoming.vl)::numeric /
+          greatest(length(normalized.ml), length(incoming.vl))) >= 0.8
       )
     )
   ORDER BY m.created_at, m.id LIMIT 1;

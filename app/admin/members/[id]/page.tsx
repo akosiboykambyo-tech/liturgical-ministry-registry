@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import { updateMemberStatus } from "@/lib/verify-actions";
 import { StatusBadge } from "@/components/status-badge";
 import { MINISTRIES, STATUS_VALUES } from "@/lib/constants";
@@ -114,26 +115,23 @@ export default function MemberDetailPage() {
     setSaving(true);
     setError(null);
 
-    const { error } = await supabase
-      .from("members")
-      .update({
+    try {
+      await registryAdminWrite("save", {
+        member_id: member.id,
         first_name: firstName,
         last_name: lastName,
         ministries: editMinistries,
         status,
         notes: notes.trim() || null,
-      })
-      .eq("id", member.id);
-
-    setSaving(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
+      });
       setEditingName(false);
       setShowSavedToast(true);
       setTimeout(() => setShowSavedToast(false), 2500);
-      load();
+      await load();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Secure update rejected");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -148,22 +146,24 @@ export default function MemberDetailPage() {
     if (!member) return;
     setUploading(true);
     setError(null);
-    const ext = file.name.split(".").pop();
-    const path = `${member.id}/recommendation-letter.${ext}`;
+    const ext = file.name.split(".").pop()?.toLowerCase() || "pdf";
+    const path = `${member.id}/recommendation-letter-${crypto.randomUUID()}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from("member-documents")
-      .upload(path, file, { upsert: true });
+      .upload(path, file, { upsert: false });
     if (upErr) {
       setError(upErr.message);
       setUploading(false);
       return;
     }
-    // Store the storage PATH (not a URL) so the private bucket is never
-    // fetchable via a guessed public path. Access goes through signed URLs.
-    await supabase
-      .from("members")
-      .update({ document_url: path })
-      .eq("id", member.id);
+    try {
+      await registryAdminWrite("document", { member_id: member.id, document_path: path });
+    } catch (error) {
+      await supabase.storage.from("member-documents").remove([path]);
+      setError(error instanceof Error ? error.message : "Document linking rejected");
+      setUploading(false);
+      return;
+    }
     setUploading(false);
     setSuccess("Recommendation letter uploaded and linked.");
     setTimeout(() => setSuccess(null), 3000);
@@ -172,11 +172,13 @@ export default function MemberDetailPage() {
 
   const handleDeleteDocument = async () => {
     if (!member?.document_url) return;
-    await supabase.storage.from("member-documents").remove([member.document_url]);
-    await supabase
-      .from("members")
-      .update({ document_url: null })
-      .eq("id", member.id);
+    try {
+      await registryAdminWrite("document", { member_id: member.id, document_path: null });
+      setSuccess("Document reference cleared; the private file is retained for audit.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Document unlink rejected");
+      return;
+    }
     load();
   };
 
@@ -257,9 +259,12 @@ export default function MemberDetailPage() {
               className="w-full rounded-none border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {STATUS_VALUES.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s} disabled={(s === "New" || s === "Renewed") && s !== member.status}>{s}</option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              New and Renewed are assigned through recommendation-letter verification, not manual status changes.
+            </p>
           </div>
 
           <div className="space-y-3">
@@ -397,7 +402,7 @@ export default function MemberDetailPage() {
                   onClick={handleDeleteDocument}
                   className="inline-flex items-center gap-1.5 text-xs text-destructive hover:underline"
                 >
-                  <Trash2 className="h-3 w-3" /> Remove document
+                  <Trash2 className="h-3 w-3" /> Unlink document (keep private file)
                 </button>
               </div>
             ) : (

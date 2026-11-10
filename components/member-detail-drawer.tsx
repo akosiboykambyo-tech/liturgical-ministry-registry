@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import {
   STATUS_VALUES,
   getExpirationStatus,
@@ -303,73 +304,31 @@ export function MemberDetailDrawer({
 
     setSaving(true);
     setError(null);
-
-    const { error } = await supabase
-      .from("members")
-      .update({
+    try {
+      await registryAdminWrite("save", {
+        member_id: member.id,
         first_name: firstName,
         last_name: lastName,
-        ministries: editMinistries,
         notes: notes.trim() || null,
-      })
-      .eq("id", member.id);
-
-    if (!error && membershipTableAvailable) {
-      const currentIds = new Set(
-        membershipDrafts.map((row) => row.id).filter((id): id is string => Boolean(id))
-      );
-      const removedMembershipIds = persistedMembershipIds.filter(
-        (id) => !currentIds.has(id)
-      );
-
-      if (removedMembershipIds.length > 0) {
-        const { error: removeError } = await supabase
-          .from("member_ministries")
-          .delete()
-          .in("id", removedMembershipIds);
-
-        if (removeError) {
-          setSaving(false);
-          setError(removeError.message);
-          return;
-        }
-      }
-
-      if (membershipDrafts.length > 0) {
-        const { error: membershipSaveError } = await supabase
-          .from("member_ministries")
-          .upsert(
-            membershipDrafts.map((row) => ({
-              member_id: member.id,
+        ...(membershipTableAvailable
+          ? { memberships: membershipDrafts.map((row) => ({
+              id: row.id || undefined,
               ministry: row.ministry,
               status: row.status,
               start_date: row.start_date,
               expiration_date: row.expiration_date,
               renewal_date: row.renewal_date,
-            })),
-            { onConflict: "member_id,ministry" }
-          );
-
-        if (membershipSaveError) {
-          setSaving(false);
-          setError(membershipSaveError.message);
-          return;
-        }
-      }
-    }
-
-    setSaving(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setEditingName(false);
-      toast({
-        title: "Saved",
-        description: "Member details updated.",
+            })) }
+          : { ministries: editMinistries }),
       });
-      load();
+      setEditingName(false);
+      toast({ title: "Saved", description: "Member details updated." });
+      void load();
       onUpdated?.();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Secure member update rejected");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -393,25 +352,8 @@ export function MemberDetailDrawer({
     setUploading(true);
     setError(null);
 
-    const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
-    const nowIso = new Date().toISOString();
-    const uploadId = crypto.randomUUID();
-    const path = `${member.id}/${selectedMembership.id}/recommendation-letter-${uploadId}.${ext}`;
-
-    const archivedDocuments = selectedMembership.archived_documents ?? [];
-    const nextArchivedDocuments = selectedMembership.document_url
-      ? [
-          ...archivedDocuments,
-          {
-            document_url: selectedMembership.document_url,
-            uploaded_at: selectedMembership.document_uploaded_at,
-            archived_at: nowIso,
-            expiration_date: selectedMembership.expiration_date,
-            ministry: selectedMembership.ministry,
-          } satisfies ArchivedDocument,
-        ]
-      : archivedDocuments;
-
+    const ext = file.name.split(".").pop()?.toLowerCase() || "pdf";
+    const path = `verification/${member.id}/${selectedMembership.id}/${crypto.randomUUID()}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from("member-documents")
       .upload(path, file, { upsert: false });
@@ -422,112 +364,47 @@ export function MemberDetailDrawer({
       return;
     }
 
-    const defaultExp = new Date();
-    defaultExp.setFullYear(defaultExp.getFullYear() + 1);
-    const newExpDate = defaultExp.toISOString().slice(0, 10);
-    const renewalDate = new Date().toISOString().slice(0, 10);
-
-    const { error: membershipRenewalError } = await supabase
-      .from("member_ministries")
-      .update({
-        status: "Renewed",
-        expiration_date: newExpDate,
-        renewal_date: renewalDate,
-        document_url: path,
-        document_uploaded_at: nowIso,
-        archived_documents: nextArchivedDocuments,
-      })
-      .eq("id", selectedMembership.id);
-
-    if (membershipRenewalError) {
-      // The DB update failed, so this newly uploaded object is not referenced.
-      // Remove only this new immutable object; never remove the previous letter.
+    const action = selectedMembership.status === "Pending Verification" ? "activate" : "renew";
+    try {
+      await registryAdminWrite(action, {
+        member_id: member.id,
+        membership_id: selectedMembership.id,
+        document_path: path,
+      });
+    } catch (error) {
+      // Only the newly-created object is removed; existing letter evidence stays.
       await supabase.storage.from("member-documents").remove([path]);
-      setError(membershipRenewalError.message);
-      setUploading(false);
-      return;
-    }
-
-    // Temporary compatibility mirror for screens that still read member-level
-    // document/status fields. member_ministries remains the canonical source.
-    const { error: memberUpdateError } = await supabase
-      .from("members")
-      .update({
-        document_url: path,
-        expiration_date: newExpDate,
-        status: "Renewed",
-      })
-      .eq("id", member.id);
-
-    if (memberUpdateError) {
-      setError(memberUpdateError.message);
+      setError(error instanceof Error ? error.message : "Secure letter verification rejected");
       setUploading(false);
       return;
     }
 
     setUploading(false);
     toast({
-      title: "Letter uploaded",
-      description: `${selectedMembership.ministry} renewed for one year.`,
+      title: "Letter verified",
+      description: `${selectedMembership.ministry} ${action === "activate" ? "registered" : "renewed"} for one year.`,
     });
-    load();
+    void load();
     onUpdated?.();
   };
 
   const handleDeleteDocument = async () => {
-    if (!selectedMembership?.id || !selectedMembership.document_url) return;
-
+    if (!selectedMembership?.id || !selectedMembership.document_url || !member) return;
     setError(null);
-
-    const documentPath = selectedMembership.document_url;
-    const isSharedBatchDocument = documentPath.startsWith("batch-renewals/");
-
-    // Batch-renewal letters are intentionally shared by many memberships and
-    // are also part of the durable renewal history. Never delete that physical
-    // storage object from an individual member drawer. Detaching this one
-    // membership is safe; the shared file remains available to the rest of the
-    // batch and to renewal-history records.
-    if (!isSharedBatchDocument) {
-      const { error: storageError } = await supabase.storage
-        .from("member-documents")
-        .remove([documentPath]);
-
-      if (storageError) {
-        setError(storageError.message);
-        return;
-      }
-    }
-
-    const { error: membershipUpdateError } = await supabase
-      .from("member_ministries")
-      .update({
-        document_url: null,
-        document_uploaded_at: null,
-        expiration_date: null,
-      })
-      .eq("id", selectedMembership.id);
-
-    if (membershipUpdateError) {
-      setError(membershipUpdateError.message);
+    try {
+      await registryAdminWrite("detach", {
+        member_id: member.id,
+        membership_id: selectedMembership.id,
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Secure document unlink rejected");
       return;
     }
-
-    // Clear the legacy mirror only when it points at the same document.
-    if (member?.document_url === documentPath) {
-      await supabase
-        .from("members")
-        .update({ document_url: null, expiration_date: null })
-        .eq("id", member.id);
-    }
-
     toast({
-      title: isSharedBatchDocument ? "Batch letter detached" : "Document removed",
-      description: isSharedBatchDocument
-        ? "This membership no longer uses the shared letter. The batch document was retained for other members and renewal history."
-        : "The recommendation letter was removed from this membership.",
+      title: "Document detached",
+      description: "Ministry returned to Pending Verification; private letter evidence was retained.",
     });
-
-    load();
+    void load();
     onUpdated?.();
   };
 
@@ -770,11 +647,14 @@ export function MemberDetailDrawer({
                                 className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               >
                                 {STATUS_VALUES.map((value) => (
-                                  <option key={value} value={value}>
+                                  <option key={value} value={value} disabled={(value === "New" || value === "Renewed") && value !== membership.status}>
                                     {value}
                                   </option>
                                 ))}
                               </select>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                New and Renewed approvals require a private recommendation letter. Validity dates are assigned automatically after approval.
+                              </p>
                             </div>
 
                             <div className="space-y-1.5">
@@ -791,7 +671,7 @@ export function MemberDetailDrawer({
                                     event.target.value
                                   )
                                 }
-                                disabled={!membershipTableAvailable}
+                                disabled={true} title="Validity dates are assigned by secure document-backed verification"
                                 className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               />
                             </div>
@@ -810,7 +690,7 @@ export function MemberDetailDrawer({
                                     event.target.value
                                   )
                                 }
-                                disabled={!membershipTableAvailable}
+                                disabled={true} title="Validity dates are assigned by secure document-backed verification"
                                 className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               />
                             </div>
@@ -829,7 +709,7 @@ export function MemberDetailDrawer({
                                     event.target.value
                                   )
                                 }
-                                disabled={!membershipTableAvailable}
+                                disabled={true} title="Validity dates are assigned by secure document-backed verification"
                                 className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                               />
                             </div>

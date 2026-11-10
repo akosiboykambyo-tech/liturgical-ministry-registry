@@ -45,7 +45,14 @@ export async function POST(request: Request) {
   if (typeof requestKey !== "string" || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(requestKey) ||
       typeof first_name !== "string" || typeof last_name !== "string" || typeof parish !== "string" ||
       !Array.isArray(ministries) || !ministries.every(x => typeof x === "string") ||
-      !Number.isInteger(service_year))
+      typeof service_year !== "number" || !Number.isInteger(service_year) ||
+      first_name.trim().length < 1 || first_name.trim().length > 100 ||
+      Buffer.byteLength(first_name.trim(), "utf8") > 255 ||
+      Buffer.byteLength(last_name.trim(), "utf8") > 255 ||
+      last_name.trim().length < 1 || last_name.trim().length > 100 ||
+      parish.trim().length < 1 || parish.trim().length > 255 ||
+      service_year < 1000 || service_year > 9999 ||
+      ministries.length < 1 || ministries.length > 6)
     return reject(400, "Invalid registration input");
   try {
     const result = await caller.rpc("registration_intake_v1", {
@@ -53,7 +60,11 @@ export async function POST(request: Request) {
       p_ministries: ministries, p_year: service_year,
     });
     if (result.error) {
-      if (result.error.code === "23505") return reject(409, "Idempotency conflict");
+      if (result.error.code === "23505") return reject(409, "Registration conflict; no record created");
+      if (result.error.code === "55000")
+        return reject(503, "Registration matching unavailable; contact administrator");
+      if (result.error.code === "22023" || result.error.code === "22001")
+        return reject(400, "Invalid registration input");
       if (result.error.code === "42501") {
         const reason = /Registration not authorized/i.test(result.error.message || "")
           ? "database-admin-check"

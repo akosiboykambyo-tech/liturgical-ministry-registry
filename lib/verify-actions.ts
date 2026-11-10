@@ -1,50 +1,61 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import type { MemberStatus, Member } from "@/lib/types";
 
 /**
- * One-Click Verification: instantly updates a pending member's status to
- * "New" or "Renewed". The DB trigger auto-generates the UID on insert (already
- * done), and the audit log trigger records the status change. This function is
- * the optimistic-UI-aware caller used by the Quick-Scan Matrix.
- *
- * Returns the updated member or an error.
+ * Legacy quick-scan compatibility. Verification is now per-ministry and must
+ * have a real assigned private letter. Never mutate member.status directly.
  */
 export async function quickVerifyMember(
   memberId: string,
   newStatus: "New" | "Renewed"
 ): Promise<{ member: Member | null; error: string | null }> {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("members")
-    .update({ status: newStatus })
-    .eq("id", memberId)
-    .select("*")
-    .single();
+  const { data: assignments, error: readError } = await supabase
+    .from("member_ministries")
+    .select("id,status,document_url")
+    .eq("member_id", memberId);
+  if (readError) return { member: null, error: readError.message };
+  const eligibleStatus = newStatus === "New"
+    ? ["Pending Verification"] : ["New", "Renewed"];
+  const eligible = (assignments ?? []).filter((a) => eligibleStatus.includes(a.status));
+  if (eligible.length === 0)
+    return { member: null, error: "No eligible ministry assignments for this action." };
+  if (eligible.some((a) => !a.document_url))
+    return { member: null, error: "Attach a recommendation letter to every selected ministry before verification." };
+
+  const { error } = await supabase.rpc("registry_verify_ministries_v1", {
+    p_member_id: memberId,
+    p_membership_ids: eligible.map((assignment) => assignment.id),
+    p_status: newStatus,
+  });
   if (error) return { member: null, error: error.message };
-  return { member: data as Member, error: null };
+  const { data, error: memberError } = await supabase
+    .from("members")
+    .select("*")
+    .eq("id", memberId)
+    .single();
+  return { member: (data as Member) ?? null, error: memberError?.message ?? null };
 }
 
-/**
- * Revert a member back to Pending Verification (e.g., misplaced recommendation
- * letter).
- */
 export async function revertToPending(
   memberId: string
 ): Promise<{ member: Member | null; error: string | null }> {
-  return quickVerifyMember(memberId, "Pending Verification" as never);
+  return updateMemberStatus(memberId, "Pending Verification");
 }
 
 export async function updateMemberStatus(
   memberId: string,
   status: MemberStatus
 ): Promise<{ member: Member | null; error: string | null }> {
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("members")
-    .update({ status })
-    .eq("id", memberId)
-    .select("*")
-    .single();
-  if (error) return { member: null, error: error.message };
-  return { member: data as Member, error: null };
+  if (status === "New" || status === "Renewed")
+    return quickVerifyMember(memberId, status);
+  try {
+    const member = await registryAdminWrite<Member>("set_status", {
+      member_id: memberId, status,
+    });
+    return { member, error: null };
+  } catch (error) {
+    return { member: null, error: error instanceof Error ? error.message : "Status change rejected" };
+  }
 }

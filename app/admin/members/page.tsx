@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import { StatusBadge } from "@/components/status-badge";
 import { MemberDetailDrawer } from "@/components/member-detail-drawer";
 import {
@@ -622,14 +623,15 @@ export default function MembersListPage() {
       return;
     }
     setSavingEdit(true);
-    const { error } = await supabase
-      .from("members")
-      .update({ first_name: first, last_name: last, parish })
-      .eq("id", editTarget.id);
-    setSavingEdit(false);
-    if (error) {
-      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    try {
+      await registryAdminWrite("save", {
+        member_id: editTarget.id, first_name: first, last_name: last, parish,
+      });
+    } catch (error) {
+      toast({ title: "Update failed", description: error instanceof Error ? error.message : "Update rejected", variant: "destructive" });
       return;
+    } finally {
+      setSavingEdit(false);
     }
     toast({
       title: "Member corrected",
@@ -643,15 +645,15 @@ export default function MembersListPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    // Remove any linked document first (best-effort).
-    if (deleteTarget.document_url) {
-      await supabase.storage.from("member-documents").remove([deleteTarget.document_url]);
-    }
-    const { error } = await supabase.from("members").delete().eq("id", deleteTarget.id);
-    setDeleting(false);
-    if (error) {
-      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+    // Fail closed when a record carries letters, approved ministries, certificates,
+    // other dependent history, or Storage objects. Never delete evidence first.
+    try {
+      await registryAdminWrite("delete", { member_id: deleteTarget.id });
+    } catch (error) {
+      toast({ title: "Delete blocked", description: error instanceof Error ? error.message : "Secure deletion rejected", variant: "destructive" });
       return;
+    } finally {
+      setDeleting(false);
     }
     toast({
       title: "Record deleted",

@@ -17,6 +17,7 @@ import {
   type RenewalReviewItem,
 } from "@/lib/duplicate-check";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import { saveRenewalReviewCases } from "@/lib/renewal-review-queue";
 import { MINISTRIES, PARISHES, shortMinistry } from "@/lib/constants";
 import { canonicalParish } from "@/lib/parish-normalization";
@@ -175,10 +176,16 @@ function getRenewalReviewLabel(item: RenewalReviewItem): string {
 }
 
 function getDefaultNextRenewalDate(renewalDate: string): string {
-  const date = new Date(`${renewalDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  date.setFullYear(date.getFullYear() + 1);
-  return date.toISOString().slice(0, 10);
+  // Match PostgreSQL calendar-year arithmetic, including leap-day clamping.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(renewalDate)) return "";
+  const date = new Date(`${renewalDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== renewalDate) {
+    return "";
+  }
+  const year = date.getUTCFullYear() + 1;
+  const month = date.getUTCMonth();
+  const day = Math.min(date.getUTCDate(), new Date(Date.UTC(year, month + 1, 0)).getUTCDate());
+  return new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
 }
 
 export default function CsvImportPage() {
@@ -724,20 +731,21 @@ export default function CsvImportPage() {
     await new Promise((r) => setTimeout(r, 0));
 
     // Step 2: Record the import batch for idempotency tracking
-    const { data: batchRecord } = await supabase
-      .from("import_batches")
-      .insert({
+    let batchId: string | null = null;
+    try {
+      const batchRecord = await registryAdminWrite<{ id: string | null }>("import_begin", {
         file_hash: fileHash,
         file_name: fileName,
         row_count: incomingRecords.length,
-        unique_inserted: 0,
         duplicates_routed: duplicates.length,
-        status: "processing",
-      })
-      .select("id")
-      .single();
-
-    const batchId = (batchRecord as { id: string } | null)?.id;
+      });
+      batchId = batchRecord.id;
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Import tracking rejected");
+      setProcessing(false);
+      setProgress(null);
+      return;
+    }
 
     // Step 3: Insert unique records immediately (auto-generates UIDs)
     const out: RowResult[] = [];
@@ -772,8 +780,8 @@ export default function CsvImportPage() {
           out.push({
             row: res.index + 2,
             name,
-            status: "error",
-            message: res.error ?? "Unknown error",
+            status: res.status === "duplicate" ? "duplicate" : "error",
+            message: res.error ?? (res.status === "duplicate" ? "Duplicate record" : "Unknown error"),
           });
         }
       }
@@ -787,14 +795,14 @@ export default function CsvImportPage() {
 
     // Step 4: Update the import batch record
     if (batchId) {
-      await supabase
-        .from("import_batches")
-        .update({
+      try {
+        await registryAdminWrite("import_finish", {
+          batch_id: batchId,
           unique_inserted: out.filter((r) => r.status === "created").length,
-          status: "completed",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", batchId);
+        });
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : "Batch created but tracking could not be finalized");
+      }
     }
 
     setResults(out);
@@ -830,77 +838,13 @@ export default function CsvImportPage() {
     setActionError(null);
 
     const { existing, incoming } = currentDuplicate;
-    const incomingMinistries = normalizeMinistries(incoming.ministry);
-    const mergedMinistries = Array.from(
-      new Set([...existing.ministries, ...incomingMinistries])
-    );
-
-    const { data: existingMembershipRows, error: membershipLoadError } =
-      await supabase
-        .from("member_ministries")
-        .select("id,ministry")
-        .eq("member_id", existing.id);
-
-    if (membershipLoadError) {
-      setActionError(membershipLoadError.message);
-      setActionLoading(false);
-      return;
-    }
-
-    const existingMinistryNames = new Set(
-      ((existingMembershipRows as Pick<MemberMinistry, "id" | "ministry">[]) ?? [])
-        .map((membership) => membership.ministry)
-    );
-
-    const missingMinistries = incomingMinistries.filter(
-      (ministry) => !existingMinistryNames.has(ministry)
-    );
-
-    if (missingMinistries.length > 0) {
-      const { error: membershipInsertError } = await supabase
-        .from("member_ministries")
-        .insert(
-          missingMinistries.map((ministry) => ({
-            member_id: existing.id,
-            ministry,
-            status: "Pending Verification" as MemberStatus,
-            start_date: null,
-            expiration_date: null,
-            renewal_date: null,
-            document_url: null,
-            document_uploaded_at: null,
-            archived_documents: [],
-          }))
-        );
-
-      if (membershipInsertError) {
-        setActionError(membershipInsertError.message);
-        setActionLoading(false);
-        return;
-      }
-    }
-
-    // Keep legacy member fields synchronized temporarily for screens that have
-    // not yet migrated, without resetting existing per-ministry rows.
-    const { error } = await supabase
-      .from("members")
-      .update({
-        ministries: mergedMinistries,
-        status: "Pending Verification" as MemberStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id);
-
-    if (error) {
-      if (missingMinistries.length > 0) {
-        await supabase
-          .from("member_ministries")
-          .delete()
-          .eq("member_id", existing.id)
-          .in("ministry", missingMinistries);
-      }
-
-      setActionError(error.message);
+    try {
+      await registryAdminWrite("merge", {
+        member_id: existing.id,
+        ministries: normalizeMinistries(incoming.ministry),
+      });
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Secure merge rejected");
       setActionLoading(false);
       return;
     }
@@ -915,56 +859,16 @@ export default function CsvImportPage() {
 
     const { incoming } = currentDuplicate;
     const ministries = normalizeMinistries(incoming.ministry);
-
-    const { data: createdMember, error } = await supabase
-      .from("members")
-      .insert({
+    try {
+      await registryAdminWrite("create", {
         first_name: incoming.first_name.trim(),
         last_name: incoming.last_name.trim(),
         parish: incoming.parish.trim(),
         ministries,
         service_year: serviceYear,
-        status: "Pending Verification",
-        uid: "PENDING",
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      // Graceful handling of DB-level unique constraint violation (23505)
-      if (error.code === "23505") {
-        setActionError(
-          "Database rejected this insert: a member with the same name, parish, and ministry already exists. This is the database's last line of defense. Try 'Merge' instead, or 'Discard' to drop this record."
-        );
-      } else {
-        setActionError(error.message);
-      }
-      setActionLoading(false);
-      return;
-    }
-
-    const member = createdMember as Member;
-    const { error: membershipError } = await supabase
-      .from("member_ministries")
-      .insert(
-        ministries.map((ministry) => ({
-          member_id: member.id,
-          ministry,
-          status: "Pending Verification" as MemberStatus,
-          start_date: null,
-          expiration_date: null,
-          renewal_date: null,
-          document_url: null,
-          document_uploaded_at: null,
-          archived_documents: [],
-        }))
-      );
-
-    if (membershipError) {
-      await supabase.from("members").delete().eq("id", member.id);
-      setActionError(
-        `Member creation was rolled back because ministry memberships could not be created: ${membershipError.message}`
-      );
+      });
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Separate member creation rejected");
       setActionLoading(false);
       return;
     }

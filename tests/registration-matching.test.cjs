@@ -59,3 +59,37 @@ test("short names require an exact match", () => {
 test("missing identity fields cannot be considered safe matches", () => {
   assert.equal(classifyIdentityMatch(person("", "Reyes"), person("Maria", "Reyes")), null);
 });
+
+test("identical short first name still allows a fuzzy surname match", () => {
+  assert.equal(
+    classifyIdentityMatch(person("Ana", "Fitzgerald"), person("Ana", "Fitzgeralt")),
+    "similar_name"
+  );
+});
+
+test("identical short surname still allows a fuzzy first-name match", () => {
+  assert.equal(
+    classifyIdentityMatch(person("Fitzgerald", "Ana"), person("Fitzgeralt", "Ana")),
+    "similar_name"
+  );
+});
+
+test("different short first names are not fuzzy matched even when surnames resemble", () => {
+  assert.equal(
+    classifyIdentityMatch(person("Ana", "Fitzgerald"), person("Ann", "Fitzgeralt")),
+    null
+  );
+});
+
+test("registration matching trims tabs and line breaks around names", () => {
+  assert.equal(
+    classifyIdentityMatch(person("\tAna\n", "Dela\tCruz"), person("Ana", "Dela Cruz")),
+    "exact"
+  );
+});
+
+test("emoji codepoints remain a known JavaScript UTF-16 matching edge case", () => {
+  // PostgreSQL levenshtein currently counts code points; JavaScript counts
+  // UTF-16 units. This fixture must be reconciled before production activation.
+  assert.equal(areNamesSimilar("😀abc", "😄abc"), true);
+});
