@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
+import { attachRecommendationLetter } from "@/lib/registry-letter-attachments";
 import {
   STATUS_VALUES,
   getExpirationStatus,
@@ -440,101 +441,29 @@ export function MemberDetailDrawer({
   };
 
   const handleUpload = async (file: File) => {
-    if (secureMinistryVerificationEnabled) {
-      setError("Legacy upload also renews the ministry without secure approval. This action is disabled until the secure letter workflow is installed.");
+    if (!member || !membershipTableAvailable || !selectedMembership?.id) {
+      setError("Save the ministry assignment before attaching a letter.");
       return;
     }
-    if (
-      !member ||
-      !membershipTableAvailable ||
-      !selectedMembership?.id
-    ) {
-      setError("Save the ministry assignment before uploading its recommendation letter.");
+    if (selectedMembership.document_url) {
+      setError("This ministry already has a recommendation letter. Existing documents cannot be overwritten by attachment.");
       return;
     }
-
     setUploading(true);
     setError(null);
-
-    const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
-    const nowIso = new Date().toISOString();
-    const uploadId = crypto.randomUUID();
-    const path = `${member.id}/${selectedMembership.id}/recommendation-letter-${uploadId}.${ext}`;
-
-    const archivedDocuments = selectedMembership.archived_documents ?? [];
-    const nextArchivedDocuments = selectedMembership.document_url
-      ? [
-          ...archivedDocuments,
-          {
-            document_url: selectedMembership.document_url,
-            uploaded_at: selectedMembership.document_uploaded_at,
-            archived_at: nowIso,
-            expiration_date: selectedMembership.expiration_date,
-            ministry: selectedMembership.ministry,
-          } satisfies ArchivedDocument,
-        ]
-      : archivedDocuments;
-
-    const { error: upErr } = await supabase.storage
-      .from("member-documents")
-      .upload(path, file, { upsert: false });
-
-    if (upErr) {
-      setError(upErr.message);
+    try {
+      await attachRecommendationLetter([selectedMembership.id], file);
+      toast({
+        title: "Recommendation letter attached",
+        description: `Document saved to ${selectedMembership.ministry}. No renewal, verification or date change was applied.`,
+      });
+      await load();
+      onUpdated?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to attach recommendation letter.");
+    } finally {
       setUploading(false);
-      return;
     }
-
-    const defaultExp = new Date();
-    defaultExp.setFullYear(defaultExp.getFullYear() + 1);
-    const newExpDate = defaultExp.toISOString().slice(0, 10);
-    const renewalDate = new Date().toISOString().slice(0, 10);
-
-    const { error: membershipRenewalError } = await supabase
-      .from("member_ministries")
-      .update({
-        status: "Renewed",
-        expiration_date: newExpDate,
-        renewal_date: renewalDate,
-        document_url: path,
-        document_uploaded_at: nowIso,
-        archived_documents: nextArchivedDocuments,
-      })
-      .eq("id", selectedMembership.id);
-
-    if (membershipRenewalError) {
-      // The DB update failed, so this newly uploaded object is not referenced.
-      // Remove only this new immutable object; never remove the previous letter.
-      await supabase.storage.from("member-documents").remove([path]);
-      setError(membershipRenewalError.message);
-      setUploading(false);
-      return;
-    }
-
-    // Temporary compatibility mirror for screens that still read member-level
-    // document/status fields. member_ministries remains the canonical source.
-    const { error: memberUpdateError } = await supabase
-      .from("members")
-      .update({
-        document_url: path,
-        expiration_date: newExpDate,
-        status: "Renewed",
-      })
-      .eq("id", member.id);
-
-    if (memberUpdateError) {
-      setError(memberUpdateError.message);
-      setUploading(false);
-      return;
-    }
-
-    setUploading(false);
-    toast({
-      title: "Letter uploaded",
-      description: `${selectedMembership.ministry} renewed for one year.`,
-    });
-    load();
-    onUpdated?.();
   };
 
   const handleDeleteDocument = async () => {
@@ -1133,7 +1062,7 @@ export function MemberDetailDrawer({
                 {membershipDrafts.length > 1 && (
                   <div className="space-y-1.5">
                     <label className="text-xs text-muted-foreground">
-                      Membership this letter renews
+                      Ministry this letter belongs to
                     </label>
                     <select
                       value={selectedMinistry ?? ""}
@@ -1181,6 +1110,7 @@ export function MemberDetailDrawer({
                       </div>
                     )}
                     <button
+                      disabled={secureMinistryVerificationEnabled}
                       onClick={handleDeleteDocument}
                       className="inline-flex items-center gap-1.5 text-xs text-destructive hover:underline"
                     >
@@ -1197,14 +1127,14 @@ export function MemberDetailDrawer({
                         <Upload className="mx-auto h-6 w-6 text-muted-foreground/60" />
                       )}
                       <p className="mt-2 text-xs text-muted-foreground">
-                        Drop a scan or click to upload (renews membership)
+                        Choose a PDF, PNG or JPEG to attach (maximum 5 MB)
                       </p>
                     </div>
                     <input
                       type="file"
                       accept="image/*,.pdf"
                       className="hidden"
-                      disabled={!selectedMembership?.id || !membershipTableAvailable}
+                      disabled={uploading || !!selectedMembership?.document_url || !selectedMembership?.id || !membershipTableAvailable}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f) handleUpload(f);
@@ -1213,8 +1143,7 @@ export function MemberDetailDrawer({
                   </label>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Uploading a new letter keeps the previous file intact in the
-                  membership archive and renews the selected ministry for one year.
+                  Attaching a letter does not change verification, status, renewal date, or expiration date.
                 </p>
               </div>
 
