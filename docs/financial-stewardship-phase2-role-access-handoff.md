@@ -19,6 +19,8 @@
 | Grant | COWL inventory | COWL collections | COWL remittances | Curia inventory | Curia remittances |
 | --- | --- | --- | --- | --- | --- |
 | cowl_registry_reviewer | — | — | — | — | — |
+| cowl_financial_workspace_viewer | View | View | View | — | — |
+| curia_financial_workspace_viewer | — | — | — | View | View |
 | cowl_finance_verifier | — | View | — | — | — |
 | cowl_receipt_issuer | View | View | — | — | — |
 | cowl_remittance_preparer | — | View | View | — | — |
@@ -26,7 +28,7 @@
 | curia_treasury_reviewer | — | — | — | — | View |
 | platform_provisioner | — | — | — | — | — |
 
-A role's ability to view a section is NOT permission to confirm a collection, issue an Official Receipt, or acknowledge a remittance. Future operations must each check the role, current grant, business-state transitions and dual-control rules again at the server/database layer.
+The two *workspace viewer* roles are reserved for temporary read-only financial-administrator UI testing. They do not imply Registry administrator access or future payment/receipt/treasury transaction authority. These role codes are added to the isolated test database; production requires a separate reviewed allowlist extension before any such grant.\n\nA role's ability to view a section is NOT permission to confirm a collection, issue an Official Receipt, or acknowledge a remittance. Future operations must each check the role, current grant, business-state transitions and dual-control rules again at the server/database layer.
 
 ## Production enablement requirements — deliberately incomplete
 
