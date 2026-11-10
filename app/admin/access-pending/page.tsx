@@ -1,36 +1,59 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ebGaramond, inter } from "@/app/fonts";
 import { ShieldCheck } from "@/components/phosphor-icons";
 import { useAuth } from "@/lib/auth-context";
+import {
+  AdminAuthShell, AuthError, authTitleClass, authTextClass,
+  authPrimaryButtonClass, authSecondaryButtonClass,
+} from "@/components/admin-auth-ui";
 
-/** No role or a temporarily unavailable authorization service.
- * Never guesses a finance role or silently grants registry privileges.
+/** A signed-in identity is not automatically assigned a financial role.
+ * This page never grants access or changes authentication metadata.
  */
 export default function AccessPendingPage() {
   const { signOut } = useAuth();
   const router = useRouter();
-  return <main className={inter.className + " flex min-h-screen items-center justify-center bg-[#FBF9F9] px-4 text-[#1E1114]"}>
-    <section role="alert" className="w-full max-w-lg border border-[#E6DADC] border-t-4 border-t-[#890022] bg-white p-6 sm:p-8">
-      <ShieldCheck size={30} className="text-[#890022]" aria-hidden="true"/>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">COWL-DOK ACCESS</p>
-      <h1 className={ebGaramond.className + " mt-2 text-[38px] leading-tight"}>Role approval required</h1>
-      <p className="mt-3 text-sm leading-6 text-[#5F4A4F]">
-        This sign-in is valid, but COWL-DOK could not establish a currently approved
-        Registry, COWL financial, or Curia financial assignment. No operational
-        pages or financial records are available through this account.
+  const [verificationUnavailable, setVerificationUnavailable] = useState(false);
+  useEffect(() => {
+    setVerificationUnavailable(new URLSearchParams(window.location.search).get("verification") === "unavailable");
+  }, []);
+
+  return (
+    <AdminAuthShell showSupport backHref="/admin" backLabel="Back to sign in">
+      <ShieldCheck className="mb-4 h-7 w-7 text-[#890022]" aria-hidden="true" />
+      <h1 className={authTitleClass}>
+        {verificationUnavailable ? "Access verification unavailable" : "Role approval required"}
+      </h1>
+      <p className={authTextClass}>
+        {verificationUnavailable
+          ? "We could not confirm your account permissions at this time."
+          : "You are signed in, but your account does not currently have a verified Registry, COWL financial, or Curia financial assignment."}
       </p>
-      <p className="mt-3 text-sm leading-6 text-[#5F4A4F]">
-        Ask the designated diocesan administrator to verify or activate your assignment.
-        Financial roles require explicit appointment and may be revoked.
+      <AuthError className="mt-6">
+        {verificationUnavailable
+          ? "The authorization service is temporarily unavailable. No administrative or financial pages were opened."
+          : "Access to administrative pages and financial records is restricted until your authorized role has been verified."}
+      </AuthError>
+      <p className="mt-5 text-sm leading-6 text-[#706167]">
+        {verificationUnavailable
+          ? "Try checking access again. If the problem continues, contact COWL-DOK support."
+          : "Contact the designated diocesan administrator to confirm or activate your appointment. A valid sign-in does not automatically grant staff access."}
       </p>
-      <div className="mt-6 flex flex-wrap gap-2">
-        <Link href="/admin" className="border border-[#D7CACC] px-4 py-2 text-sm font-semibold text-[#890022]">Check access again</Link>
-        <button type="button" onClick={async () => { await signOut(); router.replace("/admin"); }}
-          className="bg-[#890022] px-4 py-2 text-sm font-semibold text-white">Sign out</button>
+      <div className="mt-7 space-y-3">
+        <Link href="/admin" className={authSecondaryButtonClass}>
+          Check access again
+        </Link>
+        <button
+          type="button"
+          onClick={async () => { await signOut(); router.replace("/admin"); }}
+          className={authPrimaryButtonClass}
+        >
+          Sign out
+        </button>
       </div>
-    </section>
-  </main>;
+    </AdminAuthShell>
+  );
 }
