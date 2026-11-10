@@ -128,11 +128,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           return;
         }
         setRegistryAccess("granted");
-        // An existing Registry Admin is not automatically a financial officer.
-        const result = await financeRequest;
-        if (!cancelled && result.ok) {
-          const data = await result.json() as { home?: string | null };
-          setFinanceEntry(data.home ?? null);
+        // Finance link discovery must NEVER block an authorized Registry Admin.
+        // A failed finance service only hides the optional financial link.
+        try {
+          const result = await financeRequest;
+          if (!cancelled && result.ok) {
+            const data = await result.json() as { home?: string | null };
+            setFinanceEntry(data.home ?? null);
+          }
+        } catch {
+          if (!cancelled) setFinanceEntry(null);
         }
       } catch {
         if (!cancelled) setRegistryAccess("unavailable");
