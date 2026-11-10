@@ -9,6 +9,7 @@ import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { StatusBadge } from "@/components/status-badge";
 import { MemberDetailDrawer } from "@/components/member-detail-drawer";
 import { BulkCertificateDialog } from "@/components/member-bulk-certificate-dialog";
+import { BatchLetterAttachmentDialog } from "@/components/batch-letter-attachment-dialog";
 import {
   MINISTRIES,
   PARISHES,
@@ -151,6 +152,7 @@ export default function MembersListPage() {
   const [selectingAllFiltered, setSelectingAllFiltered] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
   const [certificateBatchOpen, setCertificateBatchOpen] = useState(false);
+  const [letterBatchOpen, setLetterBatchOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMembers, setReportMembers] = useState<MemberWithMemberships[]>([]);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
@@ -1189,6 +1191,13 @@ export default function MembersListPage() {
                 }}
               />
               <SelectionUtility
+                label="Attach recommendation letters to selected members"
+                hint="Attach Letters"
+                icon={<FileText className="h-5 w-5" aria-hidden="true" />}
+                disabled={selected.size > 100}
+                onClick={() => setLetterBatchOpen(true)}
+              />
+              <SelectionUtility
                 label="Generate certificates PDF for selected ministries"
                 hint={filters.ministry.length === 0 ? "Choose a ministry filter first" : "Certificate PDF"}
                 icon={<FileBadge className="h-5 w-5" aria-hidden="true" />}
@@ -1215,6 +1224,13 @@ export default function MembersListPage() {
           </div>
         </div>
       )}
+
+      <BatchLetterAttachmentDialog
+        open={letterBatchOpen}
+        onOpenChange={setLetterBatchOpen}
+        selectedMemberIds={Array.from(selected)}
+        onUpdated={loadMembers}
+      />
 
       <BulkCertificateDialog
         open={certificateBatchOpen}
