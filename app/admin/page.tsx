@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, Loader2 } from "@/components/phosphor-icons";
-import { AdminAuthShell } from "@/components/admin-auth-ui";
+import { Loader2 } from "@/components/phosphor-icons";
+import { AdminAuthShell, AuthError } from "@/components/admin-auth-ui";
 import { useAuth } from "@/lib/auth-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ebGaramond } from "@/app/fonts";
@@ -96,10 +96,7 @@ export default function AdminLoginPage() {
             <p className="mt-3 text-sm text-[#706167]">Authorized Registry, Commission, and Curia personnel only.</p>
 
             {rateLimited && error && (
-              <div role="alert" className="mt-6 flex items-start gap-3 border border-[#B42330] bg-[#FFF0F0] px-4 py-3 text-sm leading-6 text-[#92202A]">
-                <AlertCircle aria-hidden="true" className="mt-1 h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
+              <AuthError className="mt-6">{error}</AuthError>
             )}
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -150,10 +147,7 @@ export default function AdminLoginPage() {
               </div>
 
               {error && !rateLimited && (
-                <div role="alert" className="flex items-start gap-3 border border-[#B42330] bg-[#FFF0F0] px-4 py-3 text-sm leading-6 text-[#92202A]">
-                  <AlertCircle aria-hidden="true" className="mt-1 h-4 w-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
+                <AuthError>{error}</AuthError>
               )}
 
               <button
