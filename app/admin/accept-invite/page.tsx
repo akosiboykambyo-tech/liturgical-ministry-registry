@@ -107,7 +107,7 @@ export default function AcceptInvitationPage() {
     }
   };
 
-  return <AdminAuthShell showSupport>
+  return <AdminAuthShell showSupport backHref="/admin" backLabel="Back to sign in">
             {state === "verifying" && <>
               <h1 className={authTitleClass}>Verifying invitation</h1>
               <p role="status" className="mt-4 flex items-center gap-2 text-sm text-[#706167]">
