@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  calculateFinanceAccess, financeHome, financePath, isFinanceSection,
-  isFinanceWorkspace, type FinancialRoleCode,
+  activeFinancialRoles, calculateFinanceAccess, financeHome, financePath,
+  isFinanceSection, isFinanceWorkspace,
 } from "@/lib/financial-stewardship/access-model";
 
 export const runtime = "nodejs";
@@ -68,9 +68,7 @@ export async function GET(request: NextRequest) {
     // This optional flag affects a navigation link, never financial permission.
     const registryAdmin = !adminCheck.error && adminCheck.data === true;
     const now = Date.now();
-    const roles: FinancialRoleCode[] = (result.data ?? [])
-      .filter(row => !row.revoked_at && (!row.expires_at || Date.parse(row.expires_at) > now))
-      .map(row => row.role_code as FinancialRoleCode);
+    const roles = activeFinancialRoles(result.data ?? [], now);
     const access = calculateFinanceAccess(roles);
     const home = financeHome(access);
 
