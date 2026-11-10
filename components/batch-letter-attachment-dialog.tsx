@@ -137,9 +137,11 @@ export function BatchLetterAttachmentDialog({
     setError("");
     setNotice("");
     let successful = 0;
+    const completedIds: string[] = [];
     try {
       if (mode === "shared" && sharedFile) {
         successful = await attachRecommendationLetter(chosen.map((a) => a.id), sharedFile);
+        completedIds.push(...chosen.map((a) => a.id));
       } else {
         // Separate immutable file per assignment. Never silently assign one
         // member's letter to a different member via filename matching.
@@ -147,10 +149,14 @@ export function BatchLetterAttachmentDialog({
           const file = individualFiles[assignment.id];
           if (!file) throw new Error(`Select a file for ${assignment.name} — ${assignment.ministry}`);
           await attachRecommendationLetter([assignment.id], file);
+          completedIds.push(assignment.id);
           successful += 1;
         }
       }
       setNotice(`Attached letters to ${successful} ministry assignment(s). No status or validity dates changed.`);
+      setAssignments((old) => old.map((row) =>
+        completedIds.includes(row.id) ? { ...row, documentUrl: "attached" } : row
+      ));
       setChecked(new Set());
       setSharedFile(null);
       setIndividualFiles({});
@@ -158,6 +164,9 @@ export function BatchLetterAttachmentDialog({
       await onUpdated();
       // The selected records are re-read on the next dialog open.
     } catch (cause) {
+      setAssignments((old) => old.map((row) =>
+        completedIds.includes(row.id) ? { ...row, documentUrl: "attached" } : row
+      ));
       setError(
         `${successful} attachment(s) confirmed. ` +
         (cause instanceof Error ? cause.message : "Some attachments could not be confirmed.") +
