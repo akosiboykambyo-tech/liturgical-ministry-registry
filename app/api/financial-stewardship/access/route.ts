@@ -64,6 +64,9 @@ export async function GET(request: NextRequest) {
       return respond(503, { error: "Financial role verification is temporarily unavailable." });
     }
 
+    const adminCheck = await supabase.rpc("registration_is_admin");
+    // This optional flag affects a navigation link, never financial permission.
+    const registryAdmin = !adminCheck.error && adminCheck.data === true;
     const now = Date.now();
     const roles: FinancialRoleCode[] = (result.data ?? [])
       .filter(row => !row.revoked_at && (!row.expires_at || Date.parse(row.expires_at) > now))
@@ -87,7 +90,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return respond(200, { roles, access, home, checkedAt: new Date(now).toISOString() });
+    return respond(200, { roles, access, home, registryAdmin, checkedAt: new Date(now).toISOString() });
   } catch {
     return respond(503, { error: "Financial role verification is temporarily unavailable." });
   }
