@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node --test tests/staging-financial-viewer-roles.test.cjs",
     "build": "next build",
+    "test:finance-viewers": "node --test tests/staging-financial-viewer-roles.test.cjs",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
