@@ -32,7 +32,7 @@ import { RegistryFooter } from "@/components/registry-footer";
 import { PublicMaintenanceGate } from "@/components/public-maintenance-gate";
 import { RegistryHeader } from "@/components/registry-header";
 import { VerificationResultSelector } from "@/components/verification-result-selector";
-import { DEFAULT_TEMPLATE_SETTINGS, getExpirationStatus } from "@/lib/constants";
+import { DEFAULT_TEMPLATE_SETTINGS } from "@/lib/constants";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CertificateTemplateSettings,
@@ -318,25 +318,14 @@ function VerifyPage() {
 
     const preferred =
       activeMember.member_ministries.find((membership) => {
-        const expiration = getExpirationStatus(membership.expiration_date);
-        return (
-          (membership.status === "New" || membership.status === "Renewed") &&
-          expiration !== "expired" &&
-          expiration !== "expiring_soon"
-        );
+        return isCurrentMembership(membership);
       }) ?? activeMember.member_ministries[0];
 
     setSelectedMinistry(preferred?.ministry ?? null);
   }, [activeMember]);
 
   const membershipIsEligible = (membership: PublicMembership) => {
-    const expiration = getExpirationStatus(membership.expiration_date);
-
-    return (
-      (membership.status === "New" || membership.status === "Renewed") &&
-      expiration !== "expired" &&
-      expiration !== "expiring_soon"
-    );
+    return isCurrentMembership(membership);
   };
 
   const reprintSuffix =
