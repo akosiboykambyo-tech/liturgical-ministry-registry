@@ -7,7 +7,7 @@ import {
   Plus, RefreshCw, ShieldCheck, Upload, Users, X,
 } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
-import { CenteredAdminLoader } from "@/components/admin-centered-loader";
+import { AdminHistoryEmpty, AdminHistoryLoading, AdminHistoryPanel } from "@/components/admin-history-panel";
 import { SubmissionsOverview } from "./submissions-overview";
 import { registrationUi } from "./registration-ui";
 import { UnifiedReviewOverview } from "./review-overview";
@@ -52,9 +52,11 @@ function RegistrationImportHistory() {
   const [rows, setRows] = useState<ImportHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     const load = async () => {
       const result = await supabase
         .from("import_batches")
@@ -68,38 +70,41 @@ function RegistrationImportHistory() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [supabase]);
+  }, [supabase, refreshVersion]);
 
   return (
-    <section className={registrationUi.panel}>
-      <h3 className={ebGaramond.className + " text-[30px] font-medium text-[#27191D]"}>Registration imports</h3>
-      <p className="mt-1 text-sm text-[#66575C]">
-        The latest 30 recorded CSV import batches. Detailed administrator actions remain in the Audit Trail.
-      </p>
+    <AdminHistoryPanel
+      title="Registration Import History"
+      description="The latest 30 recorded CSV registration import batches. Individual administrator actions remain in the Audit Trail."
+      refreshing={loading}
+      onRefresh={() => setRefreshVersion(value => value + 1)}
+    >
       {loading ? (
-        <CenteredAdminLoader label="Loading registration history…" className="min-h-[200px]" />
+        <AdminHistoryLoading label="Loading registration history…" />
       ) : error ? (
-        <p className="mt-4 text-sm text-[#A32439]" role="alert">History unavailable: {error}</p>
+        <p role="alert" className="border-l-4 border-l-[#B00020] bg-[#FBEFEF] px-4 py-3 text-sm text-[#B00020]">
+          Registration history unavailable: {error}
+        </p>
       ) : rows.length === 0 ? (
-        <div className={"mt-4 " + registrationUi.empty}>
-          <p className="text-sm font-medium text-[#35262D]">No completed registration imports yet.</p>
-          <p className="mt-1 text-xs text-[#66575C]">Imported CSV batches will appear here when recorded.</p>
-        </div>
+        <AdminHistoryEmpty
+          title="No registration imports recorded yet."
+          description="Processed CSV registration batches will appear here."
+        />
       ) : (
-        <div className="mt-4 overflow-x-auto">
+        <div className="overflow-x-auto border border-[#E6DADC]">
           <table className="w-full min-w-[650px] border-collapse text-left text-sm">
             <thead className="border-b border-[#E6DADC] bg-[#FBF9F9] text-xs uppercase tracking-wide text-[#66575C]">
               <tr>
-                <th className="p-3">Date</th><th className="p-3">CSV file</th>
-                <th className="p-3">Rows</th><th className="p-3">Imported</th>
-                <th className="p-3">Flagged</th><th className="p-3">Status</th>
+                <th scope="col" className="p-3">Date</th><th scope="col" className="p-3">CSV file</th>
+                <th scope="col" className="p-3">Rows</th><th scope="col" className="p-3">Imported</th>
+                <th scope="col" className="p-3">Flagged</th><th scope="col" className="p-3">Status</th>
               </tr>
             </thead>
             <tbody>
               {rows.map(row => (
-                <tr key={row.id} className="border-b border-[#EEE5E7]">
-                  <td className="p-3 whitespace-nowrap">{new Date(row.created_at).toLocaleDateString("en-PH")}</td>
-                  <td className="p-3 break-all">{row.file_name || "Unnamed CSV"}</td>
+                <tr key={row.id} className="border-b border-[#EEE5E7] last:border-b-0">
+                  <td className="whitespace-nowrap p-3">{new Date(row.created_at).toLocaleDateString("en-PH")}</td>
+                  <td className="break-all p-3">{row.file_name || "Unnamed CSV"}</td>
                   <td className="p-3 tabular-nums">{row.row_count}</td>
                   <td className="p-3 tabular-nums">{row.unique_inserted}</td>
                   <td className="p-3 tabular-nums">{row.duplicates_routed}</td>
@@ -110,7 +115,7 @@ function RegistrationImportHistory() {
           </table>
         </div>
       )}
-    </section>
+    </AdminHistoryPanel>
   );
 }
 
