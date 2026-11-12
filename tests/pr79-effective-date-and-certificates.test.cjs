@@ -31,8 +31,8 @@ test("historical one-year dates use anniversary including leap-day clamp", () =>
   const validity = tsModule("lib/registration-validity.ts");
   assert.equal(validity.expirationOneYearAfter("2026-03-15"), "2027-03-15");
   assert.equal(validity.expirationOneYearAfter("2024-02-29"), "2025-02-28");
-  assert.equal(validity.isRegistrationValidOn("2027-03-15", "2027-03-15"), "valid");
-  assert.equal(validity.isRegistrationValidOn("2027-03-15", "2027-03-16"), "expired");
+  assert.equal(validity.registrationValidity("2027-03-15", "2027-03-15"), "valid");
+  assert.equal(validity.registrationValidity("2027-03-15", "2027-03-16"), "expired");
 });
 
 test("member dates and certificate eligibility use the Manila day", () => {
