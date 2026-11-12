@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node --test tests/financial-access-model.test.cjs tests/admin-invitation-onboarding.test.cjs",
+    "prebuild": "node --test tests/financial-access-model.test.cjs tests/admin-invitation-onboarding.test.cjs tests/auth-ui-release-baseline.test.cjs",
     "test:auth-onboarding": "node --test tests/admin-invitation-onboarding.test.cjs",
     "build": "next build",
     "test:finance-access": "node --test tests/financial-access-model.test.cjs",

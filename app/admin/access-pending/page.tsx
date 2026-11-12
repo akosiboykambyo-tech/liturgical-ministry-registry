@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -10,17 +11,29 @@ import {
 } from "@/components/admin-access-notice";
 
 /**
- * UI only: a valid login does not establish any registry or finance role.
- * This page never grants permissions or changes authorization metadata.
+ * Presentation only. A signed-in identity is never an authorization grant.
+ * Keep role denial and temporary authorization-service outages distinct.
  */
 export default function AccessPendingPage() {
   const { signOut } = useAuth();
   const router = useRouter();
+  const [verificationUnavailable, setVerificationUnavailable] = useState(false);
+
+  useEffect(() => {
+    setVerificationUnavailable(
+      new URLSearchParams(window.location.search).get("verification") === "unavailable"
+    );
+  }, []);
 
   return (
     <AdminAccessNotice
-      title="Role approval required"
-      description="Your sign-in is valid, but COWL-DOK could not confirm an approved Registry, COWL financial, or Curia financial assignment. Administrative pages and financial records remain restricted."
+      showIcon={false}
+      title={verificationUnavailable ? "Access verification unavailable" : "Role approval required"}
+      description={
+        verificationUnavailable
+          ? "We could not confirm your account permissions at this time. Administrative pages and financial records remain restricted."
+          : "Your sign-in is valid, but COWL-DOK could not confirm an approved Registry, COWL financial, or Curia financial assignment. Administrative pages and financial records remain restricted."
+      }
       actions={
         <>
           <Link href="/admin" className={adminAccessSecondaryAction}>
@@ -40,8 +53,9 @@ export default function AccessPendingPage() {
       }
     >
       <p className="mt-3 text-sm leading-6 text-[#5F4A4F]">
-        Contact the designated diocesan administrator to verify or activate your assignment.
-        Financial roles require explicit appointment and may be revoked.
+        {verificationUnavailable
+          ? "The authorization service may be temporarily unavailable. Try checking access again, or contact COWL-DOK support if the problem continues."
+          : "Contact the designated diocesan administrator to verify or activate your assignment. Financial roles require explicit appointment and may be revoked."}
       </p>
     </AdminAccessNotice>
   );
