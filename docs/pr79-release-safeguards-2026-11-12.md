@@ -92,6 +92,16 @@ A separate read-only post-run TEST database query confirmed: **0 synthetic `cert
 - The actual Certificate Studio page `/admin/certificates` still needs human visual verification of the **saved 2026 and 2027 renewal designs**, fonts/background images, signatories, QR placement, responsive editor layout, full-resolution print preview and print. The synthetic persistence check does not certify those behaviors.
 - If any TEST check fails, leave PR79 DRAFT; inspect TEST certificate settings for only the `releaseqa` prefixed keys, and preserve all original saved templates.
 
+## Owner-submitted COWL and Curia Certificate Studio denial evidence — 12 November 2026
+
+The owner ran the corrected TEST-only `/release-qa` Certificate Studio persistence panel with each Finance viewer account, then supplied the complete credential-free reports. **COWL 4/4 PASS and Curia 4/4 PASS**. For each: TEST signed identity verified; original two saved templates and 2027 default confirmed; attempted synthetic certificate settings INSERT was denied; original templates/default were unaffected.
+
+Combined with the previously recorded **Registry 7/7 PASS**, the certificate persistence/access cohort achieved **15/15 successful checks**. Together with previous role/Storage tests, this totals **66/66 successful checks across completed corrected TEST QA runs** (the earlier failed overlength-key trial was diagnosed and corrected, not counted as a pass). These are owner-submitted browser results, not an independently replayed browser trace.
+
+A separate read-only TEST SQL check after these runs confirmed: **0 `certificate_template_releaseqa_%` synthetic keys**, **2 certificate template records**, **1 default 2027 renewal**, **8 signatories**, and **0 `member-documents/release-qa/%` Storage objects**. There is no evidence of a retained unauthorized write.
+
+**Gate disposition:** signed-session certificate synthetic persistence and finance-denial authorization **PASS**. The full-resolution Certificate Studio visual preview / printable PDF, background assets, QR quality, font rendering, signatories, browser print, and save/reload of real design changes are **not** certified by these synthetic setting tests and remain on the release checklist. Unassigned/revoked signed sessions and recovery remain separate pending gates.
+
 ## Snapshot and restore (must be certified BEFORE a production migration)
 1. Record authoritative production deployment ID, commit and domain aliases. Freeze the tested candidate SHA and reviewed SQL file checksums.
 2. Use Supabase dashboard **Database > Backups** to verify actual recovery availability and a recent usable recovery point. Perform a **restore to a separate disposable project**, not a destructive in-place restore. Confirm table counts, Auth identity data and RLS/grants against a sensitive-data-safe inventory. Do not rely on SQL dump alone for Auth/session/config.
@@ -114,7 +124,7 @@ A separate read-only post-run TEST database query confirmed: **0 synthetic `cert
 | Signed three-role HTTP QA | Owner-provided results for Registry, Curia and COWL, each 11/11 | PASS — 33/33, exact TEST QA page |
 | Revoked/unassigned, anon and cross-workspace HTTP | Role-specific 403/200, anonymous 401; separate unassigned/revoked sessions | PARTIAL — signed cross-workspace and anonymous denials PASS; revoked/unassigned not yet tested |
 | Actual private Storage bytes | Registry 5/5, Curia 6/6, COWL 6/6 plus Registry cleanup 1/1; independently verified zero QA objects | PASS — 18/18 including cleanup; 51/51 combined with role authorization |
-| Certificate Studio save, reload, print | Registry TEST signed-session synthetic create/update/reload/cleanup 7/7 PASS, independently verified 0 QA rows; COWL/Curia signed denial and visual/print QA still pending | PARTIAL — Registry persistence PASS; other checks pending |
+| Certificate Studio save, reload, print | Registry 7/7, COWL 4/4, Curia 4/4 real-session synthetic persistence/denial tests; 0 QA records, 2 templates, 8 signatories independently verified | PARTIAL — 15/15 persistence authorization PASS; visual/print still pending |
 | Backup and restore | Isolated restore, actual files, role/ACL restoration and timed rollback | PENDING |
 | Production backend migration | Reviewed checksums and backend-first release decision | PENDING |
 | Main/release reconciliation | Reviewed merge conflict resolution, exact SHA | PENDING |
