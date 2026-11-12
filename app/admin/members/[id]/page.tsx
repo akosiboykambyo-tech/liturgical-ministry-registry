@@ -7,12 +7,9 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { registryAdminWrite } from "@/lib/registry-admin-writes";
-import { updateMemberStatus } from "@/lib/verify-actions";
-import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { StatusBadge } from "@/components/status-badge";
-import { MINISTRIES, STATUS_VALUES } from "@/lib/constants";
 import { MinistryMultiSelect } from "@/components/ministry-multi-select";
-import { Member, AuditLog, MemberStatus } from "@/lib/types";
+import { Member, AuditLog } from "@/lib/types";
 import {
   ArrowLeft,
   Loader2,
@@ -47,7 +44,6 @@ export default function MemberDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editMinistries, setEditMinistries] = useState<string[]>([]);
-  const [status, setStatus] = useState<MemberStatus>("Pending Verification");
   const [notes, setNotes] = useState("");
   const [uploading, setUploading] = useState(false);
   const [signedDocUrl, setSignedDocUrl] = useState<string | null>(null);
@@ -73,7 +69,6 @@ export default function MemberDetailPage() {
     const m = data as Member;
     setMember(m);
     setEditMinistries(m.ministries);
-    setStatus(m.status);
     setNotes(m.notes ?? "");
     setEditFirstName(m.first_name);
     setEditLastName(m.last_name);
@@ -214,17 +209,16 @@ export default function MemberDetailPage() {
           <h2 className="text-sm font-semibold">Member Details</h2>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Status</label>
-            <select
-              value={status}
-              disabled={secureMinistryVerificationEnabled}
-              onChange={(e) => setStatus(e.target.value as MemberStatus)}
-              className="w-full rounded-none border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {STATUS_VALUES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            <p className="text-sm font-medium">Member summary status (read-only)</p>
+            <p className="border border-[#E6DADC] bg-[#FBF9F9] px-3 py-2.5 text-sm font-medium">
+              {member.status}
+            </p>
+            <p className="text-xs text-[#736269]">
+              Ministry registration status and effective dates are approved separately
+              in the <Link href="/admin/verification" className="font-semibold text-[#890022] underline">
+                Verification workspace
+              </Link>. Attaching a letter never starts or renews membership.
+            </p>
           </div>
 
           <div className="space-y-3">

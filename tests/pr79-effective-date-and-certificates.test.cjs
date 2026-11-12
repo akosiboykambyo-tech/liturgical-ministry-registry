@@ -100,3 +100,11 @@ test("rendering code caches artwork for thumbnail, full preview and print", () =
   assert.match(renderer, /const loadImage = loadCertificateImage/);
   assert.match(renderer, /certificateImageCache\.size > 12/);
 });
+
+test("member detail page cannot edit aggregate approval status", () => {
+  const page = read("app/admin/members/[id]/page.tsx");
+  assert.match(page, /Member summary status \(read-only\)/);
+  assert.match(page, /Attaching a letter never starts or renews membership/);
+  assert.doesNotMatch(page, /setStatus\(/);
+  assert.doesNotMatch(page, /onChange=\{\(e\) => setStatus/);
+});
