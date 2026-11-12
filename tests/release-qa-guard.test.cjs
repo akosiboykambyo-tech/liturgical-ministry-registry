@@ -69,3 +69,27 @@ test("TEST certificate persistence QA creates only an isolated non-default recor
  assert.match(qa, /originalDefault\[0\] === "certificate_template_2027-renewal"/);
  assert.doesNotMatch(qa, /\.from\("members"\)|\.from\("member_ministries"\)|\.from\("signatories"\)|\.upsert\(|service_role|SUPABASE_SERVICE_ROLE_KEY|console\.log/);
 });
+
+test("negative-account QA is confined to TEST preview and does not alter any staff grants", () => {
+ const route = read("app/release-qa/page.tsx");
+ const parent = read("app/release-qa/release-qa-client.tsx");
+ const source = read("app/release-qa/negative-access-qa.tsx");
+ assert.match(route, /VERCEL_ENV\s*!==\s*"preview"/);
+ assert.match(route, /rtptybxugjhvpfjvcvgw\.supabase\.co/);
+ assert.match(parent, /<NegativeAccessQa\s*\/>/);
+ assert.match(source, /EXISTING_TEST_STAFF/);
+ assert.match(source, /auth\.getUser\(token\)/);
+ assert.match(source, /"unassigned"\s*\|\s*"granted"\s*\|\s*"revoked"/);
+ assert.match(source, /fs_staff_grants/);
+ assert.match(source, /revoked_at/);
+ assert.match(source, /financial-stewardship\/access\?workspace=all/);
+ assert.match(source, /financial-stewardship\/access\?workspace=cowl/);
+ assert.match(source, /financial-stewardship\/access\?workspace=curia/);
+ assert.match(source, /registry_admin_member_write_v1/);
+ assert.match(source, /registry_verify_ministries_v3/);
+ assert.match(source, /storage\.from\("member-documents"\)\.list/);
+ assert.match(source, /certificate_template_releaseqa_/);
+ assert.match(source, /"42501"/);
+ assert.doesNotMatch(source, /\.from\("fs_staff_grants"\)\.(?:insert|update|upsert|delete)\(/);
+ assert.doesNotMatch(source, /service_role|SUPABASE_SERVICE_ROLE_KEY|signUp\(|inviteUserByEmail\(|createUser\(|console\.log|localStorage/);
+});

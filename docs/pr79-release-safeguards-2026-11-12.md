@@ -102,6 +102,21 @@ A separate read-only TEST SQL check after these runs confirmed: **0 `certificate
 
 **Gate disposition:** signed-session certificate synthetic persistence and finance-denial authorization **PASS**. The full-resolution Certificate Studio visual preview / printable PDF, background assets, QR quality, font rendering, signatories, browser print, and save/reload of real design changes are **not** certified by these synthetic setting tests and remain on the release checklist. Unassigned/revoked signed sessions and recovery remain separate pending gates.
 
+## Signed-session negative access: isolated TEST account protocol — 12 November 2026
+
+**Baseline (read-only):** TEST Auth has five existing accounts, each with a Registry administrator assignment or at least one active financial role. There are **zero** unassigned identities and **zero** revoked financial grants. Existing QA Registry/COWL/Curia accounts must not be reassigned for this gate. Prior transaction-only SQL simulations verified expected unassigned/revoked RLS behavior; signed-session proof remains outstanding.
+
+**Create one dedicated TEST-only account through Supabase Dashboard (not Production):**
+1. Open the `Ministry-Registry-Test` project (`rtptybxugjhvpfjvcvgw`), then **Authentication → Users → Add user → Send invitation** to a unique email address the project owner controls. Do not send credentials or password-reset tokens through chat. Alternatively, the operator may use another supported dashboard account-creation path, preserving email confirmation. Never create Auth users by direct SQL against managed `auth.users`.
+2. Do **not** provision any financial grant or Registry administrator allowlist entry initially. Use the TEST preview's `/admin` sign-in flow and navigate directly to `/release-qa`. The **Unassigned and revoked account verification** panel accepts only an identity that is not one of the five original TEST staff IDs. It uses `auth.getUser()`, current RLS grants, finance API, protected RPCs and private Storage listing. The only attempted write is a synthetic certificate INSERT that must be rejected by RLS.
+3. Select **1. Unassigned**. All checks must PASS with no grant history, no Registry admin access, finance HTTP 403 for both workspaces, denied writer/v3 and certificate settings write.
+4. After recording the unassigned report, the release operator can temporarily provision **only the dedicated account** with a single `cowl_financial_workspace_viewer` TEST grant. The intended grant must have an operator-authorized provenance record and a short expiration as a failsafe; verify with a read-only query that no existing account grants changed. **This is a separate operator action, not implemented by the QA browser page.** The owner should not share passwords or JWTs.
+5. Without signing out, select **2. Granted** and verify COWL HTTP 200, Curia HTTP 403, and continued Registry denial. Capture the credential-free report.
+6. The operator revokes that exact TEST grant, recording `revoked_at` and `revoked_by`, then verifies the dedicated account has **zero active grants**. Without signing out, select **3. Revoked** and confirm the previously working COWL API now responds **403** to the same signed-in account. Capture the report, and retain a read-only inventory proving all five original users retained their assignments.
+7. Do not call this gate PASS until genuine signed-in reports confirm all three phases and a separate database query verifies the final revocation. If an unexpected certificate QA INSERT succeeds, stop immediately, quarantine the preview and use a Registry administrator to remove only the new `certificate_template_releaseqa_%` key, never the two original templates.
+
+**Limit:** Supabase bearer tokens are JWTs; revoking refresh sessions alone does not necessarily invalidate previously issued access tokens. This gate verifies the app's *current database-grant-based authorization*, not global instantaneous token invalidation. No unrelated paid project, production credentials, or real member data is required.
+
 ## Snapshot and restore (must be certified BEFORE a production migration)
 1. Record authoritative production deployment ID, commit and domain aliases. Freeze the tested candidate SHA and reviewed SQL file checksums.
 2. Use Supabase dashboard **Database > Backups** to verify actual recovery availability and a recent usable recovery point. Perform a **restore to a separate disposable project**, not a destructive in-place restore. Confirm table counts, Auth identity data and RLS/grants against a sensitive-data-safe inventory. Do not rely on SQL dump alone for Auth/session/config.
@@ -122,9 +137,9 @@ A separate read-only TEST SQL check after these runs confirmed: **0 `certificate
 | Gate | Evidence needed | Current |
 |---|---|---|
 | Signed three-role HTTP QA | Owner-provided results for Registry, Curia and COWL, each 11/11 | PASS — 33/33, exact TEST QA page |
-| Revoked/unassigned, anon and cross-workspace HTTP | Role-specific 403/200, anonymous 401; separate unassigned/revoked sessions | PARTIAL — signed cross-workspace and anonymous denials PASS; revoked/unassigned not yet tested |
+| Revoked/unassigned, anon and cross-workspace HTTP | Three-phase dedicated TEST identity real-session checks (unassigned → COWL viewer → revoked), no existing staff disruption | PARTIAL — existing cross-workspace/anon and rollback-only negative simulations PASS; isolated identity and signed sessions PENDING |
 | Actual private Storage bytes | Registry 5/5, Curia 6/6, COWL 6/6 plus Registry cleanup 1/1; independently verified zero QA objects | PASS — 18/18 including cleanup; 51/51 combined with role authorization |
-| Certificate Studio save, reload, print | Registry 7/7, COWL 4/4, Curia 4/4 real-session synthetic persistence/denial tests; 0 QA records, 2 templates, 8 signatories independently verified | PARTIAL — 15/15 persistence authorization PASS; visual/print still pending |
+| Certificate Studio save, reload, print | 15/15 signed-session persistence/denial PASS; owner indicated visual/print review is acceptable but did not provide artifact-level evidence | PARTIAL — owner-acknowledged visual review; independently archived print/QR/font proof still pending |
 | Backup and restore | Isolated restore, actual files, role/ACL restoration and timed rollback | PENDING |
 | Production backend migration | Reviewed checksums and backend-first release decision | PENDING |
 | Main/release reconciliation | Reviewed merge conflict resolution, exact SHA | PENDING |
