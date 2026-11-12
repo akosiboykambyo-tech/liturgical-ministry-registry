@@ -22,6 +22,22 @@ Checks use the real JWT to call `auth.getUser()`, workspace-specific financial A
 
 **Limitations:** The QA browser test does not verify private object byte downloads, signed URL handling, real letter upload, a revoked user with a still-valid session, certificate PDF layout or the full recovery drill.
 
+## Owner-submitted real signed-session evidence — 12 November 2026
+
+The project owner supplied the exact, credential-free results from `/release-qa` on the PR79 TEST preview. This is **human-submitted QA evidence**, not a separately captured server-side test trace. It was not independently reproduced from the user's browser. All three runs report **11 of 11 PASS** (33 of 33 total), using separate TEST sign-ins and a live Supabase Auth identity check.
+
+| Persona | Results | COWL inventory | Curia inventory | Finance API without token | Registry-only RPC separation | Storage list visibility |
+|---|---|---|---|---|---|---|
+| Registry-only | 11/11 PASS | HTTP 403 | HTTP 403 | HTTP 401 | Writer and v3 authorization checks PASS | Accessible to Registry administrator; counts only |
+| Curia-only | 11/11 PASS | HTTP 403 | HTTP 200 | HTTP 401 | Writer and v3 authorization denials PASS | Finance account sees no objects in the protected listings |
+| COWL-only | 11/11 PASS | HTTP 200 | HTTP 403 | HTTP 401 | Writer and v3 authorization denials PASS | Finance account sees no objects in the protected listings |
+
+Other checks for every persona: TEST Auth verifies the signed-in account, Registry allowlist matches the intended role, and active financial role grants match exactly one (or zero for Registry) appropriate assignment.
+
+The RPC exercises use an intentionally unsupported member-write action and invalid ministry-verification inputs. They deliberately **do not create/edit member records, approve ministries, or upload private letters**. Storage evidence covers **listing only**, not `download()` file bytes, signed URL protection, positive private upload, or actual certificate rendering. The anonymous check covers the finance access API only. No revocation or unassigned-user session test is included.
+
+**Disposition:** Signed three-role HTTP/authorization gate PASS at the recorded TEST preview. Continue to require independently verified private Storage transfer, revoked/unassigned sessions, admin CRUD/CSV/verification, Certificate Studio visual/persistence QA, and restored database/Auth/Storage/ACL rehearsal before production go/no-go. No account emails, passwords, session tokens, or private document paths are included in this report.
+
 ## Snapshot and restore (must be certified BEFORE a production migration)
 1. Record authoritative production deployment ID, commit and domain aliases. Freeze the tested candidate SHA and reviewed SQL file checksums.
 2. Use Supabase dashboard **Database > Backups** to verify actual recovery availability and a recent usable recovery point. Perform a **restore to a separate disposable project**, not a destructive in-place restore. Confirm table counts, Auth identity data and RLS/grants against a sensitive-data-safe inventory. Do not rely on SQL dump alone for Auth/session/config.
@@ -41,8 +57,8 @@ Checks use the real JWT to call `auth.getUser()`, workspace-specific financial A
 ## Recovery evidence checklist
 | Gate | Evidence needed | Current |
 |---|---|---|
-| Signed three-role HTTP QA | Three TEST browser result summaries | PENDING HUMAN RUN |
-| Revoked/unassigned, anon and cross-workspace HTTP | Signed negative tests | PARTIAL; anon finance endpoint only, SQL role simulation passed |
+| Signed three-role HTTP QA | Owner-provided results for Registry, Curia and COWL, each 11/11 | PASS — 33/33, exact TEST QA page |
+| Revoked/unassigned, anon and cross-workspace HTTP | Role-specific 403/200, anonymous 401; separate unassigned/revoked sessions | PARTIAL — signed cross-workspace and anonymous denials PASS; revoked/unassigned not yet tested |
 | Actual private Storage bytes | Positive admin, negative finance/anon downloads, upload tests | PENDING |
 | Certificate Studio save, reload, print | Artifact snapshots + signatory/QR verification | PENDING |
 | Backup and restore | Isolated restore, actual files, role/ACL restoration and timed rollback | PENDING |
