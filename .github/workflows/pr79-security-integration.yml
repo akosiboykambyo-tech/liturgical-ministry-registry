@@ -31,6 +31,8 @@ jobs:
         run: node --test tests/pr79-registry-no-bypass.test.cjs
       - name: Documented effective dates and lazy certificate QA
         run: node --test tests/pr79-effective-date-and-certificates.test.cjs
+      - name: Certificate Studio persistence and recovery guards
+        run: node --test tests/pr79-certificate-studio-preservation.test.cjs
       - name: Annual per-ministry validity policy
         run: node --test tests/annual-registration-public-policy.test.cjs
       - name: Existing registration regressions

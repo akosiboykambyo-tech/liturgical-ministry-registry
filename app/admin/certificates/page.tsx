@@ -380,19 +380,29 @@ export default function CertificateManagerPage() {
     }
     setSaving(true);
     setError(null);
+    // Old database records may contain an 8+ MB embedded base64 background.
+    // Only the Storage template_url is used by the editor and renderer. Never
+    // re-save that obsolete inline image; doing so slows every certificate load.
+    const cleanSettings = Object.fromEntries(
+      Object.entries(settings).filter(([field]) => field !== "background_data_url")
+    ) as unknown as Record<string, unknown>;
     // Never upsert a new template: a concurrent name collision must not overwrite an existing design.
-    const { error } = creating
+    // RETURNING verifies that one row really persisted. A zero-row UPDATE must
+    // not be presented as "saved" even if Supabase returned no error.
+    const { data: persisted, error } = creating
       ? await supabase.from("system_settings").insert({
-          key, value: settings as unknown as Record<string, unknown>,
+          key, value: cleanSettings,
           is_default: templates.length === 0,
-        })
+        }).select("key").maybeSingle()
       : await supabase.from("system_settings")
-          .update({ value: settings as unknown as Record<string, unknown> }).eq("key", key);
+          .update({ value: cleanSettings }).eq("key", key).select("key").maybeSingle();
     setSaving(false);
-    if (error) {
-      setError(creating && error.code === "23505"
-        ? "A template with that name already exists. Choose another name."
-        : error.message);
+    if (error || persisted?.key !== key) {
+      setError(error
+        ? (creating && error.code === "23505"
+            ? "A template with that name already exists. Choose another name."
+            : error.message)
+        : "Template settings were not saved to this database. Your changes are still in the editor; check administrator access before leaving.");
       return;
     }
     setSaved(true);
@@ -857,6 +867,13 @@ export default function CertificateManagerPage() {
           </h1>
           <p className="mt-2 text-sm leading-6 text-[#6B5C62]">
             Design and manage certificate templates, layouts, and signatories.
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[#6B5C62]">
+            {process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("rtptybxugjhvpfjvcvgw")
+              ? "Connected to Supabase TEST. Certificate designs are saved here independently of Production; a code redeploy does not reset this database."
+              : process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("zlvofcwnpdzfdnipvbbd")
+                ? "Connected to Supabase Production. Saved certificate designs are persistent database records, not application code."
+                : "Certificate designs belong to the currently connected Supabase database, not the deployed Git branch."}
           </p>
         </div>
 
@@ -1579,7 +1596,10 @@ export default function CertificateManagerPage() {
             <FileText className="mx-auto h-8 w-8 text-muted-foreground/50" />
             <p className="mt-2 text-sm font-medium">No saved templates yet</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Configure the layout above and click Save Template to create one.
+              This Supabase database has no saved certificate templates. A different
+              TEST or Production database may still contain your original designs;
+              switching deployments does not transfer them. Save only after checking
+              which database is connected.
             </p>
           </div>
         ) : (
