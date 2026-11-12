@@ -19,3 +19,23 @@
 6. PR56/PR57 remain draft with season-grid flag OFF; never treat member-wide status as canonical, automatically approve on upload, or delete shared private evidence.
 
 **No production SQL writes, Vercel promotion, branch merge, role mutations, direct-write revocation or live data modification are approved by this review PR.**
+
+## 12 November 2026 isolated TEST rehearsal
+
+Applied a staging-only migration `pr79_stage_certificate_and_per_ministry_document_guards` to `Ministry-Registry-Test` (`rtptybxugjhvpfjvcvgw`). Its SQL is versioned under `docs/sql/pr79-staging-tested-certificate-and-verification.CANDIDATE.sql`, and intentionally not deployed to production.
+
+Verified from live TEST catalog (read-only):
+- Certificate issuance RPC exists, is **SECURITY INVOKER**, and has EXECUTE for `service_role` but **not** `anon` or `authenticated`.
+- Certificate issuance rejects NULL/expired registration and compares against the Asia/Manila civil date, expiration inclusive.
+- Ministry verification v2 is SECURITY DEFINER with authenticated EXECUTE, retains active private registry-admin allowlist guard, and requires a linked private recommendation letter **whose Storage object exists** for both New and Renewed.
+- The TEST guarded administrator CRUD RPC already exists, with authenticated EXECUTE and an internal private active-admin check.
+- Existing TEST assignments are all pending with no letters. This validates fail-closed shape, **not** a successful real verification or issuance.
+- Catalog checks and offline CI are **not** independently signed HTTP admin/nonadmin JWT tests, browser verification, or complete Auth/Storage/ACL restore certification.
+
+### Canonical production alias verification
+
+Vercel `www.cowl-dok.online` and `cowl-dok.online` point to READY deployment `dpl_2jhuzHLiLyfXZaPTpHxQZn8mc9Wo`, GitHub `main` SHA `7b6521c`, **not** the current role-aware release baseline `b8082167` or draft PR #79. Draft PR #78 contains independent auth/role-aware corrections on the same release baseline and has not been merged. Reconcile this with site owner before merging or promoting PR #79.
+
+### Safety hold
+
+Do not mark the PR ready for merge merely because offline CI passes. Production has neither the guarded write RPC nor the new certificate function implementation; frontend-first promotion would fail. The approved one-go implementation has staged and documented the backend corrections, with no production data, credentials, Storage objects, permissions, or deployments altered.

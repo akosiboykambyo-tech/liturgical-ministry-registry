@@ -67,3 +67,14 @@ test("Legacy profile cannot attach or detach member-wide recommendation letters"
   assert.doesNotMatch(source, /registryAdminWrite\("document"/);
   assert.doesNotMatch(source, /status,\s*notes: notes\.trim/);
 });
+
+test("Staging-reviewed certificate and ministry verification SQL enforce evidence and private authorization", () => {
+  const src = read("docs/sql/pr79-staging-tested-certificate-and-verification.CANDIDATE.sql");
+  assert.match(src, /v_expiration_date IS NULL/);
+  assert.match(src, /Asia\/Manila/);
+  assert.match(src, /OR mm\.document_url IS NULL/);
+  assert.match(src, /FROM storage\.objects/);
+  assert.match(src, /registration_administrators/);
+  assert.match(src, /REVOKE ALL ON FUNCTION public\.allocate_certificate_issuance/);
+  assert.match(src, /GRANT EXECUTE ON FUNCTION public\.allocate_certificate_issuance\(text,uuid\)[\s\S]*TO service_role/);
+});
