@@ -64,14 +64,14 @@ export default function ReleaseQaClient() {
         !grant.error && JSON.stringify(actualRoles) === JSON.stringify(expectedRoles),
         "Checks that no COWL, Curia, or other finance role was added unexpectedly.");
 
-      async function status(path: string, accessToken?: string): Promise<number> {
+      const status = async (path: string, accessToken?: string): Promise<number> => {
         const reply = await fetch(path, {
           method: "GET",
           headers: accessToken ? { Authorization: "Bearer " + accessToken } : {},
           cache: "no-store",
         });
         return reply.status;
-      }
+      };
 
       const financeAll = await status("/api/financial-stewardship/access?workspace=all", token);
       add(items, "Finance access discovery", financeAll === (expected === "registry" ? 403 : 200),
