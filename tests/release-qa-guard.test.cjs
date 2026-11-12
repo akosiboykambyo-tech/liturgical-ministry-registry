@@ -44,3 +44,20 @@ test("TEST-only synthetic Storage transfer QA verifies actual bytes and no produ
   assert.match(code, /Authorization: "Bearer " \+ anonKey/);
   assert.doesNotMatch(code, /service_role|SUPABASE_SERVICE_ROLE_KEY|\.from\("members"\)|\.from\("member_ministries"\)|console\.log|localStorage/);
 });
+
+test("TEST certificate persistence QA creates only an isolated non-default record", () => {
+ const route = read("app/release-qa/page.tsx");
+ const parent = read("app/release-qa/release-qa-client.tsx");
+ const qa = read("app/release-qa/certificate-persistence-qa.tsx");
+ assert.match(route, /VERCEL_ENV\s*!==\s*"preview"/);
+ assert.match(route, /rtptybxugjhvpfjvcvgw\.supabase\.co/);
+ assert.match(parent, /<CertificatePersistenceQa\s*\/>/);
+ assert.match(qa, /certificate_template_releaseqa_/);
+ assert.match(qa, /auth\.getUser\(session\.access_token\)/);
+ assert.match(qa, /is_default: false/);
+ assert.match(qa, /\.insert\(\{/);
+ assert.match(qa, /\.update\(\{ value:/);
+ assert.match(qa, /\.delete\(\)\.eq\("key", key\)/);
+ assert.match(qa, /originalDefault\[0\] === "certificate_template_2027-renewal"/);
+ assert.doesNotMatch(qa, /\.from\("members"\)|\.from\("member_ministries"\)|\.from\("signatories"\)|\.upsert\(|service_role|SUPABASE_SERVICE_ROLE_KEY|console\.log/);
+});

@@ -70,6 +70,14 @@ Remaining release gates: revoked and unassigned *real signed-session* denial; ac
 
 **Production remains unchanged; PR79 remains DRAFT/NO-GO.** This record contains no account emails, passwords, JWTs, signed URLs, or private document paths.
 
+## Certificate Studio safety rehearsal and real-session QA — 12 November 2026
+
+- Read-only TEST preflight confirmed exactly **two** `certificate_template%` settings rows, one default (2027 renewal), **eight** signatories, and zero pre-existing `certificate_template_releaseqa_%` rows.
+- Isolated TEST SQL simulations ran in **ROLLBACK-only** transactions. The Registry QA identity could INSERT, UPDATE, SELECT/reload, DELETE a synthetic non-default setting without affecting the real 2027 default. COWL and Curia QA identities were denied synthetic certificate settings INSERT by RLS. These establish DB/RLS behavior but not real signed HTTP.
+- A separate **TEST-preview-only** `/release-qa` Certificate Studio persistence panel now uses the three real signed sessions. Registry creates a new synthetic, non-default `certificate_template_releaseqa_<test-user-id>` record, updates version 1 to 2, reloads and verifies it, then deletes only that exact synthetic key. COWL and Curia attempt an insert of their own synthetic key and must be denied. Every role checks that the two original templates and default remain untouched. No member record, original template artwork, or signatory is changed.
+- The actual Certificate Studio page `/admin/certificates` still needs human visual verification of the **saved 2026 and 2027 renewal designs**, fonts/background images, signatories, QR placement, responsive editor layout, full-resolution print preview and print. The synthetic persistence check does not certify those behaviors.
+- If any TEST check fails, leave PR79 DRAFT; inspect TEST certificate settings for only the `releaseqa` prefixed keys, and preserve all original saved templates.
+
 ## Snapshot and restore (must be certified BEFORE a production migration)
 1. Record authoritative production deployment ID, commit and domain aliases. Freeze the tested candidate SHA and reviewed SQL file checksums.
 2. Use Supabase dashboard **Database > Backups** to verify actual recovery availability and a recent usable recovery point. Perform a **restore to a separate disposable project**, not a destructive in-place restore. Confirm table counts, Auth identity data and RLS/grants against a sensitive-data-safe inventory. Do not rely on SQL dump alone for Auth/session/config.
@@ -92,7 +100,7 @@ Remaining release gates: revoked and unassigned *real signed-session* denial; ac
 | Signed three-role HTTP QA | Owner-provided results for Registry, Curia and COWL, each 11/11 | PASS — 33/33, exact TEST QA page |
 | Revoked/unassigned, anon and cross-workspace HTTP | Role-specific 403/200, anonymous 401; separate unassigned/revoked sessions | PARTIAL — signed cross-workspace and anonymous denials PASS; revoked/unassigned not yet tested |
 | Actual private Storage bytes | Registry 5/5, Curia 6/6, COWL 6/6 plus Registry cleanup 1/1; independently verified zero QA objects | PASS — 18/18 including cleanup; 51/51 combined with role authorization |
-| Certificate Studio save, reload, print | Artifact snapshots + signatory/QR verification | PENDING |
+| Certificate Studio save, reload, print | TEST SQL transactional save/reload/deny simulation PASS; signed-session synthetic persistence and full-resolution visual/print QA next | PARTIAL — DB simulation PASS, real browser and printing PENDING |
 | Backup and restore | Isolated restore, actual files, role/ACL restoration and timed rollback | PENDING |
 | Production backend migration | Reviewed checksums and backend-first release decision | PENDING |
 | Main/release reconciliation | Reviewed merge conflict resolution, exact SHA | PENDING |

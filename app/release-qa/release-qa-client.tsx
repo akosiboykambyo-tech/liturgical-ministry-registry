@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import StorageTransferQa from "./storage-transfer-qa";
+import CertificatePersistenceQa from "./certificate-persistence-qa";
 import { AdminAuthShell, authPrimaryButtonClass, authTitleClass } from "@/components/admin-auth-ui";
 import { useAuth } from "@/lib/auth-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -190,6 +191,7 @@ export default function ReleaseQaClient() {
         </section>
       )}
       <StorageTransferQa />
+      <CertificatePersistenceQa />
     </AdminAuthShell>
   );
 }
