@@ -74,7 +74,15 @@ Remaining release gates: revoked and unassigned *real signed-session* denial; ac
 
 Owner's first genuine Registry session returned **3/4 PASS**: identity verified, the two original template records/default preserved, but synthetic record creation failed. TEST schema inspection identified `public.system_settings.key` as `character varying(50)`. The QA-only key joined a 31-character prefix with a 32-character UUID (63 characters); the database cannot store this. A rolled-back `authenticated` Registry simulation confirmed the original key raises string truncation, while a new 47-character key (the same 31-character prefix plus 16 UUID characters) inserts successfully. No real templates or signatories were changed, and no synthetic record remains.
 
-PR79 now caps the synthetic key to 47 characters, asserts the length budget in CI, and reports only a safe database error code on insert failure. **The human signed-session Registry save/update/reload/cleanup test must be rerun before calling the Certificate Studio persistence gate passed.** COWL/Curia certificate checks also require fresh tests with the corrected key. Production remains unchanged.
+PR79 now caps the synthetic key to 47 characters, asserts the length budget in CI, and reports only a safe database error code on insert failure. **Follow-up complete for Registry:** the owner reran the corrected 47-character-key TEST preview and submitted **7/7 PASS**, covering TEST signed identity, original template inventory, isolated create, update, independent reload, synthetic cleanup and preservation of existing designs. COWL/Curia denial tests with the corrected key remain pending. Production remains unchanged.
+
+### Owner-submitted corrected Registry signed-session result — 12 November 2026
+
+The owner submitted the complete credential-free report from the corrected TEST `/release-qa` Certificate Studio persistence panel. **Registry 7/7 PASS**: independently verified signed Auth identity; exactly two original certificate templates with 2027 renewal as default; creation of isolated synthetic non-default template; server-confirmed save; database reload of version 2; exact synthetic key deletion; original templates/default unaffected. These are browser-observed results supplied by the owner, not an independently captured browser trace.
+
+A separate read-only post-run TEST database query confirmed: **0 synthetic `certificate_template_releaseqa_%` rows**, **2 original `certificate_template%` rows**, **1 default 2027 renewal**, **0 default 2026 renewal**, **8 signatories**, and **0 residual private Storage QA files**. No real certificate designs or signatories were changed during the test.
+
+**Disposition:** Registry signed-session certificate *database persistence and cleanup* PASS. Still required: COWL and Curia real signed-session denial tests, full-resolution visual/QR/font/signature/print QA, isolated restore rehearsal, and production release gates.
 
 ## Certificate Studio safety rehearsal and real-session QA — 12 November 2026
 
@@ -106,7 +114,7 @@ PR79 now caps the synthetic key to 47 characters, asserts the length budget in C
 | Signed three-role HTTP QA | Owner-provided results for Registry, Curia and COWL, each 11/11 | PASS — 33/33, exact TEST QA page |
 | Revoked/unassigned, anon and cross-workspace HTTP | Role-specific 403/200, anonymous 401; separate unassigned/revoked sessions | PARTIAL — signed cross-workspace and anonymous denials PASS; revoked/unassigned not yet tested |
 | Actual private Storage bytes | Registry 5/5, Curia 6/6, COWL 6/6 plus Registry cleanup 1/1; independently verified zero QA objects | PASS — 18/18 including cleanup; 51/51 combined with role authorization |
-| Certificate Studio save, reload, print | TEST SQL transactional save/reload/deny simulation PASS; signed-session synthetic persistence and full-resolution visual/print QA next | PARTIAL — DB simulation PASS, real browser and printing PENDING |
+| Certificate Studio save, reload, print | Registry TEST signed-session synthetic create/update/reload/cleanup 7/7 PASS, independently verified 0 QA rows; COWL/Curia signed denial and visual/print QA still pending | PARTIAL — Registry persistence PASS; other checks pending |
 | Backup and restore | Isolated restore, actual files, role/ACL restoration and timed rollback | PENDING |
 | Production backend migration | Reviewed checksums and backend-first release decision | PENDING |
 | Main/release reconciliation | Reviewed merge conflict resolution, exact SHA | PENDING |
