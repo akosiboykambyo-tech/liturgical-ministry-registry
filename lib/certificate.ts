@@ -295,6 +295,50 @@ function drawAdaptiveMemberName(
 }
 
 
+/**
+ * Reuse decoded certificate artwork between drawer thumbnails and full-size
+ * previews. Keep a short TTL and small cache to limit signed-URL retention.
+ * Failed assets never turn into synthetic/partial certificate artwork.
+ */
+const certificateImageCache = new Map<
+  string, { expiresAt: number; promise: Promise<HTMLImageElement | null> }
+>();
+
+async function loadCertificateImage(url: string): Promise<HTMLImageElement | null> {
+  const cached = certificateImageCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+  certificateImageCache.delete(url);
+  const promise = (async (): Promise<HTMLImageElement | null> => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const image = new Image();
+      await new Promise<void>((resolve) => {
+        image.onload = () => resolve();
+        image.onerror = () => resolve();
+        image.src = dataUrl;
+      });
+      return image.naturalWidth > 0 ? image : null;
+    } catch {
+      return null;
+    }
+  })();
+  certificateImageCache.set(url, { expiresAt: Date.now() + 120_000, promise });
+  while (certificateImageCache.size > 12) {
+    const oldest = certificateImageCache.keys().next().value;
+    if (!oldest) break;
+    certificateImageCache.delete(oldest);
+  }
+  return promise;
+}
+
 export async function renderCertificate(
   canvas: HTMLCanvasElement,
   data: CertificateData,
@@ -324,42 +368,7 @@ export async function renderCertificate(
       .filter((element) => element.visible !== false)
       .sort((a, b) => (a.z_index ?? 0) - (b.z_index ?? 0));
 
-    const loadImage = async (
-  url: string
-): Promise<HTMLImageElement | null> => {
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const blob = await response.blob();
-
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onloadend = () => {
-        resolve(reader.result as string);
-      };
-
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-
-    const image = new Image();
-
-    await new Promise<void>((resolve) => {
-      image.onload = () => resolve();
-      image.onerror = () => resolve();
-      image.src = dataUrl;
-    });
-
-    return image.naturalWidth > 0 ? image : null;
-  } catch {
-    return null;
-  }
-};
+    const loadImage = loadCertificateImage;
 
     const getTextValue = (
       element: CertificateTemplateSettings["elements"][number]
@@ -570,34 +579,12 @@ if (element.type === "member_name") {
       ctx.restore();
     }
   };
-  // Background
+  // Background image shares the same short-lived decode cache as overlays.
   const templateUrl = settings.template_url;
   if (templateUrl) {
-    try {
-      const response = await fetch(templateUrl);
-      if (response.ok) {
-        const blob = await response.blob();
-        const dataUrl: string = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        const img = new Image();
-        await new Promise<void>((resolve) => {
-          img.onload = () => {
-            ctx.drawImage(img, 0, 0, canvasW, canvasH);
-            resolve();
-          };
-          img.onerror = () => resolve();
-          img.src = dataUrl;
-        });
-      } else {
-        drawDefaultBackground(ctx, canvasW, canvasH);
-      }
-    } catch {
-      drawDefaultBackground(ctx, canvasW, canvasH);
-    }
+    const image = await loadCertificateImage(templateUrl);
+    if (image) ctx.drawImage(image, 0, 0, canvasW, canvasH);
+    else drawDefaultBackground(ctx, canvasW, canvasH);
   } else {
     drawDefaultBackground(ctx, canvasW, canvasH);
   }
