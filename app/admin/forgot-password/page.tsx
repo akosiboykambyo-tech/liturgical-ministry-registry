@@ -2,8 +2,8 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Loader2 } from "@/components/phosphor-icons";
-import { AdminAuthShell, AuthError, authPrimaryButtonClass, authSecondaryButtonClass, authInputClass } from "@/components/admin-auth-ui";
+import { ArrowLeft, Loader2 } from "@/components/phosphor-icons";
+import { AdminAuthShell, AuthError, PasswordResetEmailConfirmation, authPrimaryButtonClass, authInputClass } from "@/components/admin-auth-ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ebGaramond } from "@/app/fonts";
 
@@ -45,19 +45,7 @@ export default function ForgotPasswordPage() {
   return (
     <AdminAuthShell showSupport>
               {submitted ? (
-                <>
-                  <CheckCircle2 aria-hidden="true" className="mb-4 h-7 w-7 text-[#0B5C5A]" />
-                  <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.1] text-[#1E1114] sm:text-[48px]`}>Check your email</h1>
-                  <p className="mt-3 text-sm leading-6 text-[#706167]">
-                    If that address matches an authorized staff account, a password setup link is on its way.
-                  </p>
-                  <p className="mt-5 border border-[#E6DADC] bg-white px-4 py-4 text-sm leading-6 text-[#706167]">
-                    Nothing there? Check your spam folder. You can return to sign in or contact the Commission for assistance.
-                  </p>
-                  <Link href="/admin" className={authSecondaryButtonClass + " mt-6"}>
-                    Back to sign in
-                  </Link>
-                </>
+                <PasswordResetEmailConfirmation />
               ) : (
                 <>
                   <h1 className={`${ebGaramond.className} text-[44px] font-medium leading-[1.1] text-[#1E1114] sm:text-[48px]`}>Reset your password</h1>

@@ -5,14 +5,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
-  AdminAccessNotice,
-  adminAccessPrimaryAction,
-  adminAccessSecondaryAction,
-} from "@/components/admin-access-notice";
+  AdminAuthShell,
+  authPrimaryButtonClass,
+  authSecondaryButtonClass,
+  authStatusBoxClass,
+  authTextClass,
+  authTitleClass,
+} from "@/components/admin-auth-ui";
 
 /**
- * Presentation only. A signed-in identity is never an authorization grant.
- * Keep role denial and temporary authorization-service outages distinct.
+ * Signed-in does not mean authorized. Keep missing permissions distinct from
+ * temporary authorization-service outages, using the standard sign-in shell.
+ * Server-side authorization remains unchanged.
  */
 export default function AccessPendingPage() {
   const { signOut } = useAuth();
@@ -26,37 +30,35 @@ export default function AccessPendingPage() {
   }, []);
 
   return (
-    <AdminAccessNotice
-      showIcon={false}
-      title={verificationUnavailable ? "Access verification unavailable" : "Role approval required"}
-      description={
-        verificationUnavailable
-          ? "We could not confirm your account permissions at this time. Administrative pages and financial records remain restricted."
-          : "Your sign-in is valid, but COWL-DOK could not confirm an approved Registry, COWL financial, or Curia financial assignment. Administrative pages and financial records remain restricted."
-      }
-      actions={
-        <>
-          <Link href="/admin" className={adminAccessSecondaryAction}>
-            Check access again
-          </Link>
-          <button
-            type="button"
-            className={adminAccessPrimaryAction}
-            onClick={async () => {
-              await signOut();
-              router.replace("/admin");
-            }}
-          >
-            Sign out
-          </button>
-        </>
-      }
-    >
-      <p className="mt-3 text-sm leading-6 text-[#5F4A4F]">
+    <AdminAuthShell showSupport backHref="/" backLabel="Back to the public registry">
+      <h1 className={authTitleClass}>
+        {verificationUnavailable ? "Access verification unavailable" : "Role approval required"}
+      </h1>
+      <p className={authTextClass}>
         {verificationUnavailable
-          ? "The authorization service may be temporarily unavailable. Try checking access again, or contact COWL-DOK support if the problem continues."
-          : "Contact the designated diocesan administrator to verify or activate your assignment. Financial roles require explicit appointment and may be revoked."}
+          ? "We could not verify your account permissions right now. Your administrative and financial access remains restricted."
+          : "You are signed in, but this account does not currently have an approved Registry, COWL financial, or Curia financial role."}
       </p>
-    </AdminAccessNotice>
+      <p role="status" className={authStatusBoxClass}>
+        {verificationUnavailable
+          ? "Please check your access again. If this continues, contact your designated administrator or COWL-DOK support."
+          : "Administrative and financial records remain protected until a designated administrator approves your assignment. If you believe you should have access, contact your administrator."}
+      </p>
+      <div className="mt-7 space-y-3">
+        <Link href="/admin" className={authPrimaryButtonClass}>
+          Check access again
+        </Link>
+        <button
+          type="button"
+          className={authSecondaryButtonClass}
+          onClick={async () => {
+            await signOut();
+            router.replace("/admin");
+          }}
+        >
+          Sign out
+        </button>
+      </div>
+    </AdminAuthShell>
   );
 }

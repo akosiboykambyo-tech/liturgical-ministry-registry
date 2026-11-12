@@ -89,6 +89,33 @@ export function AdminAuthShell({
   );
 }
 
+/**
+ * Shared password-request confirmation, without a decorative status icon.
+ * Never disclose account existence or promise successful email delivery.
+ */
+export function PasswordResetEmailConfirmation() {
+  return (
+    <>
+      <h1 className={authTitleClass}>Check your email</h1>
+      <p className={authTextClass}>
+        If the email address matches a staff account, a password setup link may be on its way.
+      </p>
+      <p className={authStatusBoxClass}>
+        Check your inbox and spam folder. If you still need help, contact COWL-DOK support.
+      </p>
+      <div className="mt-7 space-y-3">
+        <Link href="/admin" className={authPrimaryButtonClass}>Back to sign in</Link>
+        <Link
+          href="/admin/forgot-password"
+          className="inline-flex min-h-11 items-center text-sm font-semibold text-[#0B5C5A] underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B5C5A]"
+        >
+          Try another email address
+        </Link>
+      </div>
+    </>
+  );
+}
+
 export function AuthError({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div role="alert" className={`flex items-start gap-3 border border-[#B42330] bg-[#FFF0F0] px-4 py-3 text-sm leading-6 text-[#92202A] ${className}`}>

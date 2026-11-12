@@ -117,6 +117,15 @@ A separate read-only TEST SQL check after these runs confirmed: **0 `certificate
 
 **Limit:** Supabase bearer tokens are JWTs; revoking refresh sessions alone does not necessarily invalidate previously issued access tokens. This gate verifies the app's *current database-grant-based authorization*, not global instantaneous token invalidation. No unrelated paid project, production credentials, or real member data is required.
 
+## Auth status / password email presentation consistency — 12 November 2026
+
+User screenshots showed the dedicated unassigned TEST account reaching **Role approval required** after successful sign-in, and the generic **Check your email** password-link request result. The first is the expected *unassigned presentation*, not a failed login or a completed role-API security test.
+
+- `/admin/access-pending` now shares `AdminAuthShell` with sign-in, invitation and recovery pages: same responsive layout, branded coat, typography, status box, full-width buttons and help contact. The separate card and inconsistent button dimensions are gone.
+- Distinguish **Role approval required** (signed in without an approved role) from **Access verification unavailable** (the permissions check failed). Neither state authorizes access or changes routing, Auth, grants or permissions.
+- Both password-email result routes now share a single reusable `PasswordResetEmailConfirmation` without a standalone checkmark. Wording remains intentionally non-enumerating: email sending and account existence are not guaranteed by the confirmation view. The branded diocesan coat remains part of the canonical header, not a status icon.
+- CI regression tests ensure both pages use the shared components and that no standalone status icons return. Visual review and unassigned role-API signed-session QA are still separate tasks. Production has not been changed.
+
 ## Snapshot and restore (must be certified BEFORE a production migration)
 1. Record authoritative production deployment ID, commit and domain aliases. Freeze the tested candidate SHA and reviewed SQL file checksums.
 2. Use Supabase dashboard **Database > Backups** to verify actual recovery availability and a recent usable recovery point. Perform a **restore to a separate disposable project**, not a destructive in-place restore. Confirm table counts, Auth identity data and RLS/grants against a sensitive-data-safe inventory. Do not rely on SQL dump alone for Auth/session/config.

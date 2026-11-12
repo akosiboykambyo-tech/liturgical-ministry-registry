@@ -57,17 +57,36 @@ test("invitation and password recovery still verify one-time challenges", () => 
   assert.doesNotMatch(read("app/admin/reset-link-sent/page.tsx"), /setInterval|60\s*-\s*Math\.floor/);
 });
 
-test("PR81 access notice remains shared, but role denial distinguishes outages without standalone icon", () => {
+test("pending access and service outages share the approved sign-in layout", () => {
   const page = read("app/admin/access-pending/page.tsx");
-  const notice = read("components/admin-access-notice.tsx");
-  assert.match(page, /<AdminAccessNotice/);
-  assert.match(page, /showIcon=\{false\}/);
+  assert.match(page, /<AdminAuthShell\b/);
+  assert.match(page, /authTitleClass/);
+  assert.match(page, /authTextClass/);
+  assert.match(page, /authStatusBoxClass/);
+  assert.match(page, /authPrimaryButtonClass/);
+  assert.match(page, /authSecondaryButtonClass/);
   assert.match(page, /Role approval required/);
   assert.match(page, /Access verification unavailable/);
   assert.match(page, /verificationUnavailable/);
-  assert.doesNotMatch(page, /ShieldCheck|<svg\b/);
-  assert.match(notice, /showIcon = true/);
-  assert.match(notice, /showIcon && <ShieldCheck/);
+  assert.match(page, /await signOut\(\)/);
+  assert.doesNotMatch(page, /<AdminAccessNotice|ShieldCheck|CheckCircle2|<svg\b/);
+});
+
+test("password request results reuse a non-enumerating, icon-free shared component", () => {
+  const request = read("app/admin/forgot-password/page.tsx");
+  const sent = read("app/admin/reset-link-sent/page.tsx");
+  const shared = read("components/admin-auth-ui.tsx");
+  assert.match(request, /<PasswordResetEmailConfirmation\s*\/>/);
+  assert.match(sent, /<PasswordResetEmailConfirmation\s*\/>/);
+  assert.match(shared, /export function PasswordResetEmailConfirmation\(\)/);
+  assert.match(shared, /If the email address matches a staff account/);
+  assert.match(shared, /authTitleClass/);
+  assert.match(shared, /authStatusBoxClass/);
+  assert.match(shared, /authPrimaryButtonClass/);
+  assert.doesNotMatch(request, /CheckCircle2/);
+  assert.doesNotMatch(sent, /CheckCircle2/);
+  assert.doesNotMatch(shared.slice(shared.indexOf("export function PasswordResetEmailConfirmation"), shared.indexOf("export function AuthError")), /<CheckCircle2|<ShieldCheck|<AlertCircle/);
+  assert.match(request, /auth\.resetPasswordForEmail/);
 });
 
 test("PR81 public 403/404 pages and footer remain the single source of truth", () => {
