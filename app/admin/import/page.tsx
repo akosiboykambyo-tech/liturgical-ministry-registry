@@ -8,6 +8,7 @@ import { CsvImportWorkspaceContext, type CsvImportTab } from "@/lib/verification
 import Link from "next/link";
 import Papa from "papaparse";
 import { ebGaramond } from "@/app/fonts";
+import { AdminHistoryEmpty, AdminHistoryLoading, AdminHistoryPanel } from "@/components/admin-history-panel";
 import {
   stageBatchRecords,
   importMemberBatch,
@@ -2069,53 +2070,25 @@ export default function CsvImportPage() {
       {/* RENEWAL HISTORY TAB */}
       {/* ============================================================ */}
       {activeTab === "history" && (
-        <div className="space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 className={`${ebGaramond.className} text-[24px] leading-tight font-semibold tracking-tight text-[#211018] flex items-center gap-2`}>
-                <History className="h-6 w-6 text-primary" />
-                Renewal History
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Durable audit history for parish recommendation renewal batches,
-                including the shared document, processing dates, and the exact
-                ministry memberships covered by each batch.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void loadRenewalHistory()}
-              disabled={renewalHistoryLoading}
-              className="inline-flex shrink-0 items-center gap-2 rounded-none border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${renewalHistoryLoading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </button>
-          </div>
-
+        <AdminHistoryPanel
+          title="Renewal History"
+          description="Recorded parish recommendation renewal batches, including their shared documents, processing dates, and covered ministry memberships."
+          refreshing={renewalHistoryLoading}
+          onRefresh={() => void loadRenewalHistory()}
+        >
           {renewalHistoryError && (
-            <div className="flex items-start gap-2 rounded-none bg-destructive/10 px-4 py-3 text-sm text-destructive ring-1 ring-inset ring-destructive/20">
-              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>{renewalHistoryError}</span>
-            </div>
+            <p role="alert" className="mb-4 border-l-4 border-l-[#B00020] bg-[#FBEFEF] px-4 py-3 text-sm text-[#B00020]">
+              Renewal history unavailable: {renewalHistoryError}
+            </p>
           )}
 
           {renewalHistoryLoading ? (
-            <div className="flex items-center justify-center rounded-none border border-[#E6DADB] border-t-[3px] border-t-[#890022] bg-white py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : renewalHistory.length === 0 ? (
-            <div className="rounded-none border border-dashed border-border py-16 text-center">
-              <History className="mx-auto h-10 w-10 text-muted-foreground/50" />
-              <p className="mt-3 text-sm font-medium text-muted-foreground">
-                No renewal batches recorded yet.
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Completed recommendation renewal batches will appear here.
-              </p>
-            </div>
+            <AdminHistoryLoading label="Loading renewal history…" />
+          ) : renewalHistoryError ? null : renewalHistory.length === 0 ? (
+            <AdminHistoryEmpty
+              title="No renewal batches recorded yet."
+              description="Completed parish recommendation renewal batches will appear here."
+            />
           ) : (
             <div className="space-y-3">
               {renewalHistory.map((batch) => {
@@ -2306,7 +2279,7 @@ export default function CsvImportPage() {
               })}
             </div>
           )}
-        </div>
+        </AdminHistoryPanel>
       )}
 
       {/* ============================================================ */}
