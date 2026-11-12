@@ -79,6 +79,20 @@ Production certificate artwork is present in public Storage (36 files) but TEST 
 
 **Safety gate before data export:** confirm an encrypted destination on the operator workstation and a separate secure/offline copy strategy; avoid accidentally placing private Registry member and finance records into Git, cloud-synced folders or shared directories. Never print credentials or actual dump content in chat. Verify encrypted archive integrity/checksums and source-vs-restored inventories before marking the backup complete.
 
+### Operator-confirmed TEST schema/data/roles file-integrity checkpoint — 12 November 2026
+
+The operator reports that all three TEST exports exist under a mounted VeraCrypt volume, with the following byte lengths and SHA-256 hashes (copied from local PowerShell output). **No file contents, passwords, personal user paths or Storage object names were shared or committed.**
+
+| File | Bytes | SHA-256 |
+|---|---:|---|
+| `TEST-schema.sql` | 278,919 | `AE70D2B098B8AAF639A72BF58B888C03A455422157A6C42D052F2E8FEC4A3BB7` |
+| `TEST-data.sql` | 297,437 | `9D21B07121022E23D39BD66BE02E69F8181BF961842B757A23F0B9F141FC3F89` |
+| `TEST-roles.sql` | 297 | `25873CEC56A2CC6514E204F420231777F85C03DA818CAA7090CDCDFA89776ECD` |
+
+The small 297-byte roles file is not necessarily an error; role declarations and restoration compatibility have **not** been verified. File-hash collection does not prove application records, Auth identities, Storage contents, roles or policies can be restored. Default Supabase `db dump` excludes managed `auth` and `storage` schemas. Before the next data-bearing export, preserve these checksums in an encrypted local manifest, create a second independently protected copy of the VeraCrypt container after unmounting it, and verify both the archive and a standalone restore. The separate Auth/Storage backup and an isolated full restore are pending.
+
+**Source-only operation:** read-only SQL exports from TEST; Production unchanged. The user should **not** publish these SQL files to GitHub/Trello or attach them to chat.
+
 ## 3. Acceptance criteria for a certified isolated recovery
 
 **All** are required, with results recorded by two operators where feasible:
