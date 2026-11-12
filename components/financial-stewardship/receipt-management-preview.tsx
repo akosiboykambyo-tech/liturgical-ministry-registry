@@ -341,3 +341,5 @@ export default function ReceiptManagementPreview() {
       </div>
     </section>}
   </div>;
+
+}
