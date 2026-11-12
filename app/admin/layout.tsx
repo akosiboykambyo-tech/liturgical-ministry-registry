@@ -20,6 +20,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
+import { AdminAccessNotice, adminAccessPrimaryAction } from "@/components/admin-access-notice";
 import { cn } from "@/lib/utils";
 import { ebGaramond, inter } from "@/app/fonts";
 
@@ -201,13 +202,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (loading || (user && registryAccess === "checking")) return <CenteredAdminLoader fullscreen label="Checking Registry authorization…" />;
   if (!user) return null;
   if (registryAccess === "unavailable") return (
-    <main className="flex min-h-screen items-center justify-center bg-[#FBF9F9] px-5">
-      <section role="alert" className="w-full max-w-lg border border-[#E6DADC] border-t-4 border-t-[#890022] bg-white p-6">
-        <h1 className={ebGaramond.className + " text-3xl"}>Access verification unavailable</h1>
-        <p className="mt-3 text-sm text-[#5F4A4F]">Registry access could not be verified. No administrative pages have been opened.</p>
-        <button type="button" onClick={() => window.location.reload()} className="mt-4 bg-[#890022] px-4 py-2 text-sm font-semibold text-white">Retry verification</button>
-      </section>
-    </main>
+    <AdminAccessNotice
+      title="Access verification unavailable"
+      description="We could not verify your registry permissions at this time. No administrative pages have been opened."
+      actions={
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className={adminAccessPrimaryAction}
+        >
+          Retry verification
+        </button>
+      }
+    >
+      <p className="mt-3 text-sm leading-6 text-[#5F4A4F]">
+        Please try again. If this continues, contact the designated administrator.
+      </p>
+    </AdminAccessNotice>
   );
 
   const rawName = user.user_metadata?.display_name;
