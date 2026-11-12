@@ -39,3 +39,15 @@ Vercel `www.cowl-dok.online` and `cowl-dok.online` point to READY deployment `dp
 ### Safety hold
 
 Do not mark the PR ready for merge merely because offline CI passes. Production has neither the guarded write RPC nor the new certificate function implementation; frontend-first promotion would fail. The approved one-go implementation has staged and documented the backend corrections, with no production data, credentials, Storage objects, permissions, or deployments altered.
+
+## Delayed documentary evidence, audited effective dates and certificate performance (12 November 2026)
+
+Owner-approved policy: first registration/renewal validity lasts one calendar year from its **documented effective event date**, not from the date the private letter is uploaded or the data is entered. Expiration is inclusive on the Asia/Manila civil date. Backdated approvals require an administrator to provide a 12–500-character reason stored with the actor identity, approval timestamp, selected assignment and prior/new states. Future effective dates cannot activate membership; new or renewed approvals require a linked existing private letter. No automatic approval from uploading evidence. Per-ministry decisions are independent; no member-wide shortcut.
+
+Implemented TEST-only `public.registry_verify_ministries_v3(uuid,uuid[],text,date,text)` via migration `pr79_verify_documented_effective_date_audited` (source: `docs/sql/pr79-documented-effective-date.STAGING-TESTED.sql`). Revocable private allowlist and exact per-ministry row locking retained. V3 is called by the PR79 secure Verification UI. Older v2 intentionally remains for staging compatibility until independently authorized release cutover, and Production has **not** been migrated.
+
+A SQL transaction-only TEST rehearsal verified denial for missing authentication, nonadministrator, missing private letter and insufficient backdating reason; then approved an assignment with a synthetic private Storage row, checked the anniversary expiration and explicit audit log, and rolled back everything. Zero synthetic Storage objects and audit records persisted. This does not substitute for signed JWT/real Storage or browser E2E certification.
+
+The member drawer now treats all effective/renewal/expiration fields and ministry status as read-only, starts new pending ministry drafts with NULL start dates, and uses per-ministry current validity for certificate printing. The thumbnail is a deferred, low-resolution canvas with bounded cache, while full-resolution preview/print is rendered only when requested. Certificate artwork and fonts are reused where appropriate without modifying certificate artwork or public status.
+
+**Still NO-GO for Production:** install the approved backend v3, protected member writer and existing PR79 certificate changes in a carefully tested backend-first migration, reconcile live Vercel baseline/PR78, run independent signed Auth/Storage/rollback tests and verify Print/Preview browser behavior. Do not auto-merge or promote this PR because offline CI passes.

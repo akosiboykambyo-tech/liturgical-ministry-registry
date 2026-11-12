@@ -756,9 +756,10 @@ export function MemberDetailDrawer({
 
                   <div className="space-y-3">
                     {membershipDrafts.map((membership) => {
-                      const expirationStatus = getExpirationStatus(
-                        membership.expiration_date
-                      );
+                      const expirationStatus =
+                        membership.status === "New" || membership.status === "Renewed"
+                          ? getExpirationStatus(membership.expiration_date)
+                          : "none";
 
                       return (
                         <div
