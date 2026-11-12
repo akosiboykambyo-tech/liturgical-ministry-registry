@@ -1,0 +1,35 @@
+name: PR79 isolated registry security integration
+on:
+  pull_request:
+    branches: [release/auth-typography-on-live-baseline]
+    paths:
+      - ".github/workflows/pr79-security-integration.yml"
+      - "app/admin/**"
+      - "app/verify/**"
+      - "lib/**"
+      - "components/member-detail-drawer.tsx"
+      - "docs/sql/pr79-**"
+      - "tests/annual-registration-public-policy.test.cjs"
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Annual per-ministry validity policy
+        run: node --test tests/annual-registration-public-policy.test.cjs
+      - name: Existing registration regressions
+        run: npm run test:registration
+      - name: Production build
+        run: npm run build
