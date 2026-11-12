@@ -161,6 +161,8 @@ Independent read-only postflight on `rtptybxugjhvpfjvcvgw`: **6 Auth accounts, 4
 
 **Gate disposition:** role-based real-session unassigned / granted / revoked HTTP authorization is **PASS**. Remaining production release gates: independently reproducible isolated restoration of Auth/database/Storage/ACL with verified private bytes; full Certificate Studio visual/print/QR artifact evidence; production-compatible backend migrations and reconciled Git release/production SHAs. PR79 remains DRAFT/NO-GO. No Production migrations or promotions authorized.
 
+**Read-only recovery readiness audit (12 November 2026):** `docs/pr79-recovery-readiness-audit-2026-11-12.md`. Source counts, buckets, Postgres dependencies, Free subscription/no automatic backups, manual encrypted backup requirements and planned paid restore gates are recorded there. Existing TEST and PROD are not substitutes for an actual backup or disposable restore.
+
 ## Snapshot and restore (must be certified BEFORE a production migration)
 1. Record authoritative production deployment ID, commit and domain aliases. Freeze the tested candidate SHA and reviewed SQL file checksums.
 2. Use Supabase dashboard **Database > Backups** to verify actual recovery availability and a recent usable recovery point. Perform a **restore to a separate disposable project**, not a destructive in-place restore. Confirm table counts, Auth identity data and RLS/grants against a sensitive-data-safe inventory. Do not rely on SQL dump alone for Auth/session/config.
@@ -184,6 +186,6 @@ Independent read-only postflight on `rtptybxugjhvpfjvcvgw`: **6 Auth accounts, 4
 | Revoked/unassigned, anon and cross-workspace HTTP | Owner-submitted signed TEST runs: unassigned 10/10, COWL granted 10/10, COWL revoked 10/10; COWL access changed 200 → 403, Curia remained 403; independent database postflight validated original grants preserved | PASS — three-phase role-grant authorization 30/30; unrelated JWT session invalidation not certified |
 | Actual private Storage bytes | Registry 5/5, Curia 6/6, COWL 6/6 plus Registry cleanup 1/1; independently verified zero QA objects | PASS — 18/18 including cleanup; 51/51 combined with role authorization |
 | Certificate Studio save, reload, print | 15/15 signed-session persistence/denial PASS; owner indicated visual/print review is acceptable but did not provide artifact-level evidence | PARTIAL — owner-acknowledged visual review; independently archived print/QR/font proof still pending |
-| Backup and restore | Isolated restore, actual files, role/ACL restoration and timed rollback | PENDING |
+| Backup and restore | Read-only TEST/PROD assessment complete; organization Free (no managed daily backups); 2/2 active Free projects; no verified encrypted backup artifacts or Storage bytes; isolated restore requires local preliminary or approved paid project | BLOCKED — complete actual backup + isolated restore proof before Production |
 | Production backend migration | Reviewed checksums and backend-first release decision | PENDING |
 | Main/release reconciliation | Reviewed merge conflict resolution, exact SHA | PENDING |
