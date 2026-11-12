@@ -22,7 +22,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
       - run: npm ci --ignore-scripts
       - name: TypeScript
@@ -31,5 +31,10 @@ jobs:
         run: node --test tests/annual-registration-public-policy.test.cjs
       - name: Existing registration regressions
         run: npm run test:registration
-      - name: Production build
+      - name: Production build (synthetic public CI environment)
         run: npm run build
+        env:
+          # No real project credentials or keys are used for CI prerendering.
+          NEXT_PUBLIC_SUPABASE_URL: https://ci.invalid.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-only-placeholder-not-an-auth-key
+
