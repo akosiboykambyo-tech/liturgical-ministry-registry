@@ -1,5 +1,4 @@
 import type { CertificateTemplateSettings } from "@/lib/types";
-import { todayInManila } from "@/lib/verification-public-status";
 export const MINISTRIES = [
   "Mother Butler Guild",
   "Ministry of Greeters and Collectors",
@@ -94,7 +93,14 @@ export function getExpirationStatus(expirationDate: string | null): ExpirationSt
   const expiry = new Date(expirationDate + "T00:00:00Z");
   if (!Number.isFinite(expiry.getTime()) ||
       expiry.toISOString().slice(0, 10) !== expirationDate) return "none";
-  const today = new Date(todayInManila() + "T00:00:00Z");
+  const manilaParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const civilPart = (name: string) =>
+    manilaParts.find((part) => part.type === name)?.value ?? "";
+  const today = new Date(
+    `${civilPart("year")}-${civilPart("month")}-${civilPart("day")}T00:00:00Z`
+  );
   const daysRemaining = Math.round((expiry.getTime() - today.getTime()) / 86400000);
   if (daysRemaining < 0) return "expired";
   if (daysRemaining <= EXPIRING_SOON_DAYS) return "expiring_soon";
