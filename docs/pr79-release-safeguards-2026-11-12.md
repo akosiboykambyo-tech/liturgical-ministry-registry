@@ -70,6 +70,12 @@ Remaining release gates: revoked and unassigned *real signed-session* denial; ac
 
 **Production remains unchanged; PR79 remains DRAFT/NO-GO.** This record contains no account emails, passwords, JWTs, signed URLs, or private document paths.
 
+### Certificate QA key-length correction — 12 November 2026
+
+Owner's first genuine Registry session returned **3/4 PASS**: identity verified, the two original template records/default preserved, but synthetic record creation failed. TEST schema inspection identified `public.system_settings.key` as `character varying(50)`. The QA-only key joined a 31-character prefix with a 32-character UUID (63 characters); the database cannot store this. A rolled-back `authenticated` Registry simulation confirmed the original key raises string truncation, while a new 47-character key (the same 31-character prefix plus 16 UUID characters) inserts successfully. No real templates or signatories were changed, and no synthetic record remains.
+
+PR79 now caps the synthetic key to 47 characters, asserts the length budget in CI, and reports only a safe database error code on insert failure. **The human signed-session Registry save/update/reload/cleanup test must be rerun before calling the Certificate Studio persistence gate passed.** COWL/Curia certificate checks also require fresh tests with the corrected key. Production remains unchanged.
+
 ## Certificate Studio safety rehearsal and real-session QA — 12 November 2026
 
 - Read-only TEST preflight confirmed exactly **two** `certificate_template%` settings rows, one default (2027 renewal), **eight** signatories, and zero pre-existing `certificate_template_releaseqa_%` rows.

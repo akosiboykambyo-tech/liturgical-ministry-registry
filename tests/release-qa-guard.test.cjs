@@ -53,6 +53,14 @@ test("TEST certificate persistence QA creates only an isolated non-default recor
  assert.match(route, /rtptybxugjhvpfjvcvgw\.supabase\.co/);
  assert.match(parent, /<CertificatePersistenceQa\s*\/>/);
  assert.match(qa, /certificate_template_releaseqa_/);
+ // Regression: public.system_settings.key is varchar(50), prefix length 31.
+ // Full 32-character UUID produced 63 characters and SQLSTATE 22001.
+ const keyPrefix = "certificate_template_releaseqa_";
+ assert.equal(keyPrefix.length, 31);
+ assert.ok(keyPrefix.length + 16 <= 50);
+ assert.ok(keyPrefix.length + 32 > 50);
+ assert.match(qa, /user\.id\.replace\(\/\-\/g, ""\)\.slice\(0, 16\)/);
+ assert.match(qa, /insert\.error\?\.code/);
  assert.match(qa, /auth\.getUser\(session\.access_token\)/);
  assert.match(qa, /is_default: false/);
  assert.match(qa, /\.insert\(\{/);

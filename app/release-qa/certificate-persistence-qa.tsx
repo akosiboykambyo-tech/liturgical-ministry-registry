@@ -32,7 +32,9 @@ export default function CertificatePersistenceQa() {
     setCompleted(false);
     const rows: Result[] = [];
     const client = getSupabaseBrowserClient();
-    const key = PREFIX + user.id.replace(/-/g, "");
+    // system_settings.key is varchar(50). Prefix (31) + 16 UUID hex = 47.
+    // Do not use the full 32-char UUID: the previous 63-char key failed with SQLSTATE 22001.
+    const key = PREFIX + user.id.replace(/-/g, "").slice(0, 16);
     let created = false;
     let safeToAttempt = false;
     try {
@@ -62,7 +64,8 @@ export default function CertificatePersistenceQa() {
         created = !insert.error && insert.data?.key === key;
         append(rows, "Create isolated TEST-only certificate record", created,
           created ? "Only a new synthetic, non-default settings record was created." :
-            "Could not prove the synthetic record was created; existing templates untouched.");
+            "The synthetic INSERT did not persist (database error code: " +
+              (insert.error?.code ?? "none") + "). Existing templates untouched.");
         if (!created) return;
 
         const saved = await client.from("system_settings")
