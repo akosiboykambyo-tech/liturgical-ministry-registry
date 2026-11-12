@@ -76,7 +76,7 @@ export default function AddMemberPage() {
 
     if (result.status === "created") {
       setSuccess(
-        `Created ${result.member.first_name} ${result.member.last_name} (UID: ${result.member.uid}). Routed to the Quick-Scan Verification Matrix for approval.`
+        `Created ${result.member.first_name} ${result.member.last_name} (UID: ${result.member.uid}). Awaiting separate review and per-ministry approval.`
       );
       setFirstName("");
       setLastName("");

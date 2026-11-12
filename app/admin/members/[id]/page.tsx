@@ -122,7 +122,8 @@ export default function MemberDetailPage() {
         first_name: firstName,
         last_name: lastName,
         ministries: editMinistries,
-        status,
+        // Never replay an aggregate member status from an editing form.
+        // Approval/revocation belongs to its explicit guarded workflow.
         notes: notes.trim() || null,
       });
       setEditingName(false);
@@ -141,46 +142,6 @@ export default function MemberDetailPage() {
     setEditFirstName(member.first_name);
     setEditLastName(member.last_name);
     setEditingName(false);
-  };
-
-  const handleUpload = async (file: File) => {
-    if (!member) return;
-    setUploading(true);
-    setError(null);
-    const ext = file.name.split(".").pop()?.toLowerCase() || "pdf";
-    const path = `${member.id}/recommendation-letter-${crypto.randomUUID()}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("member-documents")
-      .upload(path, file, { upsert: false });
-    if (upErr) {
-      setError(upErr.message);
-      setUploading(false);
-      return;
-    }
-    try {
-      await registryAdminWrite("document", { member_id: member.id, document_path: path });
-    } catch (error) {
-      await supabase.storage.from("member-documents").remove([path]);
-      setError(error instanceof Error ? error.message : "Document linking rejected");
-      setUploading(false);
-      return;
-    }
-    setUploading(false);
-    setSuccess("Recommendation letter uploaded and linked.");
-    setTimeout(() => setSuccess(null), 3000);
-    load();
-  };
-
-  const handleDeleteDocument = async () => {
-    if (!member?.document_url) return;
-    try {
-      await registryAdminWrite("document", { member_id: member.id, document_path: null });
-      setSuccess("Document reference cleared; the private file is retained for audit.");
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Document unlink rejected");
-      return;
-    }
-    load();
   };
 
   const publicVerifyUrl = member
@@ -378,57 +339,19 @@ export default function MemberDetailPage() {
               <FileText className="h-4 w-4" />
               Recommendation Letter
             </h2>
-            {member.document_url ? (
-              <div className="space-y-3">
-                {signedDocUrl ? (
-                  <a
-                    href={signedDocUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-none border border-border p-3 text-sm hover:bg-muted transition-colors"
-                  >
-                    <FileText className="h-4 w-4 text-primary shrink-0" />
-                    <span className="flex-1 truncate">View uploaded scan (valid 1h)</span>
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                  </a>
-                ) : (
-                  <div className="flex items-center gap-2 rounded-none border border-border p-3 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Generating secure link…</span>
-                  </div>
-                )}
-                <button
-                  onClick={handleDeleteDocument}
-                  className="inline-flex items-center gap-1.5 text-xs text-destructive hover:underline"
-                >
-                  <Trash2 className="h-3 w-3" /> Remove document
-                </button>
-              </div>
-            ) : (
-              <label className="block">
-                <div className={`rounded-none border-2 border-dashed p-6 text-center transition-colors cursor-pointer ${uploading ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}>
-                  {uploading ? (
-                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
-                  ) : (
-                    <Upload className="mx-auto h-6 w-6 text-muted-foreground/60" />
-                  )}
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Drop a scan or click to upload
-                  </p>
-                </div>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleUpload(f);
-                  }}
-                />
-              </label>
-            )}
+            {member.document_url && signedDocUrl ? (
+              <a href={signedDocUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-none border border-border p-3 text-sm hover:bg-muted transition-colors">
+                <FileText className="h-4 w-4 text-primary shrink-0" />
+                <span className="flex-1 truncate">View legacy member-level letter (private signed link)</span>
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+              </a>
+            ) : member.document_url ? (
+              <p className="text-sm text-muted-foreground">Private letter link unavailable. Contact the registry administrator.</p>
+            ) : null}
             <p className="text-xs text-muted-foreground">
-              Uploads are stored in the secure member-documents bucket.
+              Attach new recommendation letters to the exact ministry assignments through
+              the Member drawer or secure Verification workspace. Uploading never approves or renews a ministry.
             </p>
           </div>
 

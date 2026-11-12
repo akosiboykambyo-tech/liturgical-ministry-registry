@@ -52,3 +52,18 @@ test("Private server write RPC proposal denies all ungranted identities", () => 
   assert.match(src, /REVOKE ALL ON FUNCTION public\.registry_admin_member_write_v1/);
   assert.match(src, /RAISE EXCEPTION 'NO-GO: PR79/);
 });
+
+test("Secure release never displays a member-wide quick approval as an active fallback", () => {
+  const source = read("app/admin/verify/page.tsx");
+  assert.match(source, /Verification is temporarily unavailable/);
+  assert.match(source, /secureMinistryVerificationEnabled/);
+  assert.doesNotMatch(source, /: <LegacyQuickScanMatrixPage/);
+});
+
+test("Legacy profile cannot attach or detach member-wide recommendation letters", () => {
+  const source = read("app/admin/members/[id]/page.tsx");
+  assert.doesNotMatch(source, /const handleUpload =/);
+  assert.doesNotMatch(source, /const handleDeleteDocument =/);
+  assert.doesNotMatch(source, /registryAdminWrite\("document"/);
+  assert.doesNotMatch(source, /status,\s*notes: notes\.trim/);
+});

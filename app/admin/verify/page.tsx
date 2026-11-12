@@ -47,7 +47,11 @@ export default function QuickScanMatrixPage() {
   const initialSearch = useContext(RegistrationReviewSearchContext);
   return secureMinistryVerificationEnabled
     ? <SecureMinistryVerification initialSearch={initialSearch} />
-    : <LegacyQuickScanMatrixPage initialSearch={initialSearch} />;
+    : <div role="alert" className="border border-[#E8D6BE] bg-[#FFF9ED] px-5 py-4 text-sm text-[#684B20]">
+        Verification is temporarily unavailable until the protected ministry approval
+        service is activated. Existing members can still be viewed, but approvals
+        are not accepted through the legacy member-wide Quick Scan.
+      </div>;
 }
 
 // Keep the legacy UI unchanged until the secure RPC has been separately
