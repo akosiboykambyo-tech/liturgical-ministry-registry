@@ -6,7 +6,6 @@ import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { attachRecommendationLetter } from "@/lib/registry-letter-attachments";
 import {
-  STATUS_VALUES,
   getExpirationStatus,
   DEFAULT_TEMPLATE_SETTINGS,
 } from "@/lib/constants";
@@ -42,10 +41,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { attachSignatureCompositions, SIGNATURE_LAYOUT_KEY_PREFIX } from "@/lib/signature-layout";
-import {
-  CertificateDesign,
-  type CertificateDesignHandle,
-} from "@/components/certificate-design";
+import { renderCertificate } from "@/lib/certificate";
+import { isCurrentMembership } from "@/lib/verification-public-status";
 
 type MembershipDraft = Pick<
   MemberMinistry,
@@ -89,7 +86,14 @@ export function MemberDetailDrawer({
     useState<CertificateTemplateSettings>(DEFAULT_TEMPLATE_SETTINGS);
   const [certificateSignatories, setCertificateSignatories] =
     useState<Signatory[]>([]);
-  const certificateRef = useRef<CertificateDesignHandle>(null);
+  // Offscreen thumbnail is intentionally low resolution. Full print canvas
+  // is generated only when the operator requests preview or printing.
+  const fullCertificateCanvas = useRef<{ key: string; canvas: HTMLCanvasElement } | null>(null);
+  const thumbnailCache = useRef<Map<string, string>>(new Map());
+  const [certificateMetadataReady, setCertificateMetadataReady] = useState(false);
+  const [fullCertificatePreview, setFullCertificatePreview] =
+    useState<{ key: string; src: string } | null>(null);
+  const [preparingFullPreview, setPreparingFullPreview] = useState(false);
   const [printingCertificate, setPrintingCertificate] = useState(false);
   const [certificateThumbnail, setCertificateThumbnail] = useState<{ key: string; src: string } | null>(null);
   const [certificatePreviewError, setCertificatePreviewError] = useState<string | null>(null);
@@ -119,6 +123,9 @@ export function MemberDetailDrawer({
     setPersistedMembershipIds([]);
     setCertificateSettings(DEFAULT_TEMPLATE_SETTINGS);
     setCertificateSignatories([]);
+    setCertificateMetadataReady(false);
+    fullCertificateCanvas.current = null;
+    setFullCertificatePreview(null);
 
     try {
       const { data, error: memberError } = await supabase
@@ -182,7 +189,7 @@ export function MemberDetailDrawer({
             id: "",
             ministry,
             status: m.status,
-            start_date: m.created_at.slice(0, 10),
+            start_date: m.status === "Pending Verification" ? null : m.created_at.slice(0, 10),
             expiration_date: m.expiration_date,
             renewal_date: null,
             document_url: m.document_url,
@@ -244,7 +251,7 @@ export function MemberDetailDrawer({
             .limit(10);
           if (isCurrent()) setAudits((logs as AuditLog[]) ?? []);
         })(),
-      ]);
+      ]).then(() => { if (isCurrent()) setCertificateMetadataReady(true); });
     } catch (loadError) {
       if (isCurrent()) {
         setError(
@@ -299,15 +306,14 @@ export function MemberDetailDrawer({
     };
   }, [selectedMembership?.document_url, supabase]);
 
-  const selectedExpirationStatus = getExpirationStatus(
-    selectedMembership?.expiration_date ?? null
+  const selectedCertificateEligible = Boolean(
+    selectedMembership?.id &&
+    isCurrentMembership({
+      ministry: selectedMembership.ministry,
+      status: selectedMembership.status,
+      expiration_date: selectedMembership.expiration_date,
+    })
   );
-
-  const selectedCertificateEligible =
-    Boolean(selectedMembership) &&
-    (selectedMembership?.status === "New" || selectedMembership?.status === "Renewed") &&
-    selectedExpirationStatus !== "expired" &&
-    selectedExpirationStatus !== "expiring_soon";
 
   const handleMinistriesChange = (ministries: string[]) => {
     setEditMinistries(ministries);
@@ -320,7 +326,7 @@ export function MemberDetailDrawer({
           id: "",
           ministry,
           status: "Pending Verification" as MemberStatus,
-          start_date: new Date().toISOString().slice(0, 10),
+          start_date: null,
           expiration_date: null,
           renewal_date: null,
           document_url: null,
@@ -332,18 +338,6 @@ export function MemberDetailDrawer({
 
     setSelectedMinistry((current) =>
       current && ministries.includes(current) ? current : ministries[0] ?? null
-    );
-  };
-
-  const updateMembershipDraft = (
-    ministry: string,
-    field: "status" | "start_date" | "expiration_date" | "renewal_date",
-    value: MemberStatus | string | null
-  ) => {
-    setMembershipDrafts((current) =>
-      current.map((row) =>
-        row.ministry === ministry ? { ...row, [field]: value || null } : row
-      )
     );
   };
 
@@ -485,90 +479,128 @@ export function MemberDetailDrawer({
       : null;
 
   useEffect(() => {
-    if (!open || !certificateData) {
+    if (!open || !certificateData || !certificateMetadataReady) {
       setCertificateThumbnail(null);
       setCertificatePreviewError(null);
       return;
     }
-
     let cancelled = false;
+    const cached = thumbnailCache.current.get(certificatePreviewKey);
     setCertificatePreviewError(null);
+    if (cached) {
+      setCertificateThumbnail({ key: certificatePreviewKey, src: cached });
+      return;
+    }
+    setCertificateThumbnail(null);
     const timeout = window.setTimeout(() => {
-      if (!cancelled) setCertificatePreviewError("Certificate preview is taking longer than expected.");
-    }, 20000);
+      if (!cancelled) setCertificatePreviewError("Certificate thumbnail is taking longer than expected.");
+    }, 15000);
 
     const prepareThumbnail = async () => {
       try {
-        // The shared canvas only becomes visible as a bitmap after all fonts,
-        // background images, elements and signatories finish rendering.
-        const canvas = await certificateRef.current?.render();
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, 340 / (certificateSettings.canvas_width || 600));
+        await renderCertificate(canvas, certificateData, certificateSettings, certificateSignatories, scale);
         if (cancelled) return;
-        if (!canvas || !canvas.width || !canvas.height) {
-          setCertificatePreviewError("Certificate preview is unavailable.");
-          return;
+        if (!canvas.width || !canvas.height) throw new Error("Empty certificate preview");
+        const src = canvas.toDataURL("image/jpeg", 0.88);
+        thumbnailCache.current.set(certificatePreviewKey, src);
+        if (thumbnailCache.current.size > 4) {
+          const oldest = thumbnailCache.current.keys().next().value;
+          if (oldest) thumbnailCache.current.delete(oldest);
         }
-        const src = canvas.toDataURL("image/png");
-        if (!cancelled) {
-          setCertificateThumbnail({ key: certificatePreviewKey, src });
-          setCertificatePreviewError(null);
-        }
+        setCertificateThumbnail({ key: certificatePreviewKey, src });
+        setCertificatePreviewError(null);
       } catch {
-        if (!cancelled) setCertificatePreviewError("Certificate preview could not be rendered.");
+        if (!cancelled) setCertificatePreviewError("Certificate thumbnail could not be rendered.");
       } finally {
         window.clearTimeout(timeout);
       }
     };
 
-    void prepareThumbnail();
+    // Defer expensive artwork/font work until after the member drawer paints.
+    const start = window.setTimeout(() => { void prepareThumbnail(); }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(start);
       window.clearTimeout(timeout);
     };
-  }, [open, certificateData, certificatePreviewKey]);
+  }, [open, certificateData, certificatePreviewKey, certificateMetadataReady,
+      certificateSettings, certificateSignatories]);
 
-  const handlePrintCertificate = () => {
-  if (!member?.uid || member.uid === "PENDING" || !selectedCertificateEligible) return;
+  useEffect(() => {
+    // Do not allow a full-size preview to survive a change of member, ministry,
+    // certificate template or signing configuration.
+    setFullCertificatePreview(null);
+    fullCertificateCanvas.current = null;
+  }, [certificatePreviewKey]);
 
-  const sourceCanvas = certificateRef.current?.getCanvas();
-  if (!sourceCanvas) return;
-
-  setPrintingCertificate(true);
-
-  const printContainer = document.createElement("div");
-  printContainer.className = "member-certificate-direct-print";
-  printContainer.setAttribute("aria-hidden", "true");
-
-  const printCanvas = document.createElement("canvas");
-  printCanvas.width = sourceCanvas.width;
-  printCanvas.height = sourceCanvas.height;
-  printCanvas.className = "member-certificate-direct-print-canvas";
-
-  const printContext = printCanvas.getContext("2d");
-  if (!printContext) {
-    setPrintingCertificate(false);
-    return;
-  }
-
-  printContext.drawImage(sourceCanvas, 0, 0);
-
-  printContainer.appendChild(printCanvas);
-  document.body.appendChild(printContainer);
-
-  const cleanup = () => {
-    printContainer.remove();
-    document.body.classList.remove("member-certificate-print-mode");
-    setPrintingCertificate(false);
-    window.removeEventListener("afterprint", cleanup);
+  const ensureFullCertificate = async (): Promise<HTMLCanvasElement> => {
+    if (!certificateData) throw new Error("Certificate data is unavailable.");
+    const cached = fullCertificateCanvas.current;
+    if (cached?.key === certificatePreviewKey) return cached.canvas;
+    const canvas = document.createElement("canvas");
+    await renderCertificate(canvas, certificateData, certificateSettings, certificateSignatories);
+    if (!canvas.width || !canvas.height) throw new Error("Empty print-ready certificate");
+    fullCertificateCanvas.current = { key: certificatePreviewKey, canvas };
+    return canvas;
   };
 
-  window.addEventListener("afterprint", cleanup);
+  const handleOpenCertificatePreview = async () => {
+    setCertificatePreviewOpen(true);
+    if (fullCertificatePreview?.key === certificatePreviewKey) return;
+    setPreparingFullPreview(true);
+    setCertificatePreviewError(null);
+    try {
+      const canvas = await ensureFullCertificate();
+      setFullCertificatePreview({ key: certificatePreviewKey, src: canvas.toDataURL("image/png") });
+    } catch {
+      setCertificatePreviewError("Full-resolution certificate could not be rendered.");
+    } finally {
+      setPreparingFullPreview(false);
+    }
+  };
 
-  document.body.classList.add("member-certificate-print-mode");
+  const handlePrintCertificate = async () => {
+    if (!member?.uid || member.uid === "PENDING" ||
+        !selectedCertificateEligible || printingCertificate) return;
+    setPrintingCertificate(true);
+    try {
+      const sourceCanvas = await ensureFullCertificate();
+      const printContainer = document.createElement("div");
+      printContainer.className = "member-certificate-direct-print";
+      printContainer.setAttribute("aria-hidden", "true");
+      const printCanvas = document.createElement("canvas");
+      printCanvas.width = sourceCanvas.width;
+      printCanvas.height = sourceCanvas.height;
+      printCanvas.className = "member-certificate-direct-print-canvas";
+      const printContext = printCanvas.getContext("2d");
+      if (!printContext) throw new Error("Print canvas unavailable");
+      printContext.drawImage(sourceCanvas, 0, 0);
+      printContainer.appendChild(printCanvas);
+      document.body.appendChild(printContainer);
 
-  requestAnimationFrame(() => {
-    window.print();
-  });
-};
+      const cleanup = () => {
+        printContainer.remove();
+        document.body.classList.remove("member-certificate-print-mode");
+        setPrintingCertificate(false);
+        window.removeEventListener("afterprint", cleanup);
+      };
+      window.addEventListener("afterprint", cleanup);
+      document.body.classList.add("member-certificate-print-mode");
+      requestAnimationFrame(() => {
+        try {
+          window.print();
+        } catch {
+          cleanup();
+          setCertificatePreviewError("The browser could not open the print dialog.");
+        }
+      });
+    } catch {
+      setPrintingCertificate(false);
+      setCertificatePreviewError("Print-ready certificate could not be rendered.");
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -750,87 +782,27 @@ export function MemberDetailDrawer({
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground">
-                                Status
-                              </label>
-                              <select
-                                value={membership.status}
-                                onChange={(event) =>
-                                  updateMembershipDraft(
-                                    membership.ministry,
-                                    "status",
-                                    event.target.value as MemberStatus
-                                  )
-                                }
-                                disabled={!membershipTableAvailable}
-                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                              >
-                                {STATUS_VALUES.map((value) => (
-                                  <option key={value} value={value}>
-                                    {value}
-                                  </option>
-                                ))}
-                              </select>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Status (read-only)</p>
+                              <p className="mt-1 text-sm font-semibold">{membership.status}</p>
                             </div>
-
-                            <div className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground">
-                                Expiration Date
-                              </label>
-                              <input
-                                type="date"
-                                value={membership.expiration_date ?? ""}
-                                onChange={(event) =>
-                                  updateMembershipDraft(
-                                    membership.ministry,
-                                    "expiration_date",
-                                    event.target.value
-                                  )
-                                }
-                                disabled={!membershipTableAvailable}
-                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                              />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Expiration (inclusive)</p>
+                              <p className="mt-1 text-sm font-medium">{membership.expiration_date ?? "Not established"}</p>
                             </div>
-
-                            <div className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground">
-                                Start Date
-                              </label>
-                              <input
-                                type="date"
-                                value={membership.start_date ?? ""}
-                                onChange={(event) =>
-                                  updateMembershipDraft(
-                                    membership.ministry,
-                                    "start_date",
-                                    event.target.value
-                                  )
-                                }
-                                disabled={!membershipTableAvailable}
-                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                              />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Effective start date</p>
+                              <p className="mt-1 text-sm font-medium">{membership.start_date ?? "Awaiting approval"}</p>
                             </div>
-
-                            <div className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground">
-                                Renewal Date
-                              </label>
-                              <input
-                                type="date"
-                                value={membership.renewal_date ?? ""}
-                                onChange={(event) =>
-                                  updateMembershipDraft(
-                                    membership.ministry,
-                                    "renewal_date",
-                                    event.target.value
-                                  )
-                                }
-                                disabled={!membershipTableAvailable}
-                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                              />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Renewal date</p>
+                              <p className="mt-1 text-sm font-medium">{membership.renewal_date ?? "Not renewed"}</p>
                             </div>
                           </div>
+                          <p className="text-xs text-[#796870]">
+                            Validity dates are set by audited ministry approval or renewal,
+                            not by attaching a recommendation letter or saving this profile.
+                          </p>
                         </div>
                       );
                     })}
@@ -859,17 +831,7 @@ export function MemberDetailDrawer({
                 </div>
               </div>
 
-              {/* Preserve the full-resolution renderer as the print source, but
-                  never expose its partially drawn canvas in the drawer. */}
-              <div className="member-certificate-print-target absolute h-0 w-0 overflow-hidden pointer-events-none" aria-hidden="true">
-                <CertificateDesign
-                  ref={certificateRef}
-                  settings={certificateSettings}
-                  data={certificateData!}
-                  signatories={certificateSignatories}
-                  className="member-certificate-print-canvas"
-                />
-              </div>
+              {/* Full-resolution certificate is rendered only on preview/print demand. */}
 
               {/* Print Certificate */}
               <div className="rounded-none border border-[#E3D8DA] border-t-2 border-t-[#890022] bg-white p-5  space-y-3">
@@ -881,7 +843,7 @@ export function MemberDetailDrawer({
                   {visibleCertificateThumbnail ? (
                     <button
                       type="button"
-                      onClick={() => setCertificatePreviewOpen(true)}
+                      onClick={() => { void handleOpenCertificatePreview(); }}
                       className="flex h-full w-full items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]"
                       aria-label="Enlarge full certificate preview"
                       title="View full certificate"
@@ -914,14 +876,18 @@ export function MemberDetailDrawer({
                       <DialogTitle className="text-[#211018]">Certificate Preview</DialogTitle>
                     </DialogHeader>
                     <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-2">
-                      {visibleCertificateThumbnail ? (
+                      {fullCertificatePreview?.key === certificatePreviewKey ? (
                         <img
-                          src={visibleCertificateThumbnail}
-                          alt={`Full certificate for ${member.first_name} ${member.last_name}`}
+                          src={fullCertificatePreview.src}
+                          alt={`Full-resolution certificate for ${member.first_name} ${member.last_name}`}
                           className="block max-h-[80vh] max-w-full h-auto w-auto object-contain"
                         />
                       ) : (
-                        <p className="text-sm text-[#796870]">Preparing certificate preview…</p>
+                        <div role="status" className="text-center text-sm text-[#796870]">
+                          {certificatePreviewError ?? (preparingFullPreview
+                            ? "Rendering full-resolution certificate…"
+                            : "Preparing certificate preview…")}
+                        </div>
                       )}
                     </div>
                   </DialogContent>
@@ -946,7 +912,7 @@ export function MemberDetailDrawer({
                 )}
 
                 <button
-                  disabled={!selectedCertificateEligible || printingCertificate || !visibleCertificateThumbnail}
+                  disabled={!selectedCertificateEligible || printingCertificate || !certificateMetadataReady}
                   className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#70001B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   onClick={() => {
                     if (member.uid && member.uid !== "PENDING") {
