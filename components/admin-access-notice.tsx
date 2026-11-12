@@ -7,6 +7,7 @@ type AdminAccessNoticeProps = {
   description: string;
   children?: ReactNode;
   actions: ReactNode;
+  showIcon?: boolean;
 };
 
 /** Shared visual language for blocked/pending admin access states.
@@ -17,11 +18,12 @@ export function AdminAccessNotice({
   description,
   children,
   actions,
+  showIcon = true,
 }: AdminAccessNoticeProps) {
   return (
     <main className={inter.className + " flex min-h-screen items-center justify-center bg-[#FBF9F9] px-4 py-10 text-[#1E1114]"}>
       <section aria-labelledby="admin-access-title" className="w-full max-w-lg border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-6 sm:p-8">
-        <ShieldCheck className="h-8 w-8 text-[#890022]" aria-hidden="true" />
+        {showIcon && <ShieldCheck className="h-8 w-8 text-[#890022]" aria-hidden="true" />}
         <p className="mt-4 text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">
           COWL-DOK access
         </p>
