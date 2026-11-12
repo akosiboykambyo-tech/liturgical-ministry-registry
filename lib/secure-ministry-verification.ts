@@ -2,12 +2,15 @@
 
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { attachRecommendationLetter } from "@/lib/registry-letter-attachments";
+import { expirationOneYearAfter } from "@/lib/registration-validity";
+import { todayInManila } from "@/lib/verification-public-status";
 
 export type SecureVerificationResult = {
   member_id: string;
   updated_assignments: number;
   member_status: "Pending Verification" | "New" | "Renewed" | "Inactive";
   expires_on: string;
+  effective_on: string;
 };
 
 // Deployment gate: absent or incorrect values MUST keep the legacy view.
@@ -18,7 +21,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Never fall back to an unscoped member.status update on RPC failures. */
 export async function verifySelectedMinistries(
-  memberId: string, membershipIds: string[]
+  memberId: string, membershipIds: string[], effectiveDate: string, reason: string
 ): Promise<SecureVerificationResult> {
   if (!secureMinistryVerificationEnabled) {
     throw new Error("Secure ministry verification is disabled for this environment.");
@@ -28,11 +31,28 @@ export async function verifySelectedMinistries(
       new Set(membershipIds).size !== membershipIds.length) {
     throw new Error("Choose valid, distinct ministry assignments for one member.");
   }
+  const today = todayInManila();
+  let expectedExpiry: string;
+  try {
+    expectedExpiry = expirationOneYearAfter(effectiveDate);
+  } catch {
+    throw new Error("Enter a valid ministry verification effective date.");
+  }
+  if (effectiveDate > today || effectiveDate < "1900-01-01") {
+    throw new Error("The effective date cannot be in the future.");
+  }
+  const recordedReason = reason.trim();
+  if (recordedReason.length > 500 ||
+      (effectiveDate < today && recordedReason.length < 12)) {
+    throw new Error("Retrospective verification requires an audit reason of 12–500 characters.");
+  }
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.rpc("registry_verify_ministries_v2", {
+  const { data, error } = await supabase.rpc("registry_verify_ministries_v3", {
     p_member_id: memberId,
     p_membership_ids: membershipIds,
     p_status: "New",
+    p_effective_date: effectiveDate,
+    p_reason: recordedReason || null,
   });
   if (error) {
     if (error.code === "42883" || error.code === "PGRST202") {
@@ -47,7 +67,9 @@ export async function verifySelectedMinistries(
   if (result.member_id !== memberId ||
       result.updated_assignments !== membershipIds.length ||
       !["Pending Verification", "New", "Renewed", "Inactive"].includes(result.member_status ?? "") ||
-      typeof result.expires_on !== "string") {
+      typeof result.expires_on !== "string" ||
+      result.expires_on !== expectedExpiry ||
+      result.effective_on !== effectiveDate) {
     throw new Error("Verification returned an unexpected result. Reload and inspect the registry before retrying.");
   }
   return result as SecureVerificationResult;

@@ -7,6 +7,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ebGaramond } from "@/app/fonts";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { shortMinistry } from "@/lib/constants";
+import { todayInManila } from "@/lib/verification-public-status";
+import { expirationOneYearAfter } from "@/lib/registration-validity";
 import { verifySelectedMinistries, attachPendingMinistryLetter, getPendingMinistryLetterReviewUrl } from "@/lib/secure-ministry-verification";
 
 type MemberDetails = {
@@ -41,6 +43,8 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
   const [signingId, setSigningId] = useState<string | null>(null);
   const [reachedLimit, setReachedLimit] = useState(false);
+  const [effectiveDate, setEffectiveDate] = useState(() => todayInManila());
+  const [effectiveReason, setEffectiveReason] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -95,6 +99,8 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
 
   const begin = (id: string) => {
     setActiveId(id);
+    setEffectiveDate(todayInManila());
+    setEffectiveReason("");
     setSelected(new Set()); // Explicit selection; no default auto-approval.
     setError(null);
     setNotice(null);
@@ -168,16 +174,35 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
     const ids = active.assignments
       .filter((assignment) => selected.has(assignment.id))
       .map((assignment) => assignment.id);
-    if (ids.length !== selected.size || ids.some((id) => (active.assignments.find((a) => a.id === id)?.document_url && !reviewedIds.has(id)))) {
+    if (ids.length !== selected.size || ids.some((id) => {
+      const row = active.assignments.find((a) => a.id === id);
+      return !row?.document_url || !reviewedIds.has(id);
+    })) {
       setError("Selection changed. Reopen this record before approving.");
+      return;
+    }
+    const today = todayInManila();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) || effectiveDate > today ||
+        effectiveDate < "1900-01-01") {
+      setError("Enter the documented effective date; future dates cannot activate membership.");
+      return;
+    }
+    try {
+      expirationOneYearAfter(effectiveDate);
+    } catch {
+      setError("Enter a real calendar date.");
+      return;
+    }
+    if (effectiveDate < today && (effectiveReason.trim().length < 12 || effectiveReason.trim().length > 500)) {
+      setError("Backdated verification requires an audit reason between 12 and 500 characters.");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      const result = await verifySelectedMinistries(active.member.id, ids);
+      const result = await verifySelectedMinistries(active.member.id, ids, effectiveDate, effectiveReason);
       setNotice(
-        `Verified ${result.updated_assignments} selected ministry ${result.updated_assignments === 1 ? "assignment" : "assignments"} for one year. Member summary: ${result.member_status}. Unselected ministries were not approved.`
+        `Approved ${result.updated_assignments} selected ministry ${result.updated_assignments === 1 ? "assignment" : "assignments"} effective ${result.effective_on}, valid until ${result.expires_on} (inclusive). Unselected ministries were not approved.`
       );
       setActiveId(null);
       setSelected(new Set());
@@ -205,9 +230,11 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#890022]">Verification · assignment-level</p>
         <h2 className={ebGaramond.className + " mt-2 text-4xl"}>Verify Ministry Assignments</h2>
         <p className="mt-2 max-w-3xl text-sm text-[#65545A]">
-          Select the exact ministries approved for a minister. A verification date and one-year
-          expiration are set by the database. Other ministries remain unchanged.
-          A recommendation letter is optional for first-time registration. Attached letters must still be reviewed before approval. Renewals are handled in the Renewals tab.
+          Select the exact ministries approved for a minister. Enter the documented effective
+          date (not the letter upload date). The database calculates one calendar year and
+          records who approved it and when. An existing private recommendation letter must
+          be opened for review before approval. Other ministries remain unchanged.
+          Renewals have their own controlled processing workflow.
         </p>
       </header>
       )}
@@ -264,8 +291,10 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
               </p>
             </header>
             <p className="text-sm">
-              If a recommendation letter is attached, open and inspect it before selecting that ministry. A letter is not required for initial registration.
-              The server will record a <strong>New</strong> verification valid for one calendar year.
+              A private recommendation letter is required for each selected ministry. Open it,
+              inspect it, and then explicitly select that ministry. Upload alone never
+              approves anyone. The server records a <strong>New</strong> verification
+              valid for one calendar year from your documented effective date.
             </p>
             <Link href={`/admin/members/${active.member.id}`}
               className="inline-block text-sm font-semibold text-[#890022] underline">
@@ -276,7 +305,7 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
                 <div key={assignment.id} className="border border-[#E6DADC] p-3">
                   <label className="flex cursor-pointer items-start gap-3">
                     <input type="checkbox" checked={selected.has(assignment.id)}
-                      disabled={submitting || uploadingId !== null || signingId !== null || Boolean(assignment.document_url && !reviewedIds.has(assignment.id))}
+                      disabled={submitting || uploadingId !== null || signingId !== null || (!assignment.document_url || !reviewedIds.has(assignment.id))}
                       onChange={(event) => setSelected((current) => {
                         const next = new Set(current);
                         if (event.target.checked) next.add(assignment.id);
@@ -285,7 +314,7 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
                       })} className="mt-1 accent-[#890022]" />
                     <span className="text-sm font-medium">{assignment.ministry}
                       <span className="block text-xs font-normal text-[#66545A]">
-                        {assignment.document_url ? "Recommendation letter on file" : "No letter attached — optional for initial registration"}
+                        {assignment.document_url ? "Recommendation letter on file" : "Letter required before administrator approval"}
                       </span>
                     </span>
                   </label>
@@ -323,6 +352,43 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
                 </div>
               ))}
             </div>
+            <div className="space-y-3 border border-[#E5D6DA] bg-[#FDF9FA] p-4">
+              <label className="block text-sm font-semibold text-[#28191E]" htmlFor="ministry-effective-date">
+                Documented ministry effective date
+              </label>
+              <input id="ministry-effective-date" type="date" required
+                max={todayInManila()} min="1900-01-01"
+                value={effectiveDate}
+                onChange={(event) => setEffectiveDate(event.target.value)}
+                disabled={submitting || uploadingId !== null}
+                className="w-full border border-[#D9CBCF] bg-white px-3 py-2.5 text-sm" />
+              <p className="text-xs text-[#66545A]">
+                Membership starts on the documented verification date, even if
+                the letter was uploaded later. The upload timestamp is kept separately.
+              </p>
+              {/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) && (() => {
+                try {
+                  const expires = expirationOneYearAfter(effectiveDate);
+                  return <p className="text-sm font-medium text-[#28191E]">
+                    Validity: {effectiveDate} through {expires} (expiration date inclusive)
+                  </p>;
+                } catch {
+                  return <p role="alert" className="text-xs text-red-800">Enter a valid calendar date.</p>;
+                }
+              })()}
+              {effectiveDate < todayInManila() && (
+                <div className="space-y-1.5">
+                  <label htmlFor="ministry-backdate-reason" className="block text-xs font-semibold">
+                    Why is the actual effective date earlier than today? (required for audit)
+                  </label>
+                  <textarea id="ministry-backdate-reason"
+                    rows={3} minLength={12} maxLength={500}
+                    value={effectiveReason} onChange={(event) => setEffectiveReason(event.target.value)}
+                    disabled={submitting} placeholder="Reference the dated parish approval or verification record."
+                    className="w-full border border-[#D9CBCF] bg-white px-3 py-2.5 text-sm" />
+                </div>
+              )}
+            </div>
             {uploadNotice && <p role="status" className="border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">{uploadNotice}</p>}
             {error && <p role="alert" className="border border-[#C69BA6] bg-[#FBF1F3] p-3 text-sm text-[#7B1834]">{error}</p>}
             <p className="text-xs text-[#66545A]">
@@ -333,7 +399,9 @@ export default function SecureMinistryVerification({ initialSearch = "" }: { ini
                 disabled={submitting || uploadingId !== null || signingId !== null} className="border border-[#D9C9CF] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">
                 Cancel
               </button>
-              <button type="button" onClick={() => void confirm()} disabled={submitting || uploadingId !== null || signingId !== null || selected.size === 0}
+              <button type="button" onClick={() => void confirm()} disabled={submitting || uploadingId !== null || signingId !== null || selected.size === 0 ||
+                  !effectiveDate || effectiveDate > todayInManila() ||
+                  (effectiveDate < todayInManila() && effectiveReason.trim().length < 12)}
                 className="bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
                 {submitting ? "Verifying…" : `Verify ${selected.size} selected`}
               </button>
