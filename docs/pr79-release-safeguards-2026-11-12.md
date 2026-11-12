@@ -50,6 +50,10 @@ A synthetic 1×1 PNG with no private ministry content is used in the existing pr
 
 **Coverage:** Actual byte-for-byte TEST Storage upload/download, signed URL access, finance role denials, unauthenticated denials and cleanup. **Not covered:** certificate rendering, bulk historical Storage replication, revoked-session cache behavior, independent complete DB/Auth/Storage/ACL restore or real production migrations. Bucket privacy is verified by the current TEST Storage catalog.
 
+## Recovery comparison inventory (read-only)
+
+The repo includes `docs/sql/pr79-restore-inventory.READ-ONLY.sql`, which inventories counts of Auth accounts, Registry records, administrator allowlist, certificate metadata, RLS-enabled tables, RLS policy and security-RPC fingerprints, Storage buckets/object counts and principal table grants. It contains no personal names or file paths. Run against both a source and an isolated restored project after freeze, and compare **at the same snapshot time**. Hash parity does not prove private file bytes or Auth configuration were restored; validate those separately.
+
 ## Snapshot and restore (must be certified BEFORE a production migration)
 1. Record authoritative production deployment ID, commit and domain aliases. Freeze the tested candidate SHA and reviewed SQL file checksums.
 2. Use Supabase dashboard **Database > Backups** to verify actual recovery availability and a recent usable recovery point. Perform a **restore to a separate disposable project**, not a destructive in-place restore. Confirm table counts, Auth identity data and RLS/grants against a sensitive-data-safe inventory. Do not rely on SQL dump alone for Auth/session/config.
