@@ -71,6 +71,14 @@ Production certificate artwork is present in public Storage (36 files) but TEST 
 - Supabase Security Advisor returned the same three categories on each: \`RLS Enabled No Policy\` (INFO); \`Signed-In Users Can Execute SECURITY DEFINER Function\` (WARN); \`Leaked Password Protection Disabled\` (WARN). Review the actual protected functions and plan-eligible password protection; don't remove necessary function privileges blindly.
 - Neither a recent physical recovery point nor off-site logical backup, actual Storage byte archive, Auth settings export, or recovery-test timing could be verified with the available read-only project access.
 
+## 2A. Operator-reported first local backup checkpoint — 12 November 2026
+
+**TEST schema-only export successful (operator PowerShell output).** Supabase CLI **v3.1.0**, Docker Engine **29.9.2**, `--remote=rtptybxugjhvpfjvcvgw`; the tool reported `Dumped schema`. Local file `TEST-schema.sql` has reported byte length **278,919**, with SHA-256 **`AE70D2B098B8AAF639A72BF58B888C03A455422157A6C42D052F2E8FEC4A3BB7`**. No database passwords, personal Windows home path, SQL contents or private data files are stored here.
+
+**Evidence scope:** existence and hash were supplied in the operator's shell output; the file bytes have not been independently retrieved or parsed by the reviewer. No isolated restore has been attempted; no data-only or role-only dump has been captured; managed `auth`/`storage` backups and private object byte backups remain pending. Schema export is **not** a certified recovery point.
+
+**Safety gate before data export:** confirm an encrypted destination on the operator workstation and a separate secure/offline copy strategy; avoid accidentally placing private Registry member and finance records into Git, cloud-synced folders or shared directories. Never print credentials or actual dump content in chat. Verify encrypted archive integrity/checksums and source-vs-restored inventories before marking the backup complete.
+
 ## 3. Acceptance criteria for a certified isolated recovery
 
 **All** are required, with results recorded by two operators where feasible:
