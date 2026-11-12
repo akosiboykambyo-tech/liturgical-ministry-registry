@@ -20,6 +20,7 @@ import {
   type RenewalReviewItem,
 } from "@/lib/duplicate-check";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import { saveRenewalReviewCases } from "@/lib/renewal-review-queue";
 import { MINISTRIES, PARISHES, shortMinistry } from "@/lib/constants";
 import { canonicalParish } from "@/lib/parish-normalization";
@@ -795,24 +796,15 @@ export default function CsvImportPage() {
     });
     await new Promise((r) => setTimeout(r, 0));
 
-    // Step 2: Record the import batch for idempotency tracking
-    const { data: batchRecord, error: batchError } = await supabase
-      .from("import_batches")
-      .insert({
-        file_hash: fileHash,
-        file_name: fileName,
-        row_count: incomingRecords.length,
-        unique_inserted: 0,
-        duplicates_routed: duplicates.length,
-        status: "processing",
-      })
-      .select("id")
-      .single();
-
-    if (batchError || !batchRecord?.id) {
-      throw new Error(`Unable to record the import batch: ${batchError?.message ?? "Missing batch ID"}`);
-    }
-    batchId = (batchRecord as { id: string }).id;
+    // Step 2: begin an administrator-authorized, idempotent import transaction.
+    const batchRecord = await registryAdminWrite<{ id: string | null }>("import_begin", {
+      file_hash: fileHash,
+      file_name: fileName,
+      row_count: incomingRecords.length,
+      duplicates_routed: duplicates.length,
+    });
+    if (!batchRecord.id) throw new Error("Missing secure import batch identifier.");
+    batchId = batchRecord.id;
     writesStarted = true;
 
     // Step 3: Insert unique records immediately (auto-generates UIDs)
@@ -864,17 +856,12 @@ export default function CsvImportPage() {
       });
     }
 
-    // Step 4: Update the import batch record
+    // Step 4: finalize metadata with the same revocable admin authority.
     if (batchId) {
-      const { error: finishError } = await supabase
-        .from("import_batches")
-        .update({
-          unique_inserted: out.filter((r) => r.status === "created").length,
-          status: "completed",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", batchId);
-      if (finishError) throw new Error(`Import ran but batch history could not be finalized: ${finishError.message}`);
+      await registryAdminWrite("import_finish", {
+        batch_id: batchId,
+        unique_inserted: out.filter((row) => row.status === "created").length,
+      });
     }
 
     setResults(out);
@@ -952,77 +939,13 @@ export default function CsvImportPage() {
     setActionError(null);
 
     const { existing, incoming } = currentDuplicate;
-    const incomingMinistries = normalizeMinistries(incoming.ministry);
-    const mergedMinistries = Array.from(
-      new Set([...existing.ministries, ...incomingMinistries])
-    );
-
-    const { data: existingMembershipRows, error: membershipLoadError } =
-      await supabase
-        .from("member_ministries")
-        .select("id,ministry")
-        .eq("member_id", existing.id);
-
-    if (membershipLoadError) {
-      setActionError(membershipLoadError.message);
-      setActionLoading(false);
-      return;
-    }
-
-    const existingMinistryNames = new Set(
-      ((existingMembershipRows as Pick<MemberMinistry, "id" | "ministry">[]) ?? [])
-        .map((membership) => membership.ministry)
-    );
-
-    const missingMinistries = incomingMinistries.filter(
-      (ministry) => !existingMinistryNames.has(ministry)
-    );
-
-    if (missingMinistries.length > 0) {
-      const { error: membershipInsertError } = await supabase
-        .from("member_ministries")
-        .insert(
-          missingMinistries.map((ministry) => ({
-            member_id: existing.id,
-            ministry,
-            status: "Pending Verification" as MemberStatus,
-            start_date: null,
-            expiration_date: null,
-            renewal_date: null,
-            document_url: null,
-            document_uploaded_at: null,
-            archived_documents: [],
-          }))
-        );
-
-      if (membershipInsertError) {
-        setActionError(membershipInsertError.message);
-        setActionLoading(false);
-        return;
-      }
-    }
-
-    // Keep legacy member fields synchronized temporarily for screens that have
-    // not yet migrated, without resetting existing per-ministry rows.
-    const { error } = await supabase
-      .from("members")
-      .update({
-        ministries: mergedMinistries,
-        status: "Pending Verification" as MemberStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id);
-
-    if (error) {
-      if (missingMinistries.length > 0) {
-        await supabase
-          .from("member_ministries")
-          .delete()
-          .eq("member_id", existing.id)
-          .in("ministry", missingMinistries);
-      }
-
-      setActionError(error.message);
+    try {
+      await registryAdminWrite("merge", {
+        member_id: existing.id,
+        ministries: normalizeMinistries(incoming.ministry),
+      });
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "Secure merge rejected");
       setActionLoading(false);
       return;
     }
@@ -1040,57 +963,16 @@ export default function CsvImportPage() {
     setActionError(null);
 
     const { incoming } = currentDuplicate;
-    const ministries = normalizeMinistries(incoming.ministry);
-
-    const { data: createdMember, error } = await supabase
-      .from("members")
-      .insert({
+    try {
+      await registryAdminWrite("create", {
         first_name: incoming.first_name.trim(),
         last_name: incoming.last_name.trim(),
         parish: incoming.parish.trim(),
-        ministries,
+        ministries: normalizeMinistries(incoming.ministry),
         service_year: serviceYear,
-        status: "Pending Verification",
-        uid: "PENDING",
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      // Graceful handling of DB-level unique constraint violation (23505)
-      if (error.code === "23505") {
-        setActionError(
-          "Database rejected this insert: a member with the same name, parish, and ministry already exists. This is the database's last line of defense. Try 'Merge' instead, or 'Discard' to drop this record."
-        );
-      } else {
-        setActionError(error.message);
-      }
-      setActionLoading(false);
-      return;
-    }
-
-    const member = createdMember as Member;
-    const { error: membershipError } = await supabase
-      .from("member_ministries")
-      .insert(
-        ministries.map((ministry) => ({
-          member_id: member.id,
-          ministry,
-          status: "Pending Verification" as MemberStatus,
-          start_date: null,
-          expiration_date: null,
-          renewal_date: null,
-          document_url: null,
-          document_uploaded_at: null,
-          archived_documents: [],
-        }))
-      );
-
-    if (membershipError) {
-      await supabase.from("members").delete().eq("id", member.id);
-      setActionError(
-        `Member creation was rolled back because ministry memberships could not be created: ${membershipError.message}`
-      );
+      });
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "Secure create rejected");
       setActionLoading(false);
       return;
     }

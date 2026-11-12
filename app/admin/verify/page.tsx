@@ -244,61 +244,11 @@ function LegacyQuickScanMatrixPage({ initialSearch }: { initialSearch: string })
 
   const clearSelection = () => setSelectedIds(new Set());
 
-  const handleMassUpload = async (file: File) => {
-    if (secureMinistryVerificationEnabled) return; // Fail closed if a stale legacy handler is invoked.
-    if (selectedIds.size === 0) return;
-    setMassUploading(true);
-
-    const selectedMembers = members.filter((m) => selectedIds.has(m.id));
-    const defaultExp = new Date();
-    defaultExp.setFullYear(defaultExp.getFullYear() + 1);
-    const newExpDate = defaultExp.toISOString().slice(0, 10);
-
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const member of selectedMembers) {
-      const ext = file.name.split(".").pop();
-      const path = `${member.id}/recommendation-letter.${ext}`;
-
-      const { error: upErr } = await supabase.storage
-        .from("member-documents")
-        .upload(path, file, { upsert: true });
-      if (upErr) {
-        failCount++;
-        continue;
-      }
-
-      const { error: dbErr } = await supabase
-        .from("members")
-        .update({
-          document_url: path,
-          expiration_date: newExpDate,
-        })
-        .eq("id", member.id);
-
-      if (dbErr) {
-        failCount++;
-      } else {
-        successCount++;
-        setMembers((prev) =>
-          prev.map((m) =>
-            m.id === member.id
-              ? { ...m, document_url: path, expiration_date: newExpDate }
-              : m
-          )
-        );
-      }
-    }
-
-    setMassUploading(false);
-
-    if (successCount > 0) {
-      pushToast("success", `Recommendation letter attached to ${successCount} member(s).`);
-    }
-    if (failCount > 0) {
-      pushToast("error", `Failed to attach letter for ${failCount} member(s).`);
-    }
+  const handleMassUpload = async (_file: File) => {
+    // Historical mass upload implicitly assigned the same letter across members
+    // and altered registration validity. The approved flow uses explicit,
+    // private per-assignment attachment, with approval as a separate decision.
+    pushToast("error", "Use the secure Verification workspace to attach a recommendation letter to explicitly selected ministry assignments.");
   };
 
   return (
