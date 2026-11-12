@@ -588,7 +588,7 @@ export function MemberDetailDrawer({
           <div className="flex flex-col h-full">
             {secureMinistryVerificationEnabled && (
               <p role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs text-amber-950">
-                Member fields are read-only during secure rollout. Ministry approval occurs in Verification;
+                Member detail edits use protected administrator transactions. Ministry approval occurs in Verification;
                 supporting letters can be attached separately without renewing the membership.
               </p>
             )}
@@ -1030,7 +1030,6 @@ export function MemberDetailDrawer({
                     )}
                     {!selectedMembership.document_url.startsWith("attachments/") && (
                     <button
-                      disabled={secureMinistryVerificationEnabled}
                       onClick={handleDeleteDocument}
                       className="inline-flex items-center gap-1.5 text-xs text-destructive hover:underline"
                     >

@@ -727,10 +727,6 @@ export default function CsvImportPage() {
   // STAGING + IMPORT FLOW
   // ============================================================
   const runImport = async () => {
-    if (secureMinistryVerificationEnabled) {
-      setImportFailure("Importing member records requires an approved secure administrator workflow.");
-      return;
-    }
     if (!rows.length || processing || importInFlightRef.current || importBlocked || !importConfirmed) return;
     if (pendingMerges.length) {
       setImportFailure("Resolve the existing temporary duplicate queue before starting another import.");
@@ -930,10 +926,6 @@ export default function CsvImportPage() {
   const currentDuplicate = pendingMerges[currentIndex];
 
   const resolveMerge = async () => {
-    if (secureMinistryVerificationEnabled) {
-      setActionError("Merging member records requires an approved secure administrator workflow.");
-      return;
-    }
     if (!currentDuplicate || !currentDuplicate.existing) return;
     setActionLoading(true);
     setActionError(null);
@@ -954,10 +946,6 @@ export default function CsvImportPage() {
   };
 
   const resolveKeepSeparate = async () => {
-    if (secureMinistryVerificationEnabled) {
-      setActionError("Creating separate member records requires an approved secure administrator workflow.");
-      return;
-    }
     if (!currentDuplicate) return;
     setActionLoading(true);
     setActionError(null);
