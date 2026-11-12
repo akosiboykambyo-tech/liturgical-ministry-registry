@@ -24,3 +24,23 @@ test("QA uses real client JWT but never displays credentials or writes content",
   assert.doesNotMatch(source, /console\.log|localStorage|service_role|createSignedUrl|\.upload\(|\.download\(|\.updateUser\(|\.insert\(|\.upsert\(|\.delete\(/);
   assert.doesNotMatch(source, /setResults\(.*access_token|report\s*=.*access_token/);
 });
+
+test("TEST-only synthetic Storage transfer QA verifies actual bytes and no production or real member files", () => {
+  const route = read("app/release-qa/page.tsx");
+  const parent = read("app/release-qa/release-qa-client.tsx");
+  const code = read("app/release-qa/storage-transfer-qa.tsx");
+  assert.match(route, /VERCEL_ENV\s*!==\s*"preview"/);
+  assert.match(route, /rtptybxugjhvpfjvcvgw\.supabase\.co/);
+  assert.match(parent, /<StorageTransferQa\s*\/>/);
+  assert.match(code, /const BUCKET = "member-documents"/);
+  assert.match(code, /release-qa\/synthetic-private-access-v1\.png/);
+  assert.match(code, /type: "image\/png"/);
+  assert.match(code, /upsert: false/);
+  assert.match(code, /auth\.getUser\(session\.access_token\)/);
+  assert.match(code, /\.download\(FIXTURE\)/);
+  assert.match(code, /createSignedUrl\(FIXTURE, 15\)/);
+  assert.match(code, /\.upload\(DENIED_PATHS\[/);
+  assert.match(code, /\.remove\(\[FIXTURE, \.\.\.DENIED_PATHS\]\)/);
+  assert.match(code, /Authorization: "Bearer " \+ anonKey/);
+  assert.doesNotMatch(code, /service_role|SUPABASE_SERVICE_ROLE_KEY|\.from\("members"\)|\.from\("member_ministries"\)|console\.log|localStorage/);
+});

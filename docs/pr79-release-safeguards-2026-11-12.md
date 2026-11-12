@@ -38,6 +38,18 @@ The RPC exercises use an intentionally unsupported member-write action and inval
 
 **Disposition:** Signed three-role HTTP/authorization gate PASS at the recorded TEST preview. Continue to require independently verified private Storage transfer, revoked/unassigned sessions, admin CRUD/CSV/verification, Certificate Studio visual/persistence QA, and restored database/Auth/Storage/ACL rehearsal before production go/no-go. No account emails, passwords, session tokens, or private document paths are included in this report.
 
+## TEST-only private-file byte-transfer QA protocol — 12 November 2026
+
+A synthetic 1×1 PNG with no private ministry content is used in the existing private `member-documents` bucket under the reserved `release-qa/` namespace. The TEST bucket permits `image/png` (but not `text/plain`). Initial read-only preflight found no existing objects under that namespace.
+
+1. In the current PR79 TEST preview, sign in as the **Registry Administrator**, open `/release-qa` and select **Create fixture and verify actual private download**. This uses the real JWT, creates the synthetic file only if absent (`upsert:false`), downloads and compares every byte, generates a 15-second signed URL and retrieves the same bytes. It also checks private-bucket public and anonymous-key URL denials. Record only the generated credential-free test summary.
+2. Sign out, use **COWL Finance**, open the same QA page and select **Verify my private-file access is denied**. This tests direct `download()`, `createSignedUrl()`, and `upload()` denial against the synthetic fixture, plus anonymous and public URL denial. Record the summary.
+3. Repeat for **Curia Finance**, preserving the same fixture. Do not delete the fixture until both financial roles have finished. A missing fixture may also yield a 404: a negative download alone is not sufficient unless the Registry positive test passed first.
+4. Return as Registry, select **Remove synthetic QA files (after all three roles)**. This removes only three explicitly reserved QA filenames. Verify in TEST SQL `SELECT count(*) FROM storage.objects WHERE bucket_id='member-documents' AND name LIKE 'release-qa/%'` is zero after cleanup.
+5. If any check fails or is inconclusive, **keep production NO-GO**. Review the QA error, RLS policies and Storage logs. Never send signed URLs, JWTs or credentials through chat. Do not test with real letters, ministry records or production accounts.
+
+**Coverage:** Actual byte-for-byte TEST Storage upload/download, signed URL access, finance role denials, unauthenticated denials and cleanup. **Not covered:** certificate rendering, bulk historical Storage replication, revoked-session cache behavior, independent complete DB/Auth/Storage/ACL restore or real production migrations. Bucket privacy is verified by the current TEST Storage catalog.
+
 ## Snapshot and restore (must be certified BEFORE a production migration)
 1. Record authoritative production deployment ID, commit and domain aliases. Freeze the tested candidate SHA and reviewed SQL file checksums.
 2. Use Supabase dashboard **Database > Backups** to verify actual recovery availability and a recent usable recovery point. Perform a **restore to a separate disposable project**, not a destructive in-place restore. Confirm table counts, Auth identity data and RLS/grants against a sensitive-data-safe inventory. Do not rely on SQL dump alone for Auth/session/config.
@@ -59,7 +71,7 @@ The RPC exercises use an intentionally unsupported member-write action and inval
 |---|---|---|
 | Signed three-role HTTP QA | Owner-provided results for Registry, Curia and COWL, each 11/11 | PASS — 33/33, exact TEST QA page |
 | Revoked/unassigned, anon and cross-workspace HTTP | Role-specific 403/200, anonymous 401; separate unassigned/revoked sessions | PARTIAL — signed cross-workspace and anonymous denials PASS; revoked/unassigned not yet tested |
-| Actual private Storage bytes | Positive admin, negative finance/anon downloads, upload tests | PENDING |
+| Actual private Storage bytes | Registry positive upload/download/signed URL, finance negative file transfer, cleanup | READY TO RUN — TEST-only page added; no results yet |
 | Certificate Studio save, reload, print | Artifact snapshots + signatory/QR verification | PENDING |
 | Backup and restore | Isolated restore, actual files, role/ACL restoration and timed rollback | PENDING |
 | Production backend migration | Reviewed checksums and backend-first release decision | PENDING |
