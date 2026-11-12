@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { attachRecommendationLetter } from "@/lib/registry-letter-attachments";
 import {
@@ -348,10 +349,6 @@ export function MemberDetailDrawer({
 
   const handleSave = async () => {
     if (!member) return;
-    if (secureMinistryVerificationEnabled) {
-      setError("Direct member and assignment edits are paused in secure verification mode. Use the Verification workspace.");
-      return;
-    }
 
     const firstName = editFirstName.trim().normalize("NFC");
     const lastName = editLastName.trim().normalize("NFC");
@@ -363,73 +360,31 @@ export function MemberDetailDrawer({
 
     setSaving(true);
     setError(null);
-
-    const { error } = await supabase
-      .from("members")
-      .update({
+    try {
+      await registryAdminWrite("save", {
+        member_id: member.id,
         first_name: firstName,
         last_name: lastName,
-        ministries: editMinistries,
         notes: notes.trim() || null,
-      })
-      .eq("id", member.id);
-
-    if (!error && membershipTableAvailable) {
-      const currentIds = new Set(
-        membershipDrafts.map((row) => row.id).filter((id): id is string => Boolean(id))
-      );
-      const removedMembershipIds = persistedMembershipIds.filter(
-        (id) => !currentIds.has(id)
-      );
-
-      if (removedMembershipIds.length > 0) {
-        const { error: removeError } = await supabase
-          .from("member_ministries")
-          .delete()
-          .in("id", removedMembershipIds);
-
-        if (removeError) {
-          setSaving(false);
-          setError(removeError.message);
-          return;
-        }
-      }
-
-      if (membershipDrafts.length > 0) {
-        const { error: membershipSaveError } = await supabase
-          .from("member_ministries")
-          .upsert(
-            membershipDrafts.map((row) => ({
-              member_id: member.id,
+        ...(membershipTableAvailable
+          ? { memberships: membershipDrafts.map((row) => ({
+              id: row.id || undefined,
               ministry: row.ministry,
               status: row.status,
               start_date: row.start_date,
               expiration_date: row.expiration_date,
               renewal_date: row.renewal_date,
-            })),
-            { onConflict: "member_id,ministry" }
-          );
-
-        if (membershipSaveError) {
-          setSaving(false);
-          setError(membershipSaveError.message);
-          return;
-        }
-      }
-    }
-
-    setSaving(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setEditingName(false);
-      toast({
-        title: "Saved",
-        description: "Member details updated.",
+            })) }
+          : { ministries: editMinistries }),
       });
-      load();
+      setEditingName(false);
+      toast({ title: "Saved", description: "Member details updated." });
+      void load();
       onUpdated?.();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Secure member update rejected");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -467,68 +422,28 @@ export function MemberDetailDrawer({
   };
 
   const handleDeleteDocument = async () => {
-    if (secureMinistryVerificationEnabled) {
-      setError("Direct document changes are disabled during secure verification rollout.");
-      return;
-    }
-    if (!selectedMembership?.id || !selectedMembership.document_url) return;
+    if (!member || !selectedMembership?.id || !selectedMembership.document_url) return;
     if (selectedMembership.document_url.startsWith("attachments/")) {
-      setError("Immutable attachments cannot be deleted from the member drawer. Contact a registry administrator for a documented correction.");
+      setError("Immutable attachments require a documented correction; they cannot be deleted from the member drawer.");
       return;
     }
-
     setError(null);
-
-    const documentPath = selectedMembership.document_url;
-    const isSharedBatchDocument = documentPath.startsWith("batch-renewals/");
-
-    // Batch-renewal letters are intentionally shared by many memberships and
-    // are also part of the durable renewal history. Never delete that physical
-    // storage object from an individual member drawer. Detaching this one
-    // membership is safe; the shared file remains available to the rest of the
-    // batch and to renewal-history records.
-    if (!isSharedBatchDocument) {
-      const { error: storageError } = await supabase.storage
-        .from("member-documents")
-        .remove([documentPath]);
-
-      if (storageError) {
-        setError(storageError.message);
-        return;
-      }
+    try {
+      // Only detach the assignment reference. Retain the physical document
+      // and renewal history for all other covered ministry assignments.
+      await registryAdminWrite("detach", {
+        member_id: member.id,
+        membership_id: selectedMembership.id,
+      });
+      toast({
+        title: "Recommendation letter detached",
+        description: "The assignment returned to Pending Verification; private evidence was retained.",
+      });
+      await load();
+      onUpdated?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Secure document unlink rejected");
     }
-
-    const { error: membershipUpdateError } = await supabase
-      .from("member_ministries")
-      .update({
-        document_url: null,
-        document_uploaded_at: null,
-        expiration_date: null,
-      })
-      .eq("id", selectedMembership.id);
-
-    if (membershipUpdateError) {
-      setError(membershipUpdateError.message);
-      return;
-    }
-
-    // Clear the legacy mirror only when it points at the same document.
-    if (member?.document_url === documentPath) {
-      await supabase
-        .from("members")
-        .update({ document_url: null, expiration_date: null })
-        .eq("id", member.id);
-    }
-
-    toast({
-      title: isSharedBatchDocument ? "Batch letter detached" : "Document removed",
-      description: isSharedBatchDocument
-        ? "This membership no longer uses the shared letter. The batch document was retained for other members and renewal history."
-        : "The recommendation letter was removed from this membership.",
-    });
-
-    load();
-    onUpdated?.();
   };
 
   const publicVerifyUrl = member

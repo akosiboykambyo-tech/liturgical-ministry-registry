@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
 import { updateMemberStatus } from "@/lib/verify-actions";
 import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { StatusBadge } from "@/components/status-badge";
@@ -103,10 +104,6 @@ export default function MemberDetailPage() {
 
   const handleSave = async () => {
     if (!member) return;
-    if (secureMinistryVerificationEnabled) {
-      setError("Legacy member editing is locked while secure verification is enabled. Use the assignment-level Verification workspace.");
-      return;
-    }
 
     const firstName = editFirstName.trim().normalize("NFC");
     const lastName = editLastName.trim().normalize("NFC");
@@ -119,26 +116,23 @@ export default function MemberDetailPage() {
     setSaving(true);
     setError(null);
 
-    const { error } = await supabase
-      .from("members")
-      .update({
+    try {
+      await registryAdminWrite("save", {
+        member_id: member.id,
         first_name: firstName,
         last_name: lastName,
         ministries: editMinistries,
         status,
         notes: notes.trim() || null,
-      })
-      .eq("id", member.id);
-
-    setSaving(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
+      });
       setEditingName(false);
       setShowSavedToast(true);
       setTimeout(() => setShowSavedToast(false), 2500);
-      load();
+      await load();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Secure update rejected");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -150,29 +144,27 @@ export default function MemberDetailPage() {
   };
 
   const handleUpload = async (file: File) => {
-    if (secureMinistryVerificationEnabled) {
-      setError("Legacy member-wide document upload is paused in secure mode. Attach letters to a specific ministry in Verification.");
-      return;
-    }
     if (!member) return;
     setUploading(true);
     setError(null);
-    const ext = file.name.split(".").pop();
-    const path = `${member.id}/recommendation-letter.${ext}`;
+    const ext = file.name.split(".").pop()?.toLowerCase() || "pdf";
+    const path = `${member.id}/recommendation-letter-${crypto.randomUUID()}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from("member-documents")
-      .upload(path, file, { upsert: true });
+      .upload(path, file, { upsert: false });
     if (upErr) {
       setError(upErr.message);
       setUploading(false);
       return;
     }
-    // Store the storage PATH (not a URL) so the private bucket is never
-    // fetchable via a guessed public path. Access goes through signed URLs.
-    await supabase
-      .from("members")
-      .update({ document_url: path })
-      .eq("id", member.id);
+    try {
+      await registryAdminWrite("document", { member_id: member.id, document_path: path });
+    } catch (error) {
+      await supabase.storage.from("member-documents").remove([path]);
+      setError(error instanceof Error ? error.message : "Document linking rejected");
+      setUploading(false);
+      return;
+    }
     setUploading(false);
     setSuccess("Recommendation letter uploaded and linked.");
     setTimeout(() => setSuccess(null), 3000);
@@ -180,16 +172,14 @@ export default function MemberDetailPage() {
   };
 
   const handleDeleteDocument = async () => {
-    if (secureMinistryVerificationEnabled) {
-      setError("Legacy member-wide document deletion is paused in secure mode. Request an audited document removal.");
+    if (!member?.document_url) return;
+    try {
+      await registryAdminWrite("document", { member_id: member.id, document_path: null });
+      setSuccess("Document reference cleared; the private file is retained for audit.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Document unlink rejected");
       return;
     }
-    if (!member?.document_url) return;
-    await supabase.storage.from("member-documents").remove([member.document_url]);
-    await supabase
-      .from("members")
-      .update({ document_url: null })
-      .eq("id", member.id);
     load();
   };
 
