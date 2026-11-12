@@ -139,6 +139,18 @@ Read-only TEST postflight established **six** TEST Auth accounts and exactly **o
 - Once Phase 2 is confirmed, the operator must revoke **only this new synthetic QA grant**, record revocation provenance, verify the original four grants unchanged, and have the owner run Phase 3 (**Revoked**) using the same signed-in session. Reaching the expiry automatically disables the permission check but **does not populate `revoked_at`**; an explicit revocation is required to complete the revoked-grant test.
 - Neither the temporary grant nor the documentation authorizes changes to Production. PR79 remains DRAFT/NO-GO.
 
+## Dedicated TEST account: granted 10/10, pre-revocation 7/10, revocation performed — 12 November 2026
+
+**Phase 2 owner-submitted real signed-session QA:** **10/10 PASS** using the same isolated TEST account. Active COWL-only viewer role found; TEST Auth confirmed; Registry admin false; `/api/financial-stewardship/access` HTTP 200; COWL inventory HTTP 200; Curia inventory HTTP 403; Registry writer/verification, private Storage listing, and certificate settings changes denied.
+
+**First Phase 3 attempt:** **7/10**, explicitly **not a failed revocation security guarantee**: the owner selected the `revoked` phase before the operator actually revoked the TEST database grant. The UI phase selector is not a grant mutation. Three expected failures (one grant-state assertion and two HTTP 403 comparisons) correctly observed the grant was still active; HTTP 200 was appropriate for an active COWL role. This premature trial must **not** be counted as a successful Phase 3 test.
+
+**Operator revocation performed after receipt of the first Phase 3 report:** a tightly constrained TEST-only update applied `revoked_at` and `revoked_by` to **exactly one** new synthetic `cowl_financial_workspace_viewer` grant of the dedicated negative-access QA identity. The Registry TEST QA identity is used as a required `revoked_by` foreign-key *technical reference*, not evidence of a person's browser session; the `authorization_reference` notes the tool-mediated revocation on owner request. The four pre-existing finance grants were unchanged. Production was not accessed for mutation.
+
+Independent read-only TEST postflight: **six** Auth identities; **zero** active grants on dedicated QA user; **one** revoked COWL viewer grant; **four** original finance grants still present; zero synthetic Certificate Studio keys or private Storage QA objects. Rollback-only authenticated identity simulation sees no active grants, one revoked grant, and no Registry-admin role.
+
+**Phase 3 signed-session still PENDING:** owner must remain signed in as the same dedicated TEST identity (no new account) and rerun `/release-qa` → **3. Revoked**. Expect **10/10 PASS**, with both previously successful COWL financial APIs returning **403**. If the session was accidentally signed out, sign back into the *same* dedicated TEST account, but note that a continuous-session run is stronger evidence against stale authorization.
+
 ## Snapshot and restore (must be certified BEFORE a production migration)
 1. Record authoritative production deployment ID, commit and domain aliases. Freeze the tested candidate SHA and reviewed SQL file checksums.
 2. Use Supabase dashboard **Database > Backups** to verify actual recovery availability and a recent usable recovery point. Perform a **restore to a separate disposable project**, not a destructive in-place restore. Confirm table counts, Auth identity data and RLS/grants against a sensitive-data-safe inventory. Do not rely on SQL dump alone for Auth/session/config.
@@ -159,7 +171,7 @@ Read-only TEST postflight established **six** TEST Auth accounts and exactly **o
 | Gate | Evidence needed | Current |
 |---|---|---|
 | Signed three-role HTTP QA | Owner-provided results for Registry, Curia and COWL, each 11/11 | PASS — 33/33, exact TEST QA page |
-| Revoked/unassigned, anon and cross-workspace HTTP | Dedicated TEST account Phase 1 signed-session 10/10 PASS; operator-granted COWL-only viewer 4-hour QA role verified; Phase 2/3 human reports pending | PARTIAL — unassigned PASS; granted and revoked signed-session checks PENDING |
+| Revoked/unassigned, anon and cross-workspace HTTP | Unassigned 10/10 PASS, granted COWL 10/10 PASS; premature revoked 7/10 when grant still active; operator then revoked TEST grant and independently verified zero active grants | PARTIAL — revoked real signed-session rerun PENDING |
 | Actual private Storage bytes | Registry 5/5, Curia 6/6, COWL 6/6 plus Registry cleanup 1/1; independently verified zero QA objects | PASS — 18/18 including cleanup; 51/51 combined with role authorization |
 | Certificate Studio save, reload, print | 15/15 signed-session persistence/denial PASS; owner indicated visual/print review is acceptable but did not provide artifact-level evidence | PARTIAL — owner-acknowledged visual review; independently archived print/QR/font proof still pending |
 | Backup and restore | Isolated restore, actual files, role/ACL restoration and timed rollback | PENDING |
