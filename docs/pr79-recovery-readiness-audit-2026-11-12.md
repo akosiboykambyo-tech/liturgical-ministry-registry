@@ -93,6 +93,14 @@ The small 297-byte roles file is not necessarily an error; role declarations and
 
 **Source-only operation:** read-only SQL exports from TEST; Production unchanged. The user should **not** publish these SQL files to GitHub/Trello or attach them to chat.
 
+### Operator-confirmed TEST certificate object — 13 November 2026
+
+The operator successfully remounted the encrypted VeraCrypt volume and ran the full local verification/preservation script. Reported output: `SQLFileCount=3`, `SQLChecksumsVerified=True`, `CertificateFileCount=1`, `CertificateBytes=3960705`, `CertificateHashVerified=True`, `ManifestPresent=True`. The preserved certificate object lives at its original bucket-relative path inside the encrypted Storage backup folder; no file bytes or original object path were published here.
+
+The certificate object was fetched twice directly from the TEST public Storage endpoint, with matching **SHA-256** `78EC85EBF1C19D7C5D3F5D564514AA39A8800559F458D67C51071BF27D66793F` and byte count **3,960,705**, matching TEST Storage metadata. An earlier manual/browser download had size **3,899,625** and a different checksum; the operator retained it separately under an `_verification` directory rather than discarding it. This is strong source-download consistency evidence, **not a complete tested restore**.
+
+Read-only TEST Storage inventory rechecked on 13 November 2026: `certificate-templates` (public) **1 object / 3,960,705 metadata bytes**; `member-documents` (private) **1 / 31,375 bytes**; `fs-private` (private) **0**. Actual bytes for the member document, managed Auth data, Storage metadata and isolated restore remain outstanding. Neither Supabase database was changed.
+
 ## 3. Acceptance criteria for a certified isolated recovery
 
 **All** are required, with results recorded by two operators where feasible:
