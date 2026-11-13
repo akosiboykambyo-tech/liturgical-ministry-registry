@@ -101,6 +101,12 @@ The certificate object was fetched twice directly from the TEST public Storage e
 
 Read-only TEST Storage inventory rechecked on 13 November 2026: `certificate-templates` (public) **1 object / 3,960,705 metadata bytes**; `member-documents` (private) **1 / 31,375 bytes**; `fs-private` (private) **0**. Actual bytes for the member document, managed Auth data, Storage metadata and isolated restore remain outstanding. Neither Supabase database was changed.
 
+### Operator-confirmed TEST private member document — 13 November 2026
+
+The operator reports **one private member PDF / 31,375 bytes** saved in the mounted VeraCrypt backup, with SHA-256 `AF38A866F489AC15681D4433575A8B2367CAC81A4EEE8387D08FBF3E24911161`, and `ManifestRecorded=True`. This matches the size from a current read-only TEST Storage metadata inventory. The object's original filename/path and the document content are deliberately omitted from this public repository. **This is an operator-reported local checksum, not an independent byte-for-byte comparison against the server original**. Private bucket permissions and isolated restore remain unverified.
+
+Read-only TEST Auth inventory on 13 November: `auth.users=6`, `auth.identities=6`, `auth.sessions=2`, `auth.refresh_tokens=4`. These are **counts only, not backups**. Auth identities/managed schema data, application-specific mappings and restore validation are pending; do not export or reintroduce live sessions/refresh tokens in a fresh environment.
+
 ## 3. Acceptance criteria for a certified isolated recovery
 
 **All** are required, with results recorded by two operators where feasible:
