@@ -113,6 +113,12 @@ The operator reports a successful remote TEST read-only export to the encrypted 
 
 **Scope limitation:** This is a verified *targeted user/identity data-only export*, **not a full Supabase Auth backup or a tested restore**. Auth's managed schema, provider configuration, integration settings, session and token revocation, other Auth relations, Storage object metadata (bucket definitions, policies, ownership/path mapping), and isolated service recovery require separate consideration. Do not restore user records over active TEST or Production; verify user identifiers, provider identities, access revocation and application mapping only in a disconnected recovery environment. Password hashes in the local Auth dump are sensitive and must remain encrypted at rest and excluded from version control and chat.
 
+### Operator-confirmed TEST Storage metadata export — 13 November 2026
+
+The operator supplied terminal output showing successful, read-only CLI TEST export `--remote=rtptybxugjhvpfjvcvgw --schema=storage --data-only --use-copy` with explicit exclusions for other managed Storage tables. The parsing/row-count checks passed for **3 `storage.buckets` records** and **2 `storage.objects` records**. Final encrypted local file `Storage-Metadata/TEST-storage-metadata.sql` size: **3,086 bytes**; SHA-256 **`FF18C36F2B601A2B5C7387DA18325968CC62D6EE3B7465A882484EDCD07187AF`**. Operator output confirmed `ManifestRecorded=True`, `RestoreTested=False`.
+
+This is targeted **Storage metadata** evidence, complementing the two separately preserved Storage object byte files. It does not guarantee a complete Supabase managed service restoration, Storage policies, grants, or all other internal tables. Continue to treat the recovery package as **not yet restore-tested**. Independent encrypted copy, ACL/service configuration capture, and an isolated restore remain pending. No Production modifications.
+
 ## 3. Acceptance criteria for a certified isolated recovery
 
 **All** are required, with results recorded by two operators where feasible:
