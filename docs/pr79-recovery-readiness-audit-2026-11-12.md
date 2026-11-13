@@ -107,6 +107,12 @@ The operator reports **one private member PDF / 31,375 bytes** saved in the moun
 
 Read-only TEST Auth inventory on 13 November: `auth.users=6`, `auth.identities=6`, `auth.sessions=2`, `auth.refresh_tokens=4`. These are **counts only, not backups**. Auth identities/managed schema data, application-specific mappings and restore validation are pending; do not export or reintroduce live sessions/refresh tokens in a fresh environment.
 
+### Operator-confirmed isolated TEST Auth users-and-identities export — 13 November 2026
+
+The operator reports a successful remote TEST read-only export to the encrypted VeraCrypt recovery folder using Supabase CLI with `--remote=rtptybxugjhvpfjvcvgw --schema=auth --data-only --use-copy` and explicit exclusions for other known managed Auth tables, including sessions and refresh tokens. The script verified exactly **6 `auth.users` rows and 6 `auth.identities` rows**, then saved `Auth/TEST-auth-users-identities.sql` (**6,534 bytes**) with SHA-256 **`4743384E14E1D02428A5121288245E8A9317D2AE0E49C7AF4756E90A30304413`** and `ManifestRecorded=True`. An earlier failed Docker-off export was separately archived (**0 bytes**, not a backup); Docker Engine `29.9.2` and encrypted drive `R:` were confirmed operational. No Auth SQL content, user IDs, email addresses, passwords, hashes or tokens were shared in the audit.
+
+**Scope limitation:** This is a verified *targeted user/identity data-only export*, **not a full Supabase Auth backup or a tested restore**. Auth's managed schema, provider configuration, integration settings, session and token revocation, other Auth relations, Storage object metadata (bucket definitions, policies, ownership/path mapping), and isolated service recovery require separate consideration. Do not restore user records over active TEST or Production; verify user identifiers, provider identities, access revocation and application mapping only in a disconnected recovery environment. Password hashes in the local Auth dump are sensitive and must remain encrypted at rest and excluded from version control and chat.
+
 ## 3. Acceptance criteria for a certified isolated recovery
 
 **All** are required, with results recorded by two operators where feasible:
