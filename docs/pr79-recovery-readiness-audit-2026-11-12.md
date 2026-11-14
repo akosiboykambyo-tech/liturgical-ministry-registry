@@ -125,6 +125,12 @@ The operator supplied the complete local PowerShell transcript verifying an inde
 
 **Reconstruction requirement:** Combine `COWL-DOK-Backup.part001`, `part002`, and `part003` in numeric order into a new container on storage with >4 GiB available and single-file support (NTFS/exFAT), then verify the combined SHA-256 and mount *only in an isolated recovery context*. All three parts are required. No reconstructed-container mount, actual database restoration, Auth sign-in, bucket ACL, or application recovery has yet been demonstrated. Keep the USB separately stored and prevent simultaneous failure of local and USB copies. Do not store container passwords beside the device or commit backup bytes to version control.
 
+### Operator-confirmed independent container reconstruction — 14 November 2026
+
+The operator reconstructed a **new** encrypted VeraCrypt container from the three FAT32-compatible numbered segments on the Kingston USB drive, using a separate local recovery folder. Reported values: `USBParts=3`, `ExpectedBytes=4294967296`, `ReconstructedBytes=4294967296`, `SHA256Match=True`, `ReconstructionVerified=True`, `OriginalPreserved=True`, `RestoreTested=False`. The combined encrypted file was compared by SHA-256 with the original VeraCrypt container. This independently verifies **reconstruction from USB segments**, but **not** the ability to mount/unlock this new container or recover application data from it.
+
+Next proof points: mount **reconstructed** container on an unused letter distinct from the original `R:`, verify seven file hashes against the included manifest; then isolate an appropriate database restore environment, restore and compare application/managed-service content, validate Auth and Storage behavior, and keep both managed Supabase projects untouched. No Production changes.
+
 ## 3. Acceptance criteria for a certified isolated recovery
 
 **All** are required, with results recorded by two operators where feasible:
