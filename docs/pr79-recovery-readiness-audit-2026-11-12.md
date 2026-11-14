@@ -131,6 +131,10 @@ The operator reconstructed a **new** encrypted VeraCrypt container from the thre
 
 Next proof points: mount **reconstructed** container on an unused letter distinct from the original `R:`, verify seven file hashes against the included manifest; then isolate an appropriate database restore environment, restore and compare application/managed-service content, validate Auth and Storage behavior, and keep both managed Supabase projects untouched. No Production changes.
 
+### Operator-confirmed reconstructed VeraCrypt content verification — 14 November 2026
+
+The operator mounted the newly reconstructed container on drive `S:` (distinct from original `R:`) and ran independent local SHA-256 verification for all seven original TEST backup files and the checksum manifest. Reported `ReconstructedVolumeOpened=True`, `ExpectedFiles=7`, `FilesVerified=7`, `ManifestVerified=True`, `RecoveryFilesVerified=True`, `DatabaseRestoreTested=False`, final output `STAGE 2A — BACKUP CONTENTS VERIFIED`. This establishes successful unlock and verified recovery of the exported TEST file set from the independently reconstructed USB container. **Database, Auth, Storage and full application restoration have not yet been demonstrated**. Next: inspect local Docker/WSL readiness and establish an isolated PostgreSQL restore path without TEST/PROD modifications. Mounts expose confidential contents while active; dismount when not in use.
+
 ## 3. Acceptance criteria for a certified isolated recovery
 
 **All** are required, with results recorded by two operators where feasible:
