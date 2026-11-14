@@ -119,6 +119,12 @@ The operator supplied terminal output showing successful, read-only CLI TEST exp
 
 This is targeted **Storage metadata** evidence, complementing the two separately preserved Storage object byte files. It does not guarantee a complete Supabase managed service restoration, Storage policies, grants, or all other internal tables. Continue to treat the recovery package as **not yet restore-tested**. Independent encrypted copy, ACL/service configuration capture, and an isolated restore remain pending. No Production modifications.
 
+### Operator-confirmed independent external encrypted copy — 14 November 2026
+
+The operator supplied the complete local PowerShell transcript verifying an independent copy of the dismounted **4,294,967,296-byte** VeraCrypt container onto a separate **Kingston FAT32 USB drive**, stored as three numbered segments because the container exceeds FAT32's maximum single-file size by one byte. Expected segment sizes: `part001=1,610,612,736`, `part002=1,610,612,736`, `part003=1,073,741,824` bytes. The resumed script first checked pre-existing portions against the original, finished the incomplete second segment and created the third segment. It then calculated a single streaming SHA-256 over all segments in order and compared it with the hash of the original container. User output: `OriginalBytes=4294967296`, `BackupParts=3`, `TotalBackupBytes=4294967296`, `SHA256Match=True`, `BackupVerified=True` and `ExternalDrive=F:`. This verifies byte-for-byte consistency of the encrypted external copy at the time of the check.
+
+**Reconstruction requirement:** Combine `COWL-DOK-Backup.part001`, `part002`, and `part003` in numeric order into a new container on storage with >4 GiB available and single-file support (NTFS/exFAT), then verify the combined SHA-256 and mount *only in an isolated recovery context*. All three parts are required. No reconstructed-container mount, actual database restoration, Auth sign-in, bucket ACL, or application recovery has yet been demonstrated. Keep the USB separately stored and prevent simultaneous failure of local and USB copies. Do not store container passwords beside the device or commit backup bytes to version control.
+
 ## 3. Acceptance criteria for a certified isolated recovery
 
 **All** are required, with results recorded by two operators where feasible:
