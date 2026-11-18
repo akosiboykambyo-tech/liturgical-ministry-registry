@@ -34,4 +34,11 @@ jobs:
       - name: TypeScript typecheck
         run: npm run typecheck
       - name: Next.js production build (no deployment)
+        # Build-time placeholders only: Supabase client construction requires both
+        # NEXT_PUBLIC values during Next.js prerendering. These are NOT credentials,
+        # cannot access any real Supabase project, and are not used for DB tests.
+        # Actual deployment must use its own reviewed environment configuration.
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: "https://ci-build-placeholder.invalid"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-build-placeholder-not-a-real-anon-key"
         run: npm run build
