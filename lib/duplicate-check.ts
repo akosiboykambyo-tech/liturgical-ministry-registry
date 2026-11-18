@@ -130,7 +130,8 @@ export async function findDuplicateMembers(
     .ilike("last_name", trimmedLast)
     .ilike("parish", trimmedParish);
 
-  if (!exactError && exactMatches) {
+  if (exactError) throw new Error(`Duplicate lookup failed: ${exactError.message}`);
+  if (exactMatches) {
     for (const m of exactMatches as Member[]) {
       matches.push({
         existing: m,
@@ -149,7 +150,8 @@ export async function findDuplicateMembers(
     .ilike("last_name", trimmedLast)
     .not("parish", "ilike", trimmedParish);
 
-  if (!parishError && sameNameDiffParish) {
+  if (parishError) throw new Error(`Duplicate lookup failed: ${parishError.message}`);
+  if (sameNameDiffParish) {
     for (const m of sameNameDiffParish as Member[]) {
       // Avoid duplicates if already matched
       if (!matches.some((x) => x.existing.id === m.id)) {
@@ -165,12 +167,8 @@ export async function findDuplicateMembers(
 
   // 3. Similar names (fuzzy matching) - fetch all and filter client-side
   // This catches misspellings like "Juan" vs "Juhn", "Dela Cruz" vs "Dela Crz"
-  let allMembers: Member[] = [];
-  try {
-    allMembers = await fetchAllMembers();
-  } catch {
-    allMembers = [];
-  }
+  // Fail closed: incomplete or unavailable registry lookup is never an empty result.
+  const allMembers = await fetchAllMembers();
 
   if (allMembers.length > 0) {
     for (const m of allMembers) {
@@ -233,11 +231,17 @@ export async function importSingleMember(
   | { status: "duplicate"; existing: Member; flagId: string; matchType: string }
   | { status: "error"; error: string }
 > {
-  const dupes = await findDuplicateMembers(
-    data.first_name,
-    data.last_name,
-    data.parish
-  );
+  let dupes: DuplicateMatch[];
+  try {
+    dupes = await findDuplicateMembers(data.first_name, data.last_name, data.parish);
+  } catch (error) {
+    return {
+      status: "error",
+      error: error instanceof Error
+        ? `Registration was not saved. ${error.message}`
+        : "Registration was not saved because duplicate validation is unavailable.",
+    };
+  }
 
   if (dupes.length > 0) {
     // Park in pending-merge queue. Do not create the member.
@@ -349,11 +353,12 @@ export async function stageBatchRecords(
   // --- Idempotency check ---
   let alreadyImported: BatchStagingResult["alreadyImported"] | undefined;
   if (fileHash) {
-    const { data: prior } = await supabase
+    const { data: prior, error: priorError } = await supabase
       .from("import_batches")
       .select("id, file_name, created_at, unique_inserted, duplicates_routed, status")
       .eq("file_hash", fileHash)
       .maybeSingle();
+    if (priorError) throw new Error(`Import history lookup failed: ${priorError.message}`);
     if (prior) {
       alreadyImported = {
         batchId: prior.id as string,
@@ -368,12 +373,8 @@ export async function stageBatchRecords(
   // --- Fetch all existing members once ---
   // Paginate explicitly so duplicate detection is not limited to Supabase's
   // default 1,000 returned rows.
-  let allMembers: Member[] = [];
-  try {
-    allMembers = await fetchAllMembers();
-  } catch {
-    allMembers = [];
-  }
+  // Fail closed: staging must not treat an unavailable registry as empty.
+  const allMembers = await fetchAllMembers();
 
   const dbMembers = allMembers.map((m) => ({
     member: m,
