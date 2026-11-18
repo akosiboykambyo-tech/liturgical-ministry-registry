@@ -24,7 +24,7 @@ function harness(failAt) {
         range(from) { phase = "range"; fromIndex = from; return query; },
         insert() { calls.insert++; return query; },
         single() { return Promise.resolve({ data: null, error: null }); },
-        maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+        maybeSingle() { return Promise.resolve(table === "import_batches" && failAt === "history" ? { data: null, error: { message: "simulated history unavailable" } } : { data: null, error: null }); },
         then(resolve, reject) {
           let response = { data: [], error: null };
           if (table === "import_batches" && failAt === "history") response = { data: null, error: { message: "simulated history unavailable" } };
