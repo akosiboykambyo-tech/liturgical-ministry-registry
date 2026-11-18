@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - audit/pr30-pr53-failclosed-reconciliation-20261118
+      - feature/atomic-intake-adapter-review-20261119
   workflow_dispatch:
 
 permissions:
@@ -29,6 +30,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: PR30 and PR53 isolated unit regression tests
         run: node --test tests/pr30-fail-closed-regression.test.cjs tests/pr53-registry-write-contract.test.cjs
+      - name: Atomic registration contract tests (mock only)
+        run: node --test tests/registration-atomic-intake.test.cjs
       - name: Existing PR79 no-bypass regression tests
         run: node --test tests/pr79-registry-no-bypass.test.cjs
       - name: TypeScript typecheck
