@@ -50,8 +50,8 @@ for (const invalid of [null, [], "ok", 42]) {
 
 test("PR53 contract: only guarded RPC is referenced by the client write adapter", () => {
   const source = read("lib/registry-admin-writes.ts");
-  assert.match(source, /supabase\\.rpc\\(/);
-  assert.doesNotMatch(source, /\\.from\\([\\s\\S]*?\\.(?:insert|update|delete)\\(/);
+  assert.match(source, /supabase\.rpc\(/);
+  assert.doesNotMatch(source, /\.from\([\s\S]*?\.(?:insert|update|delete)\(/);
 });
 
 test("PR53 gap sentinel: replay and race guarantees require live isolated RPC tests", () => {
