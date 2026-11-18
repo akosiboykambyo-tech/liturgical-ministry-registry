@@ -1,0 +1,37 @@
+name: Reconciliation validation (no deployment)
+
+on:
+  push:
+    branches:
+      - audit/pr30-pr53-failclosed-reconciliation-20261118
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Regression, typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: PR30 and PR53 isolated unit regression tests
+        run: node --test tests/pr30-fail-closed-regression.test.cjs tests/pr53-registry-write-contract.test.cjs
+      - name: Existing PR79 no-bypass regression tests
+        run: node --test tests/pr79-registry-no-bypass.test.cjs
+      - name: TypeScript typecheck
+        run: npm run typecheck
+      - name: Next.js production build (no deployment)
+        run: npm run build
