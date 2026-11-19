@@ -1,40 +1,12 @@
-import Link from "next/link";
-import { RegistryFooter } from "@/components/registry-footer";
-import { RegistryHeader } from "@/components/registry-header";
-import { ebGaramond } from "@/app/fonts";
+import { PublicErrorPage } from "@/components/public-error-page";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <RegistryHeader />
-
-      <main className="mx-auto w-full max-w-[980px] px-5 py-16 sm:px-7 sm:py-20 lg:px-12 lg:py-24">
-        <div className="border-l-4 border-[#970e24] pl-6 sm:pl-8">
-          <p className="text-sm font-semibold text-[#970e24]">404</p>
-
-          <h1
-            className={`${ebGaramond.className} mt-3 max-w-2xl text-4xl font-medium leading-tight tracking-[-0.02em] sm:text-5xl`}
-          >
-            Seek, and ye shall find. Just not here.
-          </h1>
-
-          <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-            We left the ninety-nine and went looking for this page, but it has
-            wandered off. Check the address for typos, or return home.
-          </p>
-
-          <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold">
-            <Link
-              href="/"
-              className="text-[#970e24] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#970e24]/30 focus-visible:ring-offset-4"
-            >
-              Return Home
-            </Link>
-          </div>
-        </div>
-      </main>
-
-      <RegistryFooter />
-    </div>
+    <PublicErrorPage
+      status="404"
+      title="Seek, and ye shall find. Just not here."
+      description="We left the ninety-nine and went looking for this page, but it has wandered off. Check the address for typos, or return home."
+      actions={[{ href: "/", label: "Return Home" }]}
+    />
   );
 }
