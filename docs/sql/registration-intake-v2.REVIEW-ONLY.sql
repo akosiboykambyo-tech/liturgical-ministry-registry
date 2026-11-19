@@ -263,8 +263,9 @@ BEGIN
                pg_catalog.lower(pg_catalog.regexp_replace(
                  pg_catalog.btrim(m.last_name), '[[:space:]]+', ' ', 'g')) AS last_normal
       ) AS normalized
-     WHERE pg_catalog.btrim(m.parish) <> ''
-       AND (
+     -- A legacy row with an empty parish is still a possible same-name match.
+     -- Never use missing parish data as a reason to create another UID.
+     WHERE (
          (normalized.first_normal = v_first_lower
           AND normalized.last_normal = v_last_lower)
          OR (
