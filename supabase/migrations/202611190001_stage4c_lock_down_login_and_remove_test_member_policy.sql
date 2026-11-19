@@ -18,6 +18,17 @@ BEGIN
     RAISE EXCEPTION 'Stage 4C requires public.members with RLS enabled';
   END IF;
 
+  -- Refuse to remove the test exception unless the ordinary admin read
+  -- policy survives; do not silently lock out legitimate administrators.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'members'
+      AND policyname = 'pr55_secure_admin_read_members'
+      AND cmd = 'SELECT'
+  ) THEN
+    RAISE EXCEPTION 'Stage 4C normal administrator read policy missing';
+  END IF;
+
   IF to_regprocedure('public.admin_login_begin(text,uuid)') IS NULL
      OR to_regprocedure('public.admin_login_finish(text,uuid,boolean)') IS NULL THEN
     RAISE EXCEPTION 'Stage 4C login RPC signature mismatch; stop and review';
