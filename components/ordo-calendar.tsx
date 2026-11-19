@@ -50,7 +50,7 @@ type SourcedReadingReferences = {
 const SOURCED_READING_EXAMPLES: Record<string, Partial<Record<ReadingLanguage, SourcedReadingReferences>>> = {
   "2026-11-19": {
     en: {
-      first: "Revelation 5:1–10",
+      first: "Apocalypse 5:1–10",
       psalm: "Psalm 149:1–6, 9",
       gospel: "Luke 19:41–44",
       sourceName: "Universalis — Philippines, 19 November 2026",
@@ -66,8 +66,8 @@ const SOURCED_READING_EXAMPLES: Record<string, Partial<Record<ReadingLanguage, S
   },
   "2026-11-20": {
     en: {
-      first: "Revelation 10:8–11",
-      psalm: "Psalm 119:14, 24, 72, 103, 111, 131",
+      first: "Apocalypse 10:8–11",
+      psalm: "Psalm 118(119):14, 24, 72, 103, 111, 131",
       gospel: "Luke 19:45–48",
       sourceName: "Universalis — Philippines, 20 November 2026",
       sourceUrl: "https://universalis.com/philippines/20261120/mass.1.htm",
@@ -435,6 +435,7 @@ export function OrdoCalendar() {
                   if (day === null) return <span key={"empty-" + index} aria-hidden="true" className="min-h-12 sm:min-h-[70px]" />;
                   const date = makeDate(year, month, day);
                   const sample = Boolean(NATIONAL_EXAMPLES[date]);
+                  const hasReadingReferences = Boolean(SOURCED_READING_EXAMPLES[date]);
                   const hasLocal = localReferences(date, parish).length > 0;
                   const selected = date === selectedDate;
                   const isToday = date === today;
@@ -443,7 +444,7 @@ export function OrdoCalendar() {
                       key={date}
                       type="button"
                       onClick={() => setSelectedDate(date)}
-                      aria-label={formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) + (sample ? ", example entry" : "") + (hasLocal ? ", local reference" : "")}
+                      aria-label={formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) + (sample ? ", example entry" : "") + (hasReadingReferences ? ", sourced reading references" : "") + (hasLocal ? ", local reference" : "")}
                       aria-pressed={selected}
                       aria-current={isToday ? "date" : undefined}
                       className={[
@@ -453,9 +454,9 @@ export function OrdoCalendar() {
                       ].join(" ")}
                     >
                       <span>{day}</span>
-                      {(sample || hasLocal) && (
+                      {(sample || hasReadingReferences || hasLocal) && (
                         <span className="flex items-center gap-1" aria-hidden="true">
-                          {sample && <span className={selected ? "h-1.5 w-1.5 rounded-full bg-white" : "h-1.5 w-1.5 rounded-full bg-[#0B5C5A]"} />}
+                          {(sample || hasReadingReferences) && <span className={selected ? "h-1.5 w-1.5 rounded-full bg-white" : "h-1.5 w-1.5 rounded-full bg-[#0B5C5A]"} />}
                           {hasLocal && <span className={selected ? "h-1.5 w-1.5 rounded-full bg-[#F3C6D0]" : "h-1.5 w-1.5 rounded-full bg-[#890022]"} />}
                         </span>
                       )}
@@ -464,7 +465,7 @@ export function OrdoCalendar() {
                 })}
               </div>
               <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t border-[#E6DADC] pt-4 text-[12px] text-[#5F4A4F]">
-                <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#0B5C5A]" /> Example day</span>
+                <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#0B5C5A]" /> Example / sourced readings</span>
                 <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#890022]" /> Local reference</span>
                 <span className="flex items-center gap-2"><span className="h-3 w-3 border border-[#970E24]" /> Today</span>
               </div>
