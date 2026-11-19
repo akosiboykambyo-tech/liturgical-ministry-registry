@@ -78,6 +78,24 @@ test("SQL ledger fingerprints the full normalized identity and sources", () => {
   assert.match(sql, /v_prior\.fingerprint IS DISTINCT FROM v_fingerprint/);
   assert.match(sql, /Conflicting idempotency key/);
 });
+test("CSV table constraint explicitly rejects NULL, matching the function contract", () => {
+  assert.match(sql, /source = 'csv' AND source_key IS NOT NULL\s+AND source_key ~/);
+  assert.match(sql, /v_source_key IS NULL OR/);
+});
+test("SQL source-key regex excludes header row and matches the helper's bounds", () => {
+  const schema = sql.match(/AND source_key ~ '([^']+)'/);
+  const functionGuard = sql.match(/v_source_key !~ '([^']+)'/);
+  assert.ok(schema && functionGuard, "both database validation points must exist");
+  assert.equal(schema[1], functionGuard[1], "table and RPC patterns must agree");
+  const pattern = new RegExp(schema[1]);
+  const digest = "a".repeat(64);
+  assert.equal(pattern.test(`sha256:${digest}:row:1`), false, "row 1 is a header");
+  assert.equal(pattern.test(`sha256:${digest}:row:2`), true);
+  assert.equal(pattern.test(`sha256:${digest}:row:999999999`), true);
+  assert.equal(pattern.test(`sha256:${digest}:row:1000000000`), false);
+  assert.equal(pattern.test(`sha256:${digest.toUpperCase()}:row:2`), false, "hex must be lowercase");
+});
+
 test("SQL rejects CSV source duplication under a changed UUID", () => {
   assert.match(sql, /CREATE UNIQUE INDEX registration_intake_request_csv_source_v2_uidx/);
   assert.match(sql, /ON registry_private\.registration_intake_requests\(actor_id, source_key\)/);
