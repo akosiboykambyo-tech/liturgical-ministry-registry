@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ebGaramond } from "@/app/fonts";
 import {
-  CalendarDots,
   ChevronLeft,
   ChevronRight,
   Clock,
