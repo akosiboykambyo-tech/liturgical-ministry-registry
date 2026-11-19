@@ -19,6 +19,28 @@ $review_only_stop$;
 -- schema. Do not assume TEST/prod migration parity.
 -- Keep v1 installed for now; its locking key is shared during transition.
 
+-- Preflight for a later, independently authorized TEST migration.
+-- All names are schema-qualified and none of these checks change data.
+DO $v2_dependencies$
+BEGIN
+  IF pg_catalog.to_regclass('registry_private.registration_administrators') IS NULL
+     OR pg_catalog.to_regclass('registry_private.registration_allowed_ministries') IS NULL
+     OR pg_catalog.to_regclass('registry_private.registration_intake_requests') IS NULL
+     OR pg_catalog.to_regclass('registry_private.registration_intake_reviews') IS NULL
+     OR pg_catalog.to_regclass('public.members') IS NULL
+     OR pg_catalog.to_regclass('public.member_ministries') IS NULL
+     OR pg_catalog.to_regprocedure(
+       'public.registration_intake_v1(uuid,text,text,text,text[],integer)'
+     ) IS NULL
+     OR pg_catalog.to_regprocedure('extensions.digest(bytea,text)') IS NULL
+     OR pg_catalog.to_regprocedure('extensions.levenshtein(text,text)') IS NULL
+  THEN
+    RAISE EXCEPTION 'registration_intake_v2 dependencies are missing'
+      USING ERRCODE = '55000';
+  END IF;
+END;
+$v2_dependencies$;
+
 -- CSV source keys must explicitly reject NULL under SQL three-valued CHECK.
 -- The header is row 1; valid physical data-row numbers begin at 2.
 -- Persist CSV source identity on the existing atomic request ledger.
