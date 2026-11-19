@@ -66,6 +66,27 @@ test("SQL validates JWT administrator authorization before reading request repla
   assert.match(sql, /a\.revoked_at IS NULL/);
   assert.match(sql, /USING ERRCODE = '42501'/);
 });
+test("reviewed migration preflight requires the TEST schema, v1 and matching extensions", () => {
+  const preflight = sql.indexOf("DO $v2_dependencies$");
+  const firstDdl = sql.indexOf("ALTER TABLE");
+  assert.ok(preflight > 0 && preflight < firstDdl);
+  for (const name of [
+    "registry_private.registration_administrators",
+    "registry_private.registration_allowed_ministries",
+    "registry_private.registration_intake_requests",
+    "registry_private.registration_intake_reviews",
+    "public.members",
+    "public.member_ministries",
+    "public.registration_intake_v1(uuid,text,text,text,text[],integer)",
+    "extensions.digest(bytea,text)",
+    "extensions.levenshtein(text,text)",
+  ]) assert.ok(sql.includes(name), "missing preflight dependency: " + name);
+});
+test("candidate matching does not ignore a legacy member with blank parish", () => {
+  assert.doesNotMatch(sql, /WHERE pg_catalog\.btrim\(m\.parish\) <> ''/);
+  assert.match(sql, /WHERE \(\s*\(normalized\.first_normal = v_first_lower/);
+});
+
 test("SQL shares serialization key with existing v1", () => {
   assert.match(sql, /hashtextextended\('registry_registration_intake_v1', 0\)/);
   assert.match(sql, /pg_advisory_xact_lock/);
