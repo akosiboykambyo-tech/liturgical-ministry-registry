@@ -9,7 +9,8 @@
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import ReceiptManagementPreview from "@/components/financial-stewardship/receipt-management-preview";
 import { ebGaramond, inter } from "@/app/fonts";
 import { useAuth } from "@/lib/auth-context";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
@@ -21,17 +22,18 @@ import {
 
 export type FinancialPageSection = "inventory" | "collections" | "remittances";
 type FinancialNavigation = {
-  key: FinancialPageSection; label: string; href: string; icon: typeof Wallet;
+  key: FinancialPageSection; id?: string; label: string; href: string; icon: typeof Wallet;
 };
 const NAVIGATION: FinancialNavigation[] = [
   { key: "inventory", label: "Official Receipt Inventory", href: "/financial-stewardship", icon: Receipt },
   { key: "collections", label: "Collections and Receipts", href: "/financial-stewardship/collections", icon: Wallet },
+  { key: "collections", id: "receipt-management", label: "Receipt Management", href: "/financial-stewardship/receipt-management", icon: Receipt },
   { key: "remittances", label: "Remittances & Curia", href: "/financial-stewardship/remittances", icon: ArrowsLeftRight },
 ];
 const DESCRIPTIONS: Record<FinancialPageSection, string> = {
   inventory: "Manage the accountability framework for official receipt series, booklets, and preprinted serial numbers.",
   collections: "Separate QR payment evidence from counter collections and independent confirmation of funds received.",
-  remittances: "Track the intended handover of verified collections and receipt copies for independent Curia acknowledgment.",
+  remittances: "Track verified remittances and Curia acknowledgment while COWL retains duplicate receipts for Curia inspection.",
 };
 const SURFACE = "border border-[#E6DADC] bg-white";
 const PANEL = SURFACE + " border-t-[3px] border-t-[#890022] p-5 sm:p-6";
@@ -149,7 +151,7 @@ function RemittancesContent() {
   return <div className="space-y-5">
     <section aria-label="Curia remittance summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric icon={Wallet} label="Awaiting remittance" caption="Verified Commission collections awaiting handoff"/>
-      <Metric icon={ArrowsLeftRight} label="Submitted to Curia" caption="Funds and official duplicate receipt copies handed over"/>
+      <Metric icon={ArrowsLeftRight} label="Submitted to Curia" caption="Funds transferred; receipt duplicates retained by COWL"/>
       <Metric icon={Bank} label="Curia acknowledged" caption="Independent treasury confirmation"/>
       <Metric icon={ClipboardList} label="Discrepancies" caption="Unresolved cash, transfer, or document exceptions"/>
     </section>
@@ -158,14 +160,14 @@ function RemittancesContent() {
         description="Financial custody, the second transfer of funds, and Curia's independent acceptance must remain distinct records."/>
       <div className={EMPTY + " mt-5"}>
         <p className="font-semibold text-[#35242B]">Curia remittances are not activated.</p>
-        <p className="mt-1">No production remittance batches, receipt-copy handoffs, or Curia confirmations are connected to this page.</p>
+        <p className="mt-1">No production remittance batches, Curia inspections of COWL-retained duplicate receipts, or Curia confirmations are connected to this page.</p>
       </div>
     </section>
     <section className={SURFACE + " p-5 sm:p-6"}>
       <h3 className="text-sm font-semibold">Required separation of duties</h3>
       <p className="mt-2 text-sm leading-6 text-[#5F4A4F]">
         The Commission's recording of a verified collection does not equal Curia acknowledgment. Curia must independently confirm
-        funds received and receipt copies, under a different authorized treasury identity. Registration approval is another separate decision.
+        funds received and may inspect the duplicate receipt copies held by COWL, under a different authorized treasury identity. Registration approval is another separate decision.
       </p>
     </section>
   </div>;
@@ -183,17 +185,19 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
     status: "loading", roles: [], access: EMPTY_ACCESS, home: null, reason: "", registryAdmin: false,
   });
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hoverOpen, setHoverOpen] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const expanded = hoverOpen || focusOpen || pinnedOpen;
-  const title = NAVIGATION.find(item => item.key === section)?.label ?? NAVIGATION[0].label;
+  const isReceiptManagement = workspace === "cowl" && pathname === "/financial-stewardship/receipt-management";
+  const title = isReceiptManagement ? "Receipt Management" : NAVIGATION.find(item => item.key === section)?.label ?? NAVIGATION[0].label;
   const workspaceLabel = workspace === "curia" ? "Curia Portal" : "COWL Portal";
   const otherWorkspace: FinanceWorkspace = workspace === "curia" ? "cowl" : "curia";
   const available = authorization.access[workspace];
-  const navigation = NAVIGATION.filter(item => available.includes(item.key)).map(item => ({
-    ...item, href: financePath(workspace, item.key),
+  const navigation = NAVIGATION.filter(item => available.includes(item.key) && (item.id !== "receipt-management" || workspace === "cowl")).map(item => ({
+    ...item, href: item.id === "receipt-management" ? "/financial-stewardship/receipt-management" : financePath(workspace, item.key),
   }));
   const switchTo = authorization.access[otherWorkspace][0]
     ? financePath(otherWorkspace, authorization.access[otherWorkspace][0]) : null;
@@ -299,8 +303,9 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
   const nav = (isExpanded: boolean, mobile: boolean) => <nav aria-label={mobile ? "Financial mobile navigation" : "Financial navigation"}
     className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-2.5 py-5">
     {navigation.map(item => {
-      const Icon = item.icon, active = item.key === section;
-      return <Link key={item.key} href={item.href} aria-current={active ? "page" : undefined}
+      const Icon = item.icon;
+      const active = item.id === "receipt-management" ? isReceiptManagement : item.key === section && !(isReceiptManagement && item.key === "collections");
+      return <Link key={item.id ?? item.key} href={item.href} aria-current={active ? "page" : undefined}
         aria-label={item.label} title={!isExpanded ? item.label : undefined}
         onClick={() => { if (mobile) setMobileOpen(false); }}
         className={"flex min-h-12 items-center py-2.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white " +
@@ -382,7 +387,7 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
         <header className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">Financial Stewardship</p>
           <h1 className={ebGaramond.className + " mt-1 text-[42px] font-medium leading-none sm:text-[48px]"}>{title}</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-[#5F4A4F]">{DESCRIPTIONS[section]}</p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-[#5F4A4F]">{isReceiptManagement ? "Prepare receipt details, view the future register and review protected print calibration settings." : DESCRIPTIONS[section]}</p>
         </header>
         <section role="status" className="mb-6 flex items-start gap-3 border-l-4 border-[#7A4E00] bg-[#FAF5E9] px-4 py-4 text-sm leading-6 text-[#633F0C]">
           <Lock size={20} className="mt-0.5 shrink-0" aria-hidden="true"/>
@@ -391,7 +396,7 @@ export default function LiveFinancialStewardship({ section, workspace = "cowl" }
             receipt stock, collections, or Curia remittances are connected. Only authorized production
             financial controls may enable these operations in a future release.</div>
         </section>
-        {section === "inventory" ? <InventoryContent/> : section === "collections" ? <CollectionsContent/> : <RemittancesContent/>}
+        {isReceiptManagement ? <ReceiptManagementPreview/> : section === "inventory" ? <InventoryContent/> : section === "collections" ? <CollectionsContent/> : <RemittancesContent/>}
         <footer className="mt-6 border-t border-[#E6DADC] pt-4 text-xs leading-5 text-[#6B5C62]">
           COWL-DOK · Diocesan Financial Stewardship · Phase 1 interface only. No financial ledger access or transactions.
         </footer>

@@ -74,7 +74,7 @@ export default function ReleaseQaClient() {
           cache: "no-store",
         });
         return reply.status;
-      }
+      };
 
       const financeAll = await status("/api/financial-stewardship/access?workspace=all", token);
       add(items, "Finance access discovery", financeAll === (expected === "registry" ? 403 : 200),
