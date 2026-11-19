@@ -1,0 +1,129 @@
+/*
+ * COWL-DOK Ordo printable reading sheet.
+ * The print masthead uses the supplied wide diocesan wordmark.
+ * Its 26mm maximum print height preserves page space on A4.
+ */
+.ordo-print-sheet {
+  min-height: 230mm;
+  box-sizing: border-box;
+}
+.ordo-print-logo {
+  display: block;
+  aspect-ratio: 1686.95 / 444.5;
+}
+.ordo-print-reading-text {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.ordo-print-reference,
+.ordo-print-source {
+  overflow-wrap: anywhere;
+}
+
+@media screen and (max-width: 480px) {
+  .ordo-print-sheet {
+    min-height: 0;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 16mm 17mm;
+}
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #1E1114 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .ordo-print-wrapper {
+    min-height: 0 !important;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+  .ordo-print-toolbar {
+    display: none !important;
+  }
+  .ordo-print-sheet {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #1E1114 !important;
+    font-size: 11pt !important;
+  }
+  .ordo-print-masthead {
+    text-align: center;
+  }
+  .ordo-print-logo {
+    width: auto !important;
+    height: auto !important;
+    max-width: 100mm !important;
+    max-height: 26mm !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    object-fit: contain !important;
+  }
+  .ordo-print-rule {
+    margin-top: 7mm !important;
+    border-top: 1.5pt solid #890022 !important;
+  }
+  .ordo-print-title {
+    font-size: 26pt !important;
+    margin-top: 2mm !important;
+  }
+  .ordo-print-date {
+    font-size: 12pt !important;
+  }
+  .ordo-print-parish {
+    font-size: 10pt !important;
+  }
+  .ordo-print-eyebrow {
+    font-size: 8pt !important;
+  }
+  .ordo-print-preview {
+    margin-top: 6mm !important;
+    border: 1pt solid #9B6B75 !important;
+    padding: 2.5mm 4mm !important;
+    font-size: 9pt !important;
+  }
+  .ordo-print-readings {
+    margin-top: 7mm !important;
+  }
+  .ordo-print-reading-section {
+    margin-bottom: 7mm !important;
+    break-inside: auto !important;
+  }
+  .ordo-print-reading-heading {
+    font-size: 9pt !important;
+    break-after: avoid-page;
+  }
+  .ordo-print-reference {
+    font-size: 15pt !important;
+    break-after: avoid-page;
+  }
+  .ordo-print-reading-text {
+    font-size: 11pt !important;
+    line-height: 1.55 !important;
+    orphans: 3;
+    widows: 3;
+  }
+  .ordo-print-source {
+    font-size: 9pt !important;
+    line-height: 1.45 !important;
+  }
+  .ordo-print-footer {
+    font-size: 8pt !important;
+    line-height: 1.4 !important;
+    margin-top: 8mm !important;
+  }
+  .ordo-print-source a {
+    color: #0B5C5A !important;
+    text-decoration: underline !important;
+  }
+}
