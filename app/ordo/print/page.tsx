@@ -142,15 +142,15 @@ export default async function OrdoPrintPage({ searchParams }: Props) {
           {available ? (
             <div className="ordo-print-readings mt-9" lang={isTagalog ? "tl" : "en"}>
               {sections.map((section) => (
-                <section key={section.key} className="ordo-print-reading-section mb-7">
-                  <h2 className="ordo-print-reading-heading border-b border-[#D9C5C9] pb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[#890022]">
+                <section key={section.key} className="ordo-print-reading-section mb-10">
+                  <h2 className="ordo-print-reading-heading border-b border-[#D9C5C9] pb-3 text-[14px] font-bold uppercase tracking-[0.09em] text-[#890022]">
                     {section.heading}
                   </h2>
-                  <p className={ebGaramond.className + " ordo-print-reference mt-3 text-[21px] leading-tight"}>
+                  <p className={ebGaramond.className + " ordo-print-reference mt-4 text-[24px] leading-snug"}>
                     {section.approved?.reference ?? section.reference}
                   </p>
                   {section.approved?.text && (
-                    <div className="ordo-print-reading-text mt-3 whitespace-pre-wrap text-[15px] leading-8 text-[#1E1114]">
+                    <div className="ordo-print-reading-text mt-4 whitespace-pre-wrap text-[18px] leading-[1.8] text-[#1E1114]">
                       {section.approved.text}
                     </div>
                   )}
@@ -198,10 +198,8 @@ export default async function OrdoPrintPage({ searchParams }: Props) {
             </div>
           )}
 
-          <footer className="ordo-print-footer mt-9 border-t border-[#B99CA3] pt-3 text-center text-[11px] leading-5 text-[#5F4A4F]">
-            <p className="font-semibold">Diocesan Commission on Worship and Liturgy</p>
-            <p>Roman Catholic Diocese of Kalookan · COWL-DOK</p>
-            <p className="mt-1">{isTagalog ? "Panimulang bersyon para sa pagsusuri" : "Review copy · not an official liturgical publication"}</p>
+          <footer className="ordo-print-footer" aria-label="Ordo print footer">
+            <span className="ordo-print-footer-brand">COWL-DOK · ORDO</span>
           </footer>
         </main>
       </div>
