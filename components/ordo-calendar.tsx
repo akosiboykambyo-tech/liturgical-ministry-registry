@@ -33,6 +33,55 @@ type ApprovedReadingRecord = Partial<Record<ReadingLanguage, ApprovedReadingEdit
 
 // Empty until COWL approves both the calendar and publication permissions.
 const APPROVED_READINGS: Record<string, ApprovedReadingRecord> = {};
+type SourcedReadingReferences = {
+  first: string;
+  psalm: string;
+  gospel: string;
+  second?: string;
+  sourceName: string;
+  sourceUrl: string;
+};
+
+/**
+ * Small, attributed examples transcribed from dated public source pages.
+ * These are Scripture references only, not licensed reading texts.
+ * They are neither automatically imported nor liturgically approved by COWL.
+ */
+const SOURCED_READING_EXAMPLES: Record<string, Partial<Record<ReadingLanguage, SourcedReadingReferences>>> = {
+  "2026-11-19": {
+    en: {
+      first: "Revelation 5:1–10",
+      psalm: "Psalm 149:1–6, 9",
+      gospel: "Luke 19:41–44",
+      sourceName: "Universalis — Philippines, 19 November 2026",
+      sourceUrl: "https://universalis.com/philippines/20261119/mass.1.htm",
+    },
+    tl: {
+      first: "Pahayag 5, 1–10",
+      psalm: "Salmo 149, 1–2. 3–4. 5 at 6a at 9a",
+      gospel: "Lucas 19, 41–44",
+      sourceName: "Awit at Papuri — 19 Nobyembre 2026",
+      sourceUrl: "https://www.awitatpapuri.com/2026/11/19/huwebes-nobyembre-19-2026/",
+    },
+  },
+  "2026-11-20": {
+    en: {
+      first: "Revelation 10:8–11",
+      psalm: "Psalm 119:14, 24, 72, 103, 111, 131",
+      gospel: "Luke 19:45–48",
+      sourceName: "Universalis — Philippines, 20 November 2026",
+      sourceUrl: "https://universalis.com/philippines/20261120/mass.1.htm",
+    },
+    tl: {
+      first: "Pahayag 10, 8–11",
+      psalm: "Salmo 118, 14. 24. 72. 103. 111. 131",
+      gospel: "Lucas 19, 45–48",
+      sourceName: "Awit at Papuri — 20 Nobyembre 2026",
+      sourceUrl: "https://www.awitatpapuri.com/2026/11/20/biyernes-nobyembre-20-2026/",
+    },
+  },
+};
+
 
 const READING_LABELS: Record<
   ReadingLanguage,
@@ -232,6 +281,7 @@ export function OrdoCalendar() {
   const local = localReferences(selectedDate, parish);
   const readingLabels = READING_LABELS[readingLanguage];
   const readingEdition = APPROVED_READINGS[selectedDate]?.[readingLanguage];
+  const sourcedReferences = SOURCED_READING_EXAMPLES[selectedDate]?.[readingLanguage];
   const readingParts = readingEdition
     ? [
         { key: "first", label: readingLabels.first, reading: readingEdition.firstReading },
@@ -515,6 +565,42 @@ export function OrdoCalendar() {
                           <span className="font-semibold">{readingLabels.source}:</span> {readingEdition?.source}
                           <p>{readingEdition?.permissionNotice}</p>
                         </div>
+                      </div>
+                    ) : sourcedReferences ? (
+                      <div className="mt-4 border border-[#E6DADC] bg-[#FBF9F9] px-4 py-4">
+                        <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#890022]">
+                          {readingLanguage === "tl" ? "Mga sanggunian sa pagbasa" : "Reading references"}
+                        </p>
+                        <p className="mt-1 text-[12px] leading-5 text-[#5F4A4F]">
+                          {readingLanguage === "tl"
+                            ? "Mga sanggunian mula sa panlabas na pinagkunan; hindi pa ang opisyal na inilathalang Ordo ng COWL."
+                            : "Attributed external-source references; not yet an approved COWL Ordo."}
+                        </p>
+                        <dl className="mt-4 space-y-3">
+                          {([
+                            [readingLabels.first, sourcedReferences.first],
+                            [readingLabels.psalm, sourcedReferences.psalm],
+                            ...(sourcedReferences.second ? [[readingLabels.second, sourcedReferences.second]] : []),
+                            [readingLabels.gospel, sourcedReferences.gospel],
+                          ] as [string, string][]).map(([label, reference]) => (
+                            <div key={label}>
+                              <dt className="text-[12px] font-semibold text-[#5F4A4F]">{label}</dt>
+                              <dd className="mt-0.5 text-[15px] font-medium text-[#1E1114]">{reference}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <p className="mt-4 text-[12px] leading-5 text-[#5F4A4F]">
+                          {readingLanguage === "tl" ? "Pinagmulan" : "Source"}: {sourcedReferences.sourceName}
+                        </p>
+                        <a
+                          href={sourcedReferences.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex min-h-11 items-center text-[13px] font-semibold text-[#0B5C5A] underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B5C5A]"
+                        >
+                          {readingLanguage === "tl" ? "Basahin sa pinagkunang website" : "Read the full text at the source"}
+                          <span className="ml-1" aria-hidden="true">↗</span>
+                        </a>
                       </div>
                     ) : (
                       <div className="mt-4 border-l-[3px] border-[#C6A3AD] bg-[#FBF9F9] px-4 py-4">
