@@ -10,6 +10,74 @@ import {
 } from "@/components/phosphor-icons";
 import { PARISHES } from "@/lib/constants";
 
+type ReadingLanguage = "en" | "tl";
+
+/**
+ * Approved reading records must be supplied by an authorized COWL editor,
+ * with independent English/Tagalog versions and publication rights.
+ * No reading text is fabricated or auto-translated in this design preview.
+ */
+type ApprovedReadingText = {
+  reference: string;
+  text: string;
+};
+type ApprovedReadingEdition = {
+  firstReading?: ApprovedReadingText;
+  responsorialPsalm?: ApprovedReadingText;
+  secondReading?: ApprovedReadingText;
+  gospel?: ApprovedReadingText;
+  source: string;
+  permissionNotice: string;
+};
+type ApprovedReadingRecord = Partial<Record<ReadingLanguage, ApprovedReadingEdition>>;
+
+// Empty until COWL approves both the calendar and publication permissions.
+const APPROVED_READINGS: Record<string, ApprovedReadingRecord> = {};
+
+const READING_LABELS: Record<
+  ReadingLanguage,
+  {
+    heading: string;
+    description: string;
+    first: string;
+    psalm: string;
+    second: string;
+    gospel: string;
+    unavailable: string;
+    explanation: string;
+    source: string;
+    preview: string;
+    link: string;
+  }
+> = {
+  en: {
+    heading: "Mass readings",
+    description: "Choose the language of the readings. The liturgical day and parish stay the same.",
+    first: "First Reading",
+    psalm: "Responsorial Psalm",
+    second: "Second Reading",
+    gospel: "Gospel",
+    unavailable: "English readings are not yet available",
+    explanation: "Approved English Scripture texts and references will appear here when COWL publishes them. This preview does not supply or translate liturgical readings.",
+    source: "Publication source",
+    preview: "Awaiting approved reading text",
+    link: "Consult an external Philippine calendar reference",
+  },
+  tl: {
+    heading: "Mga Pagbasa sa Misa",
+    description: "Piliin ang wika ng mga pagbasa. Hindi magbabago ang napiling araw at parokya.",
+    first: "Unang Pagbasa",
+    psalm: "Salmong Tugunan",
+    second: "Ikalawang Pagbasa",
+    gospel: "Mabuting Balita",
+    unavailable: "Wala pang nakalathalang mga pagbasa sa Tagalog",
+    explanation: "Ilalagay dito ang mga inaprubahang teksto at sanggunian kapag pinahintulutan na ng COWL ang paglalathala. Walang awtomatikong pagsasalin ng mga pagbasa.",
+    source: "Pinagmulan ng teksto",
+    preview: "Naghihintay ng inaprubahang teksto",
+    link: "Bisitahin ang panlabas na sanggunian para sa mga pagbasa sa Tagalog",
+  },
+};
+
 type LiturgicalColor = "green" | "white" | "violet" | "red";
 type PreviewEntry = {
   title: string;
@@ -150,6 +218,7 @@ function ColorMarker({ color }: { color: LiturgicalColor }) {
 export function OrdoCalendar() {
   const [selectedDate, setSelectedDate] = useState<string>(todayInManila);
   const [parish, setParish] = useState("");
+  const [readingLanguage, setReadingLanguage] = useState<ReadingLanguage>("en");
   const today = todayInManila();
   const [year, month] = selectedDate.split("-").map(Number);
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
@@ -161,6 +230,17 @@ export function OrdoCalendar() {
   });
   const example = NATIONAL_EXAMPLES[selectedDate];
   const local = localReferences(selectedDate, parish);
+  const readingLabels = READING_LABELS[readingLanguage];
+  const readingEdition = APPROVED_READINGS[selectedDate]?.[readingLanguage];
+  const readingParts = readingEdition
+    ? [
+        { key: "first", label: readingLabels.first, reading: readingEdition.firstReading },
+        { key: "psalm", label: readingLabels.psalm, reading: readingEdition.responsorialPsalm },
+        { key: "second", label: readingLabels.second, reading: readingEdition.secondReading },
+        { key: "gospel", label: readingLabels.gospel, reading: readingEdition.gospel },
+      ].filter((part) => part.reading)
+    : [];
+
 
   const shiftMonth = (offset: number) => {
     const start = new Date(Date.UTC(year, month - 1 + offset, 1));
@@ -393,21 +473,71 @@ export function OrdoCalendar() {
                   </div>
                 )}
                 <div className="mt-6 border-t border-[#E6DADC] pt-5">
-                  <p className="text-[12px] font-semibold text-[#1E1114]">Readings and liturgical instructions</p>
-                  <p className="mt-2 text-[13px] leading-6 text-[#5F4A4F]">
-                    These will appear once the approved national calendar and
-                    diocesan instructions are connected. No readings or rubrics
-                    are inferred from the date.
-                  </p>
-                  <a
-                    href="https://universalis.com/philippines/calendar.htm"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-flex min-h-11 items-center text-[13px] font-semibold text-[#0B5C5A] underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B5C5A]"
-                  >
-                    Consult a Philippines calendar reference
-                    <span className="ml-1" aria-hidden="true">↗</span>
-                  </a>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h4 className="text-[15px] font-semibold text-[#1E1114]">{readingLabels.heading}</h4>
+                    <div className="inline-flex self-start border border-[#D8C5CA] bg-[#FBF9F9] p-1" role="group" aria-label="Reading language / Wika ng mga pagbasa">
+                      {([
+                        ["en", "English"],
+                        ["tl", "Tagalog"],
+                      ] as const).map(([language, label]) => (
+                        <button
+                          key={language}
+                          type="button"
+                          lang={language === "tl" ? "tl" : "en"}
+                          onClick={() => setReadingLanguage(language)}
+                          aria-pressed={readingLanguage === language}
+                          className={[
+                            "min-h-10 min-w-[83px] px-3 text-[13px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#970E24]",
+                            readingLanguage === language
+                              ? "bg-[#890022] text-white"
+                              : "bg-transparent text-[#5F4A4F] hover:bg-[#F1E5E8]",
+                          ].join(" ")}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div lang={readingLanguage === "tl" ? "tl" : "en"} aria-live="polite">
+                    <p className="mt-3 text-[13px] leading-6 text-[#5F4A4F]">
+                      {readingLabels.description}
+                    </p>
+                    {readingParts.length > 0 ? (
+                      <div className="mt-5 divide-y divide-[#E6DADC] border-y border-[#E6DADC]">
+                        {readingParts.map(({ key, label, reading }) => (
+                          <div key={key} className="py-4">
+                            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#890022]">{label}</p>
+                            <p className="mt-2 text-[13px] font-semibold text-[#5F4A4F]">{reading?.reference}</p>
+                            <p className="mt-3 whitespace-pre-wrap text-[15px] leading-7 text-[#1E1114]">{reading?.text}</p>
+                          </div>
+                        ))}
+                        <div className="py-4 text-[12px] leading-6 text-[#5F4A4F]">
+                          <span className="font-semibold">{readingLabels.source}:</span> {readingEdition?.source}
+                          <p>{readingEdition?.permissionNotice}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-4 border-l-[3px] border-[#C6A3AD] bg-[#FBF9F9] px-4 py-4">
+                        <p className="text-[14px] font-semibold text-[#1E1114]">{readingLabels.unavailable}</p>
+                        <p className="mt-2 text-[13px] leading-6 text-[#5F4A4F]">{readingLabels.explanation}</p>
+                        <p className="mt-2 text-[12px] italic leading-5 text-[#725F63]">{readingLabels.preview}</p>
+                      </div>
+                    )}
+                    <a
+                      href={readingLanguage === "tl" ? "https://www.awitatpapuri.com/" : "https://universalis.com/philippines/calendar.htm"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-4 inline-flex min-h-11 items-center text-[13px] font-semibold text-[#0B5C5A] underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B5C5A]"
+                    >
+                      {readingLabels.link}
+                      <span className="ml-1" aria-hidden="true">↗</span>
+                    </a>
+                    <p className="mt-2 text-[12px] leading-5 text-[#5F4A4F]">
+                      {readingLanguage === "tl"
+                        ? "Panlabas na website ito, hindi pa opisyal na inaprubahang Ordo ng COWL."
+                        : "This is a third-party reference, not a COWL-approved publication."}
+                    </p>
+                  </div>
                 </div>
               </div>
             </section>
