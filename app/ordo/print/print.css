@@ -1,15 +1,28 @@
 /*
  * COWL-DOK Ordo printable reading sheet.
  * The print masthead uses the supplied wide diocesan wordmark.
- * Its 26mm maximum print height preserves page space on A4.
+ * The compact logo is approximately 19.5mm high in A4 print.
  */
 .ordo-print-sheet {
   min-height: 230mm;
   box-sizing: border-box;
 }
+.ordo-print-masthead {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
 .ordo-print-logo {
   display: block;
+  width: 280px;
+  max-width: 100%;
+  height: auto;
   aspect-ratio: 1686.95 / 444.5;
+  margin: 0;
+}
+.ordo-print-title,
+.ordo-print-date {
+  text-align: left;
 }
 .ordo-print-reading-text {
   overflow-wrap: anywhere;
@@ -58,33 +71,29 @@
     font-size: 11pt !important;
   }
   .ordo-print-masthead {
-    text-align: center;
+    justify-content: flex-start !important;
+    text-align: left !important;
   }
   .ordo-print-logo {
-    width: auto !important;
+    width: 74mm !important;
+    max-width: 100% !important;
     height: auto !important;
-    max-width: 100mm !important;
-    max-height: 26mm !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
     object-fit: contain !important;
   }
   .ordo-print-rule {
-    margin-top: 7mm !important;
+    margin-top: 5mm !important;
     border-top: 1.5pt solid #890022 !important;
   }
   .ordo-print-title {
-    font-size: 26pt !important;
-    margin-top: 2mm !important;
+    font-size: 24pt !important;
+    margin-top: 0 !important;
+    text-align: left !important;
   }
   .ordo-print-date {
-    font-size: 12pt !important;
-  }
-  .ordo-print-parish {
-    font-size: 10pt !important;
-  }
-  .ordo-print-eyebrow {
-    font-size: 8pt !important;
+    font-size: 11pt !important;
+    text-align: left !important;
   }
   .ordo-print-preview {
     margin-top: 6mm !important;
