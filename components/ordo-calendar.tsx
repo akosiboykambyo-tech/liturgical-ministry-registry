@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clock,
   FileText,
+  Printer,
 } from "@/components/phosphor-icons";
 import { PARISHES } from "@/lib/constants";
 import {
@@ -513,6 +514,32 @@ export function OrdoCalendar() {
                         ? "Panlabas na website ito, hindi pa opisyal na inaprubahang Ordo ng COWL."
                         : "This is a third-party reference, not a COWL-approved publication."}
                     </p>
+                    {readingParts.length > 0 || sourcedReferences ? (
+                      <a
+                        href={
+                          "/ordo/print?date=" +
+                          selectedDate +
+                          "&lang=" +
+                          readingLanguage +
+                          "&parish=" +
+                          encodeURIComponent(parish)
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[3px] bg-[#970E24] px-5 text-center text-[14px] font-semibold text-white hover:bg-[#75081B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#970E24]"
+                      >
+                        <Printer className="h-[18px] w-[18px]" aria-hidden="true" />
+                        {readingLanguage === "tl"
+                          ? readingParts.length > 0 ? "I-print ang mga pagbasa" : "I-print ang mga sanggunian"
+                          : readingParts.length > 0 ? "Print readings" : "Print reading references"}
+                      </a>
+                    ) : (
+                      <p className="mt-4 text-[12px] leading-5 text-[#5F4A4F]">
+                        {readingLanguage === "tl"
+                          ? "Magiging available ang pag-print kapag may inaprubahang mga pagbasa o sanggunian."
+                          : "Printing will be available when approved readings or sourced references have been added."}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
