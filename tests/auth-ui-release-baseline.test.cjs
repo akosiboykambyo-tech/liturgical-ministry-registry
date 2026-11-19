@@ -27,7 +27,7 @@ test("established Registry navigation and access enforcement remain unchanged", 
   assert.match(layout, /onMouseEnter/);
   assert.match(layout, /admin-mobile-sidebar/);
   assert.match(layout, /registryAccess/);
-  assert.match(layout, /router\.replace\(["']\/admin\/access-pending["']\)/);
+  assert.match(layout, /staffLandingRoute\(/);
 });
 
 test("five account routes share the approved responsive auth shell", () => {
@@ -89,9 +89,11 @@ test("password request results reuse a non-enumerating, icon-free shared compone
   assert.match(request, /auth\.resetPasswordForEmail/);
 });
 
-test("PR81 public 403/404 pages and footer remain the single source of truth", () => {
-  assert.match(read("app/403/page.tsx"), /status="403 · Access restricted"/);
-  assert.match(read("app/not-found.tsx"), /status="404 · Page not found"/);
-  assert.match(read("components/public-status-page.tsx"), /<RegistryFooter\s*\/>/);
-  assert.doesNotMatch(read("app/403/page.tsx"), /public-error-page/);
+test("live main 403/404 routes share the current public-error-page layout", () => {
+  assert.match(read("app/403/page.tsx"), /status="403"/);
+  assert.match(read("app/not-found.tsx"), /status="404"/);
+  assert.match(read("app/403/page.tsx"), /public-error-page/);
+  assert.match(read("app/not-found.tsx"), /public-error-page/);
+  assert.match(read("components/public-error-page.tsx"), /<RegistryFooter\s*\/>/);
+  assert.match(read("components/public-error-page.tsx"), /<RegistryHeader\s*\/>/);
 });

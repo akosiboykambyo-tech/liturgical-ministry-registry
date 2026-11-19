@@ -7,6 +7,7 @@ import { Loader2 } from "@/components/phosphor-icons";
 import { AdminAuthShell, AuthError } from "@/components/admin-auth-ui";
 import { useAuth } from "@/lib/auth-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { staffLandingRoute, type RegistryStaffCheck } from "@/lib/staff-entry-routing";
 import { ebGaramond } from "@/app/fonts";
 
 const SUPPORT_EMAIL = "help@cowl-dok.online";
@@ -33,11 +34,9 @@ export default function AdminLoginPage() {
       try {
         const registry = await getSupabaseBrowserClient().rpc("registration_is_admin");
         if (cancelled) return;
-        if (registry.error) {
-          router.replace("/admin/access-pending?verification=unavailable");
-          return;
-        }
-        if (registry.data === true) {
+        const registryCheck: RegistryStaffCheck =
+          registry.error ? "unavailable" : registry.data === true ? "granted" : "denied";
+        if (registry.data === true && !registry.error) {
           router.replace("/admin/dashboard");
           return;
         }
@@ -47,14 +46,12 @@ export default function AdminLoginPage() {
         });
         const data = await reply.json() as { home?: string | null; access?: { cowl: string[]; curia: string[] } };
         if (cancelled) return;
-        if (reply.ok && data.home) {
-          router.replace(data.access?.cowl.length && data.access?.curia.length
-            ? "/financial-stewardship/workspaces" : data.home);
-        } else {
-          router.replace(reply.status === 403
-            ? "/admin/access-pending"
-            : "/admin/access-pending?verification=unavailable");
-        }
+        // Finance authorization is independently verified by the server.
+        // Registry lookup failures must never grant Registry access, but a
+        // separately approved finance user may still enter their own workspace.
+        router.replace(staffLandingRoute(registryCheck, {
+          status: reply.status, home: data.home, access: data.access,
+        }));
       } catch {
         if (!cancelled) router.replace("/admin/access-pending?verification=unavailable");
       }

@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
-import { PublicStatusPage } from "@/components/public-status-page";
+import { PublicErrorPage } from "@/components/public-error-page";
 
 export const metadata: Metadata = {
   title: "Access Restricted",
   robots: { index: false, follow: false },
 };
 
-/** Informational page only; server-side authorization stays with protected routes. */
+/**
+ * Presentation route for the 403 design. Actual protected pages and APIs must
+ * continue to enforce authorization server-side (a visual page isn't a guard).
+ */
 export default function AccessRestrictedPage() {
   return (
-    <PublicStatusPage
-      status="403 · Access restricted"
-      title="You don’t have access to this page."
-      description="This area is limited to authorized staff. If you have an approved account, sign in to the administrative portal. Otherwise, contact the designated diocesan administrator."
+    <PublicErrorPage
+      status="403"
+      title="Knock, and it shall be opened. Just not this door."
+      description="We counted the flock at the gate, and you're not on the list for this pasture. This page is only for signed-in registry staff. If you think you should have access, sign in with the right account or write to us."
       actions={[
         { href: "/admin", label: "Admin sign-in" },
-        { href: "/", label: "Return to registry" },
+        { href: "/", label: "Return Home" },
       ]}
     />
   );

@@ -1,15 +1,12 @@
-import { PublicStatusPage } from "@/components/public-status-page";
+import { PublicErrorPage } from "@/components/public-error-page";
 
 export default function NotFound() {
   return (
-    <PublicStatusPage
-      status="404 · Page not found"
-      title="We couldn’t find that page."
-      description="The page may have moved, or the address may be incorrect. You can return to the registry or continue with member verification."
-      actions={[
-        { href: "/", label: "Return to registry" },
-        { href: "/verify", label: "Verify a minister" },
-      ]}
+    <PublicErrorPage
+      status="404"
+      title="Seek, and ye shall find. Just not here."
+      description="We left the ninety-nine and went looking for this page, but it has wandered off. Check the address for typos, or return home."
+      actions={[{ href: "/", label: "Return Home" }]}
     />
   );
 }

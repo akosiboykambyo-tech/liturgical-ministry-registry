@@ -19,6 +19,7 @@ import {
 } from "@/components/phosphor-icons";
 import { useAuth } from "@/lib/auth-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { staffLandingRoute, type RegistryStaffCheck } from "@/lib/staff-entry-routing";
 import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { AdminAccessNotice, adminAccessPrimaryAction } from "@/components/admin-access-notice";
 import { cn } from "@/lib/utils";
@@ -108,24 +109,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       try {
         const registry = await getSupabaseBrowserClient().rpc("registration_is_admin");
         if (cancelled) return;
-        if (registry.error) {
-          setRegistryAccess("unavailable");
-          return;
-        }
+        const registryCheck: RegistryStaffCheck =
+          registry.error ? "unavailable" : registry.data === true ? "granted" : "denied";
         const financeRequest = fetch("/api/financial-stewardship/access?workspace=all", {
           headers: { Authorization: "Bearer " + token }, cache: "no-store",
         });
-        if (registry.data !== true) {
+        if (registryCheck !== "granted") {
           const result = await financeRequest;
           const data = await result.json() as { home?: string | null; access?: { cowl: string[]; curia: string[] } };
           if (cancelled) return;
-          if (result.ok && data.home) {
-            router.replace(data.access?.cowl.length && data.access?.curia.length
-              ? "/financial-stewardship/workspaces" : data.home);
-          } else if (result.status === 403) {
-            router.replace("/admin/access-pending");
-          } else {
+          const destination = staffLandingRoute(registryCheck, {
+            status: result.status, home: data.home, access: data.access,
+          });
+          // Never render Registry content when its independent check fails.
+          if (destination === "/admin/access-pending?verification=unavailable") {
             setRegistryAccess("unavailable");
+          } else {
+            router.replace(destination);
           }
           return;
         }
