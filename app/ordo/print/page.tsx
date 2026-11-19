@@ -4,7 +4,6 @@ import Link from "next/link";
 import { ebGaramond } from "@/app/fonts";
 import { OrdoPrintTrigger } from "@/components/ordo-print-trigger";
 import { PublicMaintenanceGate } from "@/components/public-maintenance-gate";
-import { PARISHES } from "@/lib/constants";
 import {
   APPROVED_READINGS,
   READING_LABELS,
@@ -58,8 +57,6 @@ export default async function OrdoPrintPage({ searchParams }: Props) {
   const params = await searchParams;
   const date = parseDate(first(params.date));
   const language: ReadingLanguage = first(params.lang) === "tl" ? "tl" : "en";
-  const requestedParish = first(params.parish);
-  const parish = PARISHES.find((value) => value === requestedParish) ?? "";
   const labels = READING_LABELS[language];
 
   if (!date) {
@@ -119,27 +116,20 @@ export default async function OrdoPrintPage({ searchParams }: Props) {
             <Image
               src="/images/Asset_1.svg"
               alt="Roman Catholic Diocese of Kalookan — Commission on Worship and Liturgy"
-              width={480}
-              height={127}
+              width={280}
+              height={74}
               priority
-              className="ordo-print-logo mx-auto h-auto max-h-[108px] w-auto max-w-full object-contain"
+              className="ordo-print-logo block h-auto w-[280px] max-w-full object-contain"
             />
           </div>
 
-          <div className="ordo-print-rule mt-7 border-t-[3px] border-[#890022]" />
-          <div className="pt-7 text-center" lang={isTagalog ? "tl" : "en"}>
-            <p className="ordo-print-eyebrow text-[11px] font-bold uppercase tracking-[0.18em] text-[#890022]">
-              COWL-DOK · Ordo
-            </p>
-            <h1 className={ebGaramond.className + " ordo-print-title mt-2 text-[39px] font-medium leading-tight"}>
-              {isTagalog ? "Mga Pagbasa sa Misa" : "Mass Readings"}
+          <div className="ordo-print-rule mt-5 border-t-2 border-[#890022]" />
+          <div className="pt-6 text-left" lang={isTagalog ? "tl" : "en"}>
+            <h1 className={ebGaramond.className + " ordo-print-title text-[38px] font-medium leading-tight"}>
+              {isTagalog ? "Mga Pagbasa sa Misa" : "Daily Mass Readings"}
             </h1>
-            <p className="ordo-print-date mt-2 text-[16px] font-semibold">{printedDate}</p>
-            <p className="ordo-print-parish mt-2 text-[13px] text-[#5F4A4F]">
-              {parish || "Diocese of Kalookan"}
-            </p>
-            <p className="mt-1 text-[12px] text-[#5F4A4F]">
-              {isTagalog ? "Wika: Tagalog" : "Language: English"}
+            <p className="ordo-print-date mt-2 text-[16px] font-semibold">
+              {printedDate}
             </p>
           </div>
 
