@@ -19,6 +19,8 @@ $review_only_stop$;
 -- schema. Do not assume TEST/prod migration parity.
 -- Keep v1 installed for now; its locking key is shared during transition.
 
+-- CSV source keys must explicitly reject NULL under SQL three-valued CHECK.
+-- The header is row 1; valid physical data-row numbers begin at 2.
 -- Persist CSV source identity on the existing atomic request ledger.
 ALTER TABLE registry_private.registration_intake_requests
   ADD COLUMN source text NOT NULL DEFAULT 'individual',
@@ -28,7 +30,8 @@ ALTER TABLE registry_private.registration_intake_requests
   ADD CONSTRAINT registration_intake_request_source_v2_chk
   CHECK (
     (source = 'individual' AND source_key IS NULL)
-    OR (source = 'csv' AND source_key ~ '^sha256:[0-9a-f]{64}:row:[1-9][0-9]{0,8}$')
+    OR (source = 'csv' AND source_key IS NOT NULL
+        AND source_key ~ '^sha256:[0-9a-f]{64}:row:([2-9]|[1-9][0-9]{1,8})$')
   );
 
 -- A new UUID for the same actor + physical CSV source row must not insert again.
@@ -123,7 +126,7 @@ BEGIN
   IF (v_source = 'individual' AND v_source_key IS NOT NULL)
      OR (v_source = 'csv' AND (
        v_source_key IS NULL OR
-       v_source_key !~ '^sha256:[0-9a-f]{64}:row:[1-9][0-9]{0,8}$'
+       v_source_key !~ '^sha256:[0-9a-f]{64}:row:([2-9]|[1-9][0-9]{1,8})$'
      ))
   THEN
     RAISE EXCEPTION 'Invalid registration source key' USING ERRCODE = '22023';
