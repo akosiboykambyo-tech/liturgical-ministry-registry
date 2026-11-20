@@ -90,7 +90,7 @@ export default function Rc1QaClient() {
       add("JWT-scoped finance grants", "pass",
         roles.length + " active finance role(s) resolved from signed-user RLS.");
 
-      async function accessCheck(label: string, query: string, shouldAllow: boolean) {
+      const accessCheck = async (label: string, query: string, shouldAllow: boolean) => {
         const response = await fetch("/api/financial-stewardship/access?" + query, {
           method: "GET",
           headers: { Authorization: "Bearer " + token },
@@ -99,7 +99,7 @@ export default function Rc1QaClient() {
         const wanted = shouldAllow ? 200 : 403;
         add(label, response.status === wanted ? "pass" : "fail",
           "Expected HTTP " + wanted + "; received " + response.status + ".");
-      }
+      };
 
       await accessCheck("Finance workspace entry (signed JWT)", "workspace=all", hasWorkspace);
       for (const workspace of ["cowl", "curia"] as FinanceWorkspace[]) {
