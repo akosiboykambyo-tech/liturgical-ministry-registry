@@ -3,44 +3,32 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
-const page = read("app/rc1-storage-qa/page.tsx");
-const client = read("app/rc1-storage-qa/storage-qa-client.tsx");
+const fullPath = (file) => path.join(__dirname, "..", file);
+const read = (file) => fs.readFileSync(fullPath(file), "utf8");
 
-test("Storage QA route is TEST Supabase and Vercel Preview gated", () => {
-  assert.match(page, /process\.env\.VERCEL_ENV !== "preview"/);
-  assert.match(page, /hostname === "rtptybxugjhvpfjvcvgw\.supabase\.co"/);
-  assert.match(page, /notFound\(\)/);
-  assert.match(page, /index: false, follow: false/);
+// Final RC1 deliberately excludes browser QA harnesses from the deployable
+// application; these release tests now assert the exclusion while retaining
+// checks on the actual private-document workflow.
+test("Temporary Storage QA pages and clients are absent from release source", () => {
+  assert.equal(fs.existsSync(fullPath("app/rc1-storage-qa/page.tsx")), false);
+  assert.equal(fs.existsSync(fullPath("app/rc1-storage-qa/storage-qa-client.tsx")), false);
 });
 
-test("Storage QA tests a synthetic image, not existing member files", () => {
-  assert.match(client, /BUCKET = "member-documents"/);
-  assert.match(client, /rc1-security-qa\//);
-  assert.match(client, /crypto\.randomUUID\(\)/);
-  assert.match(client, /contentType: "image\/png"/);
-  assert.match(client, /upsert: false/);
-  assert.match(client, /matchesFixture\(read\.data\)/);
-  assert.doesNotMatch(client, /\.from\("members"\)/);
-  assert.doesNotMatch(client, /SUPABASE_SERVICE_ROLE_KEY/);
+test("Letters use private immutable Storage and assignment-scoped RPC", () => {
+  const code = read("lib/registry-letter-attachments.ts");
+  assert.match(code, /\.from\("member-documents"\)/);
+  assert.match(code, /attachments\/\$\{crypto\.randomUUID\(\)\}/);
+  assert.match(code, /upsert: false/);
+  assert.match(code, /MAX_FILE_SIZE = 5 \* 1024 \* 1024/);
+  assert.match(code, /registry_attach_ministry_letters_v2/);
+  assert.doesNotMatch(code, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(code, /getPublicUrl\(/);
 });
 
-test("Private objects require real signed JWT for reads and URL issuance", () => {
-  assert.match(client, /client\.auth\.getUser\(session\.data\.session\.access_token\)/);
-  assert.match(client, /createClient\(/);
-  assert.match(client, /persistSession: false, autoRefreshToken: false/);
-  assert.match(client, /anonymousDownload/);
-  assert.match(client, /anonymousLink/);
-  assert.match(client, /\.download\(current\.path\)/);
-  assert.match(client, /\.createSignedUrl\(current\.path, 60\)/);
-  assert.match(client, /isAccessDenied\(/);
-  assert.match(client, /"inconclusive"/);
-});
-
-test("Fixture cleanup and sanitized report do not expose signed URLs", () => {
-  assert.match(client, /\.remove\(\[current\.path\]\)/);
-  assert.match(client, /window\.localStorage\.removeItem\(STORAGE_KEY\)/);
-  assert.match(client, /No signed URLs, object paths, access tokens/);
-  assert.doesNotMatch(client, /clipboard\.writeText\(.*signedUrl/);
-  assert.doesNotMatch(client, /console\.log|sendBeacon/);
+test("Private review link is short-lived and does not publicize letter storage", () => {
+  const code = read("lib/secure-ministry-verification.ts");
+  assert.match(code, /\.from\("member-documents"\)/);
+  assert.match(code, /\.createSignedUrl\(documentPath, 300\)/);
+  assert.match(code, /documentPath\.includes\("\.\."\)/);
+  assert.doesNotMatch(code, /getPublicUrl\(/);
 });
