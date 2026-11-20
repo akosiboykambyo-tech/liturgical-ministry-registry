@@ -13,9 +13,7 @@ import {
 
 type Verdict = "pass" | "fail" | "inconclusive";
 type Check = { label: string; verdict: Verdict; detail: string };
-type SessionResponse = { error?: string };
 
-const RED = "#890022";
 const TEST_HOST = "rtptybxugjhvpfjvcvgw.supabase.co";
 const STATUS_STYLE: Record<Verdict, string> = {
   pass: "text-[#07574F] bg-[#EAF6F2] border-[#A6CFC5]",
@@ -129,7 +127,7 @@ export default function Rc1QaClient() {
       ]) {
         const result = await (row.table === "members" ?
           supabase.from("members") : supabase.from("system_settings"))
-          .select("id" === (row.table === "members") ? "id" : "key",
+          .select(row.table === "members" ? "id" : "key",
             { head: true, count: "exact" });
         if (result.error || result.count === null) {
           add(row.label, "fail", "Signed read failed (code " + (result.error?.code ?? "unknown") + ").");
