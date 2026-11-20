@@ -14,7 +14,6 @@ export const dynamic = "force-dynamic";
  * and the signatory artwork coordinates that the public certificate uses.
  * Never return raw settings rows, private documents, or a service-role key.
  */
-const PUBLIC_TEMPLATE_KEYS = new Set(Object.keys(DEFAULT_TEMPLATE_SETTINGS));
 const PUBLIC_ELEMENT_KEYS = new Set([
   "id", "type", "x", "y", "width", "height", "rotation",
   "text", "font_family", "font_size", "font_weight", "font_style",
@@ -28,7 +27,7 @@ function publishableTemplate(input: unknown): CertificateTemplateSettings | null
 
   const source = input as Record<string, unknown>;
   const published: Record<string, unknown> = {};
-  for (const key of PUBLIC_TEMPLATE_KEYS) {
+  for (const key of Object.keys(DEFAULT_TEMPLATE_SETTINGS)) {
     if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
     if (key === "elements") {
       if (!Array.isArray(source.elements)) continue;
