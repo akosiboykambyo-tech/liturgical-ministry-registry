@@ -127,31 +127,32 @@ function VerifyPage() {
   const certRef = useRef<CertificateDesignHandle>(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from("system_settings")
-        .select("*")
-        .like("key", "certificate_template%")
-        .eq("is_default", true)
-        .maybeSingle();
-
-      setSettings(
-        data?.value
-          ? (data.value as CertificateTemplateSettings)
-          : DEFAULT_TEMPLATE_SETTINGS
-      );
-
-      const [sigResult, layoutResult] = await Promise.all([
-        supabase.from("signatories").select("*").eq("is_active", true).order("sort_order"),
-        supabase.from("system_settings").select("key,value")
-          .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`),
+      // Public visitors receive only the published certificate design, not
+      // unrestricted read access to system_settings or draft templates.
+      const [design, sigResult] = await Promise.all([
+        fetch("/api/verify/certificate-design", { cache: "no-store" })
+          .then(async (response) => response.ok
+            ? (await response.json()) as {
+                template: CertificateTemplateSettings;
+                layouts: { key: string; value: unknown }[];
+              }
+            : null)
+          .catch(() => null),
+        supabase.from("signatories").select("*")
+          .eq("is_active", true).order("sort_order"),
       ]);
-      // A missing layout preset leaves the established 12px fallback intact.
+      if (cancelled) return;
+
+      // Preserve the existing visual fallback when design service is unavailable.
+      setSettings(design?.template ?? DEFAULT_TEMPLATE_SETTINGS);
       setSignatories(attachSignatureCompositions(
         (sigResult.data as Signatory[]) ?? [],
-        layoutResult.error ? [] : (layoutResult.data ?? [])
+        design?.layouts ?? []
       ));
     })();
+    return () => { cancelled = true; };
   }, [supabase]);
 
   const doSearch = useCallback(
