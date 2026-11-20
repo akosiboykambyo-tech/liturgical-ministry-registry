@@ -46,11 +46,11 @@ export function VerificationMemberCard({
         {member.first_name} {member.last_name}
       </h3>
 
-      <p className="mt-4 text-[17px] font-semibold leading-7">
+      <p className="mt-3 text-[17px] font-semibold leading-6">
         {member.parish}
       </p>
 
-      <p className="mt-2 text-[17px] leading-7 text-[#5F4A4F]">
+      <p className="mt-1 text-[17px] leading-6 text-[#5F4A4F]">
         {member.member_ministries.length > 0
           ? member.member_ministries
               .map((membership) => shortPublicMinistry(membership.ministry))
@@ -58,7 +58,7 @@ export function VerificationMemberCard({
           : "No ministry registration listed"}
       </p>
 
-      <p className="mt-5 text-[15px] font-semibold leading-6 text-[#0B5C5A]">
+      <p className="mt-3 text-[15px] font-semibold leading-5 text-[#0B5C5A]">
         {getCardPublicStatus(member.member_ministries)}
       </p>
 

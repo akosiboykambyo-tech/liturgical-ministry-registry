@@ -25,13 +25,14 @@ import {
 
 import { ebGaramond } from "@/app/fonts";
 import { CertificateDesign } from "@/components/certificate-design";
+import { attachSignatureCompositions, SIGNATURE_LAYOUT_KEY_PREFIX } from "@/lib/signature-layout";
 import type { CertificateDesignHandle } from "@/components/certificate-design";
 import { NameCorrectionForm } from "@/components/name-correction-form";
 import { RegistryFooter } from "@/components/registry-footer";
 import { PublicMaintenanceGate } from "@/components/public-maintenance-gate";
 import { RegistryHeader } from "@/components/registry-header";
 import { VerificationResultSelector } from "@/components/verification-result-selector";
-import { DEFAULT_TEMPLATE_SETTINGS, getExpirationStatus } from "@/lib/constants";
+import { DEFAULT_TEMPLATE_SETTINGS } from "@/lib/constants";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CertificateTemplateSettings,
@@ -126,28 +127,32 @@ function VerifyPage() {
   const certRef = useRef<CertificateDesignHandle>(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from("system_settings")
-        .select("*")
-        .like("key", "certificate_template%")
-        .eq("is_default", true)
-        .maybeSingle();
+      // Public visitors receive only the published certificate design, not
+      // unrestricted read access to system_settings or draft templates.
+      const [design, sigResult] = await Promise.all([
+        fetch("/api/verify/certificate-design", { cache: "no-store" })
+          .then(async (response) => response.ok
+            ? (await response.json()) as {
+                template: CertificateTemplateSettings;
+                layouts: { key: string; value: unknown }[];
+              }
+            : null)
+          .catch(() => null),
+        supabase.from("signatories").select("*")
+          .eq("is_active", true).order("sort_order"),
+      ]);
+      if (cancelled) return;
 
-      setSettings(
-        data?.value
-          ? (data.value as CertificateTemplateSettings)
-          : DEFAULT_TEMPLATE_SETTINGS
-      );
-
-      const { data: sigData } = await supabase
-        .from("signatories")
-        .select("*")
-        .eq("is_active", true)
-        .order("sort_order");
-
-      setSignatories((sigData as Signatory[]) ?? []);
+      // Preserve the existing visual fallback when design service is unavailable.
+      setSettings(design?.template ?? DEFAULT_TEMPLATE_SETTINGS);
+      setSignatories(attachSignatureCompositions(
+        (sigResult.data as Signatory[]) ?? [],
+        design?.layouts ?? []
+      ));
     })();
+    return () => { cancelled = true; };
   }, [supabase]);
 
   const doSearch = useCallback(
@@ -314,25 +319,14 @@ function VerifyPage() {
 
     const preferred =
       activeMember.member_ministries.find((membership) => {
-        const expiration = getExpirationStatus(membership.expiration_date);
-        return (
-          (membership.status === "New" || membership.status === "Renewed") &&
-          expiration !== "expired" &&
-          expiration !== "expiring_soon"
-        );
+        return isCurrentMembership(membership);
       }) ?? activeMember.member_ministries[0];
 
     setSelectedMinistry(preferred?.ministry ?? null);
   }, [activeMember]);
 
   const membershipIsEligible = (membership: PublicMembership) => {
-    const expiration = getExpirationStatus(membership.expiration_date);
-
-    return (
-      (membership.status === "New" || membership.status === "Renewed") &&
-      expiration !== "expired" &&
-      expiration !== "expiring_soon"
-    );
+    return isCurrentMembership(membership);
   };
 
   const reprintSuffix =

@@ -87,14 +87,23 @@ export type ExpirationStatus = "valid" | "expiring_soon" | "expired" | "none";
 export const EXPIRING_SOON_DAYS = 30;
 
 export function getExpirationStatus(expirationDate: string | null): ExpirationStatus {
-  if (!expirationDate) return "none";
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const exp = new Date(expirationDate + "T00:00:00");
-  const diffMs = exp.getTime() - now.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) return "expired";
-  if (diffDays <= EXPIRING_SOON_DAYS) return "expiring_soon";
+  if (!expirationDate || !/^\d{4}-\d{2}-\d{2}$/.test(expirationDate)) return "none";
+  // Inclusive date-only validity must not vary with the visitor's local timezone
+  // or across daylight-saving transitions.
+  const expiry = new Date(expirationDate + "T00:00:00Z");
+  if (!Number.isFinite(expiry.getTime()) ||
+      expiry.toISOString().slice(0, 10) !== expirationDate) return "none";
+  const manilaParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const civilPart = (name: string) =>
+    manilaParts.find((part) => part.type === name)?.value ?? "";
+  const today = new Date(
+    `${civilPart("year")}-${civilPart("month")}-${civilPart("day")}T00:00:00Z`
+  );
+  const daysRemaining = Math.round((expiry.getTime() - today.getTime()) / 86400000);
+  if (daysRemaining < 0) return "expired";
+  if (daysRemaining <= EXPIRING_SOON_DAYS) return "expiring_soon";
   return "valid";
 }
 

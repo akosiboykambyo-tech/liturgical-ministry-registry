@@ -1,50 +1,47 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { MemberStatus, Member } from "@/lib/types";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
+import type { Member, MemberStatus } from "@/lib/types";
 
 /**
- * One-Click Verification: instantly updates a pending member's status to
- * "New" or "Renewed". The DB trigger auto-generates the UID on insert (already
- * done), and the audit log trigger records the status change. This function is
- * the optimistic-UI-aware caller used by the Quick-Scan Matrix.
- *
- * Returns the updated member or an error.
+ * The legacy Quick Scan has no explicit ministry selection. It is not safe to
+ * infer approvals from an aggregate member status. Use the secure Verification
+ * workspace for a selected set of member_ministries IDs and a reviewed letter.
  */
 export async function quickVerifyMember(
-  memberId: string,
-  newStatus: "New" | "Renewed"
+  _memberId: string,
+  _newStatus: "New" | "Renewed"
 ): Promise<{ member: Member | null; error: string | null }> {
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("members")
-    .update({ status: newStatus })
-    .eq("id", memberId)
-    .select("*")
-    .single();
-  if (error) return { member: null, error: error.message };
-  return { member: data as Member, error: null };
+  return {
+    member: null,
+    error: "Member-wide approval is disabled. Open secure Verification and select the exact ministry assignments to approve.",
+  };
 }
 
-/**
- * Revert a member back to Pending Verification (e.g., misplaced recommendation
- * letter).
- */
 export async function revertToPending(
   memberId: string
 ): Promise<{ member: Member | null; error: string | null }> {
-  return quickVerifyMember(memberId, "Pending Verification" as never);
+  return updateMemberStatus(memberId, "Pending Verification");
 }
 
 export async function updateMemberStatus(
   memberId: string,
   status: MemberStatus
 ): Promise<{ member: Member | null; error: string | null }> {
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("members")
-    .update({ status })
-    .eq("id", memberId)
-    .select("*")
-    .single();
-  if (error) return { member: null, error: error.message };
-  return { member: data as Member, error: null };
+  // New and Renewed require owner authorization and a private document-backed,
+  // exact-assignment approval. Never fall back to a member-wide table UPDATE.
+  if (status === "New" || status === "Renewed") {
+    return quickVerifyMember(memberId, status);
+  }
+  try {
+    const member = await registryAdminWrite<Member>("set_status", {
+      member_id: memberId,
+      status,
+    });
+    return { member, error: null };
+  } catch (cause) {
+    return {
+      member: null,
+      error: cause instanceof Error ? cause.message : "Secure status change rejected",
+    };
+  }
 }

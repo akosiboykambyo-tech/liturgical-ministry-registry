@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowRight, CalendarClock, ClipboardCheck, CopyCheck, Download,
+  ArrowRight, CalendarClock, ClipboardCheck, Download,
   FileCheck2, FileWarning, RefreshCw, Search, ShieldCheck,
-  Upload, UserPlus, Users,
+  Upload, Users,
 } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Member, MemberMinistry } from "@/lib/types";
 
@@ -197,10 +198,19 @@ export default function AdminDashboardPage() {
 
   const metrics = [
     {
-      label: "Active Members",
-      value: fmt(summary.active),
-      note: "People with a verified, documented and unexpired assignment",
+      label: "Total Members",
+      value: fmt(summary.people),
+      note: "Unique people registered in the system",
       icon: Users,
+      accent: "#3B5278",
+      href: "/admin/members",
+      linkLabel: "View members",
+    },
+    {
+      label: "Registered and Valid",
+      value: fmt(summary.active),
+      note: "People with a verified, documented and unexpired ministry assignment",
+      icon: ShieldCheck,
       accent: "#0B5C5A",
       href: "/admin/members",
       linkLabel: "View members",
@@ -209,55 +219,47 @@ export default function AdminDashboardPage() {
       label: "Pending Verification",
       value: fmt(summary.pending),
       note: "People awaiting approval in at least one ministry",
-      icon: ShieldCheck,
-      accent: "#3B5278",
-      href: "/admin/members?attention=pending",
-      linkLabel: "View pending",
-    },
-    {
-      label: "Duplicate Reviews",
-      value: data.savedDuplicateFlags === null ? "—" : fmt(data.savedDuplicateFlags),
-      note: "Saved unresolved flags; current CSV matches are reviewed during import",
-      icon: CopyCheck,
+      icon: ClipboardCheck,
       accent: "#890022",
-      href: "/admin/import?tab=pending",
-      linkLabel: "Open import reviews",
+      href: "/admin/verification?tab=reviews&view=approvals",
+      linkLabel: "Review pending",
     },
     {
       label: "Renewal Attention",
       value: fmt(summary.needsRenewal),
-      note: "Verified ministry assignments expired or expiring in 30 days",
+      note: "Verified ministry assignments expired or expiring within 30 days",
       icon: CalendarClock,
       accent: "#7A4E00",
-      href: "/admin/renewal-batches",
+      href: "/admin/verification?tab=renewals",
       linkLabel: "Open renewals",
     },
   ];
 
+  // Batch work is primary; individual registrations remain under Members.
   const actions = [
     {
-      label: "Add a Member",
-      note: "Enter an individual registration",
-      href: "/admin/members/add",
-      icon: UserPlus,
-    },
-    {
-      label: "Bulk Registration",
-      note: "Upload and validate CSV entries",
-      href: "/admin/import",
+      label: "New Registration Batch",
+      note: "Upload and validate a CSV roster",
+      href: "/admin/verification?tab=registrations",
       icon: Upload,
     },
     {
-      label: "Verify Members",
-      note: "Review pending registrations",
-      href: "/admin/verify",
+      label: "Renewal Batch",
+      note: "Process returning ministers",
+      href: "/admin/verification?tab=renewals",
+      icon: CalendarClock,
+    },
+    {
+      label: "Pending Review",
+      note: "Review verification and documentation",
+      href: "/admin/verification?tab=reviews&view=approvals",
       icon: ClipboardCheck,
     },
     {
-      label: "Review Duplicates",
-      note: "Inspect matches flagged on import",
-      href: "/admin/import?tab=pending",
-      icon: CopyCheck,
+      label: "Find a Member",
+      note: "Search and edit individual records",
+      href: "/admin/members",
+      icon: Search,
     },
   ];
 
@@ -287,7 +289,7 @@ export default function AdminDashboardPage() {
           The dashboard could not load complete registry data: {data.error}. No partial figures are shown.
         </div>
       )}
-      {loading && <p role="status" className="py-8 text-[17px] text-[#5F4A4F]">Loading registry overview…</p>}
+      {loading && <CenteredAdminLoader label="Loading registry overview…" />}
 
       {!loading && !data.error && (
         <>
@@ -315,13 +317,13 @@ export default function AdminDashboardPage() {
           {summary.people === 0 && (
             <section className="border border-[#E6DADC] bg-white p-6 sm:p-8" aria-labelledby="getting-started">
               <h2 id="getting-started" className={ebGaramond.className + " text-[34px] font-medium leading-tight sm:text-[44px]"}>
-                Ready for your first registration
+                Ready for your first batch
               </h2>
               <p className="mt-3 max-w-2xl text-[17px] leading-8 text-[#5F4A4F]">
-                Start with an individual member or upload a CSV roster. New registrations should remain pending until their documents have been reviewed.
+                Start by uploading a CSV roster for batch registration. Individual members can still be added from the Members section.
               </p>
-              <Link href="/admin/members/add" className="mt-5 inline-flex min-h-11 items-center gap-2 bg-[#970E24] px-5 text-[15px] font-semibold text-white hover:bg-[#890022] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#970E24]">
-                <UserPlus size={17} aria-hidden="true" /> Add First Member
+              <Link href="/admin/verification?tab=registrations" className="mt-5 inline-flex min-h-11 items-center gap-2 bg-[#970E24] px-5 text-[15px] font-semibold text-white hover:bg-[#890022] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#970E24]">
+                <Upload size={17} aria-hidden="true" /> Start First Batch
               </Link>
             </section>
           )}
@@ -331,7 +333,7 @@ export default function AdminDashboardPage() {
               <h2 id="quick-actions" className={ebGaramond.className + " text-[34px] font-medium leading-tight sm:text-[44px]"}>
                 Quick Actions
               </h2>
-              <p className="mt-1 text-[16px] leading-7 text-[#5F4A4F]">The everyday tasks of managing the registry.</p>
+              <p className="mt-1 text-[16px] leading-7 text-[#5F4A4F]">Start with batch processing, or open member records when needed.</p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {actions.map((action) => {
                   const Icon = action.icon;
@@ -355,10 +357,9 @@ export default function AdminDashboardPage() {
               <p className="mt-1 text-[16px] leading-7 text-[#5F4A4F]">Document and verification tasks at ministry-assignment level.</p>
               <div className="mt-5 divide-y divide-[#E6DADC]">
                 {[
-                  { label: "Awaiting recommendation letter", count: summary.waitingForLetter, icon: FileWarning, href: "/admin/verify" },
-                  { label: "Documents ready for review", count: summary.readyToReview, icon: FileCheck2, href: "/admin/verify" },
-                  { label: "Verified but missing validity date", count: summary.missingValidity, icon: CalendarClock, href: "/admin/members" },
-                  { label: "Verified but missing recommendation letter", count: summary.verifiedMissingLetter, icon: FileWarning, href: "/admin/members" },
+                  { label: "Missing recommendation letters", count: summary.waitingForLetter + summary.verifiedMissingLetter, icon: FileWarning, href: "/admin/verification?tab=reviews&view=approvals" },
+                  { label: "Documents ready for review", count: summary.readyToReview, icon: FileCheck2, href: "/admin/verification?tab=reviews&view=approvals" },
+                  { label: "Verified without validity date", count: summary.missingValidity, icon: CalendarClock, href: "/admin/members" },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
@@ -379,7 +380,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="flex flex-col gap-2 border-t border-[#E6DADC] pt-4 text-[14px] leading-6 text-[#5F4A4F] sm:flex-row sm:items-start sm:justify-between">
             <p className="max-w-3xl">
-              An active member is counted only when an assignment is verified, has a stored recommendation letter and has a known unexpired validity date. Pending and active counts can overlap when different ministries have different statuses. The duplicate figure covers saved flags only; CSV staging reviews are not yet a persistent unified queue.
+              Registered and Valid counts people with at least one documented, verified, unexpired ministry assignment. Pending and valid counts may overlap for people serving in more than one ministry. Renewal Attention counts assignments, not people.
             </p>
             <Link href="/admin/audit" className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-[#0B5C5A] underline-offset-4 hover:underline">
               View Audit Trail <ArrowRight size={15} aria-hidden="true" />

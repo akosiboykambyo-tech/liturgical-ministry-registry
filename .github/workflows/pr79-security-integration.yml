@@ -1,0 +1,56 @@
+name: PR79 isolated registry security integration
+on:
+  pull_request:
+    branches: [release/auth-typography-on-live-baseline]
+    paths:
+      - ".github/workflows/pr79-security-integration.yml"
+      - "app/admin/**"
+      - "app/verify/**"
+      - "lib/**"
+      - "components/member-detail-drawer.tsx"
+      - "docs/sql/pr79-**"
+      - "tests/annual-registration-public-policy.test.cjs"
+      - "tests/auth-ui-release-baseline.test.cjs"
+      - "tests/financial-access-model.test.cjs"
+      - "docs/pr79-release-integration-review-2026-11-12.md"
+      - "app/release-qa/**"
+      - "tests/release-qa-guard.test.cjs"
+      - "docs/pr79-release-safeguards-2026-11-12.md"
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Role-aware Auth and financial separation
+        run: node --test tests/auth-ui-release-baseline.test.cjs tests/financial-access-model.test.cjs tests/admin-invitation-onboarding.test.cjs
+      - name: TEST-only QA route confinement
+        run: node --test tests/release-qa-guard.test.cjs
+      - name: Registry no-bypass source checks
+        run: node --test tests/pr79-registry-no-bypass.test.cjs
+      - name: Documented effective dates and lazy certificate QA
+        run: node --test tests/pr79-effective-date-and-certificates.test.cjs
+      - name: Certificate Studio persistence and recovery guards
+        run: node --test tests/pr79-certificate-studio-preservation.test.cjs
+      - name: Annual per-ministry validity policy
+        run: node --test tests/annual-registration-public-policy.test.cjs
+      - name: Existing registration regressions
+        run: npm run test:registration
+      - name: Production build (synthetic public CI environment)
+        run: npm run build
+        env:
+          # No real project credentials or keys are used for CI prerendering.
+          NEXT_PUBLIC_SUPABASE_URL: https://ci.invalid.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-only-placeholder-not-an-auth-key
+

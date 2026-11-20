@@ -40,6 +40,8 @@ export default function AddMemberPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // All creates and duplicate flags now use an owner-guarded database RPC.
+    // Do not fall back to direct member/assignment table writes.
     setError(null);
     setSuccess(null);
     setDupeMatch(null);
@@ -74,7 +76,7 @@ export default function AddMemberPage() {
 
     if (result.status === "created") {
       setSuccess(
-        `Created ${result.member.first_name} ${result.member.last_name} (UID: ${result.member.uid}). Routed to the Quick-Scan Verification Matrix for approval.`
+        `Created ${result.member.first_name} ${result.member.last_name} (UID: ${result.member.uid}). Awaiting separate review and per-ministry approval.`
       );
       setFirstName("");
       setLastName("");

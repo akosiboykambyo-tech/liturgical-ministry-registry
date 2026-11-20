@@ -1,0 +1,39 @@
+name: PR79 authentication and security-baseline reconciliation
+on:
+  pull_request:
+    branches: [integration/pr55-security-on-release-baseline-20261112]
+    paths:
+      - ".github/workflows/pr79-auth-reconciliation.yml"
+      - "app/admin/**"
+      - "app/403/**"
+      - "app/not-found.tsx"
+      - "components/admin-auth-ui.tsx"
+      - "components/admin-access-notice.tsx"
+      - "package.json"
+      - "tests/auth-ui-release-baseline.test.cjs"
+permissions:
+  contents: read
+jobs:
+  auth-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Shared auth and role-regression tests
+        run: node --test tests/auth-ui-release-baseline.test.cjs tests/financial-access-model.test.cjs tests/admin-invitation-onboarding.test.cjs
+      - name: Registry integration regression tests
+        run: node --test tests/pr79-registry-no-bypass.test.cjs tests/annual-registration-public-policy.test.cjs
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Production build (synthetic credentials only)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci.invalid.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-only-placeholder-not-an-auth-key

@@ -1,0 +1,59 @@
+name: PR56 Verification workspace offline gates
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/admin/verification/**"
+      - "app/admin/import/**"
+      - "app/admin/verify/**"
+      - "app/admin/renewal-reviews/**"
+      - "lib/verification-workspace-context.tsx"
+      - "lib/verify-actions.ts"
+      - "lib/secure-ministry-verification.ts"
+      - "components/secure-ministry-verification.tsx"
+      - "tests/pr56-secure-ministry-verification.test.cjs"
+      - "tests/pr56-staging-browser-readonly.test.cjs"
+      - "scripts/pr56-staging-browser-readonly.cjs"
+      - "scripts/pr56-staging-letter-review-browser.cjs"
+      - "docs/sql/pr56-staging-letter-review-fixture.INSTALL-ISOLATED-ONLY.sql"
+      - "tests/pr56-staging-letter-review-browser.test.cjs"
+      - "tests/pr56-legacy-direct-write-guards.test.cjs"
+      - "tests/pr56-import-and-add-member-guards.test.cjs"
+      - "tests/pr56-legacy-document-warning.test.cjs"
+      - "app/admin/members/**"
+      - "tests/pr56-verification-workspace.test.cjs"
+      - ".github/workflows/pr56-verification-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: TypeScript
+        run: npm run typecheck
+      - name: PR56 workspace source checks
+        run: node --test tests/pr56-verification-workspace.test.cjs
+      - name: Secure ministry integration source checks
+        run: node --test tests/pr56-secure-ministry-verification.test.cjs
+      - name: Isolated staging browser smoke safety checks (offline only)
+        run: node --test tests/pr56-staging-browser-readonly.test.cjs
+      - name: Synthetic private-letter browser safety checks (offline)
+        run: node --test tests/pr56-staging-letter-review-browser.test.cjs
+      - name: Legacy direct-write feature gate safety checks
+        run: node --test tests/pr56-legacy-direct-write-guards.test.cjs
+      - name: Add member and CSV import secure-mode guards
+        run: node --test tests/pr56-import-and-add-member-guards.test.cjs
+      - name: Legacy letter warning evidence and expiry labeling
+        run: node --test tests/pr56-legacy-document-warning.test.cjs
+      - name: Registration offline tests
+        run: npm run test:registration

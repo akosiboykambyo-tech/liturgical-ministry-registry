@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
+import { attachRecommendationLetter } from "@/lib/registry-letter-attachments";
 import {
-  STATUS_VALUES,
   getExpirationStatus,
   DEFAULT_TEMPLATE_SETTINGS,
 } from "@/lib/constants";
@@ -33,9 +35,14 @@ import {
 } from "@/components/phosphor-icons";
 import { useToast } from "@/hooks/use-toast";
 import {
-  CertificateDesign,
-  type CertificateDesignHandle,
-} from "@/components/certificate-design";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { attachSignatureCompositions, SIGNATURE_LAYOUT_KEY_PREFIX } from "@/lib/signature-layout";
+import { renderCertificate } from "@/lib/certificate";
+import { isCurrentMembership } from "@/lib/verification-public-status";
 
 type MembershipDraft = Pick<
   MemberMinistry,
@@ -79,134 +86,191 @@ export function MemberDetailDrawer({
     useState<CertificateTemplateSettings>(DEFAULT_TEMPLATE_SETTINGS);
   const [certificateSignatories, setCertificateSignatories] =
     useState<Signatory[]>([]);
-  const certificateRef = useRef<CertificateDesignHandle>(null);
+  // Offscreen thumbnail is intentionally low resolution. Full print canvas
+  // is generated only when the operator requests preview or printing.
+  const fullCertificateCanvas = useRef<{ key: string; canvas: HTMLCanvasElement } | null>(null);
+  const thumbnailCache = useRef<Map<string, string>>(new Map());
+  const [certificateMetadataReady, setCertificateMetadataReady] = useState(false);
+  const [fullCertificatePreview, setFullCertificatePreview] =
+    useState<{ key: string; src: string } | null>(null);
+  const [preparingFullPreview, setPreparingFullPreview] = useState(false);
   const [printingCertificate, setPrintingCertificate] = useState(false);
+  const [certificateThumbnail, setCertificateThumbnail] = useState<{ key: string; src: string } | null>(null);
+  const [certificatePreviewError, setCertificatePreviewError] = useState<string | null>(null);
+  const [certificatePreviewOpen, setCertificatePreviewOpen] = useState(false);
   const [notes, setNotes] = useState("");
   const [uploading, setUploading] = useState(false);
   const [signedMembershipDocUrl, setSignedMembershipDocUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Each opened member gets its own loading generation. Stale requests must never
+  // overwrite the details for a different member or a closed drawer.
+  const loadVersion = useRef(0);
+
   const load = useCallback(async () => {
     if (!memberId) return;
+    const version = ++loadVersion.current;
+    const isCurrent = () => loadVersion.current === version;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase
-      .from("members")
-      .select("*")
-      .eq("id", memberId)
-      .maybeSingle();
-    if (error || !data) {
-      setError("Member not found.");
-      setLoading(false);
-      return;
+    setMember(null);
+    setAudits([]);
+    setMembershipDrafts([]);
+    setPersistedMembershipIds([]);
+    setCertificateSettings(DEFAULT_TEMPLATE_SETTINGS);
+    setCertificateSignatories([]);
+    setCertificateMetadataReady(false);
+    fullCertificateCanvas.current = null;
+    setFullCertificatePreview(null);
+
+    try {
+      const { data, error: memberError } = await supabase
+        .from("members")
+        .select("*")
+        .eq("id", memberId)
+        .abortSignal(controller.signal)
+        .maybeSingle();
+
+      if (!isCurrent()) return;
+      if (memberError) throw memberError;
+      if (!data) {
+        setError("Member not found.");
+        return;
+      }
+
+      const m = data as Member;
+      setMember(m);
+      setEditMinistries(m.ministries ?? []);
+      setEditFirstName(m.first_name);
+      setEditLastName(m.last_name);
+      setEditingName(false);
+      setNotes(m.notes ?? "");
+
+      const { data: membershipRows, error: membershipError } = await supabase
+        .from("member_ministries")
+        .select("*")
+        .eq("member_id", m.id)
+        .order("created_at")
+        .abortSignal(controller.signal);
+
+      if (!isCurrent()) return;
+      if (!membershipError) {
+        const rows = (membershipRows as MemberMinistry[]) ?? [];
+        setMembershipTableAvailable(true);
+        setMembershipDrafts(
+          rows.map((row) => ({
+            id: row.id,
+            ministry: row.ministry,
+            status: row.status,
+            start_date: row.start_date,
+            expiration_date: row.expiration_date,
+            renewal_date: row.renewal_date,
+            document_url: row.document_url,
+            document_uploaded_at: row.document_uploaded_at,
+            archived_documents: row.archived_documents ?? [],
+          }))
+        );
+        setPersistedMembershipIds(rows.map((row) => row.id));
+        setEditMinistries(rows.map((row) => row.ministry));
+        setSelectedMinistry((current) =>
+          current && rows.some((row) => row.ministry === current)
+            ? current
+            : rows[0]?.ministry ?? null
+        );
+      } else {
+        // A failed assignment query must not silently enable assignment editing.
+        setMembershipTableAvailable(false);
+        setMembershipDrafts(
+          (m.ministries ?? []).map((ministry) => ({
+            id: "",
+            ministry,
+            status: m.status,
+            start_date: m.status === "Pending Verification" ? null : m.created_at.slice(0, 10),
+            expiration_date: m.expiration_date,
+            renewal_date: null,
+            document_url: m.document_url,
+            document_uploaded_at: null,
+            archived_documents: m.archived_documents ?? [],
+          }))
+        );
+        setPersistedMembershipIds([]);
+        setSelectedMinistry((current) =>
+          current && (m.ministries ?? []).includes(current)
+            ? current
+            : m.ministries?.[0] ?? null
+        );
+        setError("Ministry assignments could not be loaded. Reopen the record before making changes.");
+      }
+
+      // The drawer is usable now; certificate metadata and audit history must
+      // never prolong its primary loading spinner.
+      void Promise.allSettled([
+        (async () => {
+          const { data: templateRows } = await supabase
+            .from("system_settings")
+            .select("*")
+            .like("key", "certificate_template%")
+            .order("key");
+          if (!isCurrent()) return;
+          const defaultTemplate =
+            (templateRows ?? []).find((row) => Boolean(row.is_default)) ??
+            (templateRows ?? [])[0];
+          setCertificateSettings(
+            defaultTemplate
+              ? {
+                  ...DEFAULT_TEMPLATE_SETTINGS,
+                  ...(defaultTemplate.value as CertificateTemplateSettings),
+                }
+              : DEFAULT_TEMPLATE_SETTINGS
+          );
+        })(),
+        (async () => {
+          const [signatoryResult, layoutResult] = await Promise.all([
+            supabase.from("signatories").select("*").order("sort_order"),
+            supabase.from("system_settings").select("key,value")
+              .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`),
+          ]);
+          if (!isCurrent()) return;
+          setCertificateSignatories(
+            attachSignatureCompositions(
+              (signatoryResult.data as Signatory[]) ?? [],
+              layoutResult.error ? [] : (layoutResult.data ?? [])
+            )
+          );
+        })(),
+        (async () => {
+          const { data: logs } = await supabase
+            .from("audit_logs")
+            .select("*")
+            .eq("member_id", m.id)
+            .order("timestamp", { ascending: false })
+            .limit(10);
+          if (isCurrent()) setAudits((logs as AuditLog[]) ?? []);
+        })(),
+      ]).then(() => { if (isCurrent()) setCertificateMetadataReady(true); });
+    } catch (loadError) {
+      if (isCurrent()) {
+        setError(
+          controller.signal.aborted
+            ? "Member details timed out. Close the drawer and try again."
+            : "Unable to load member details. Close the drawer and try again."
+        );
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (isCurrent()) setLoading(false);
     }
-    const m = data as Member;
-    setMember(m);
-    setEditMinistries(m.ministries);
-    setEditFirstName(m.first_name);
-    setEditLastName(m.last_name);
-    setEditingName(false);
-    setNotes(m.notes ?? "");
-
-    const { data: membershipRows, error: membershipError } = await supabase
-      .from("member_ministries")
-      .select("*")
-      .eq("member_id", m.id)
-      .order("created_at");
-
-    if (!membershipError) {
-      const rows = (membershipRows as MemberMinistry[]) ?? [];
-      setMembershipTableAvailable(true);
-      setMembershipDrafts(
-        rows.map((row) => ({
-          id: row.id,
-          ministry: row.ministry,
-          status: row.status,
-          start_date: row.start_date,
-          expiration_date: row.expiration_date,
-          renewal_date: row.renewal_date,
-          document_url: row.document_url,
-          document_uploaded_at: row.document_uploaded_at,
-          archived_documents: row.archived_documents ?? [],
-        }))
-      );
-      setPersistedMembershipIds(rows.map((row) => row.id));
-      setEditMinistries(rows.map((row) => row.ministry));
-      setSelectedMinistry((current) =>
-        current && rows.some((row) => row.ministry === current)
-          ? current
-          : rows[0]?.ministry ?? null
-      );
-    } else {
-      // Compatibility fallback until the member_ministries migration is applied.
-      setMembershipTableAvailable(false);
-      const fallbackRows: MembershipDraft[] = m.ministries.map((ministry) => ({
-        id: "",
-        ministry,
-        status: m.status,
-        start_date: m.created_at.slice(0, 10),
-        expiration_date: m.expiration_date,
-        renewal_date: null,
-        document_url: m.document_url,
-        document_uploaded_at: null,
-        archived_documents: m.archived_documents ?? [],
-      }));
-      setPersistedMembershipIds([]);
-      setMembershipDrafts(fallbackRows);
-      setSelectedMinistry((current) =>
-        current && m.ministries.includes(current)
-          ? current
-          : m.ministries[0] ?? null
-      );
-    }
-
-    // Load the certificate template marked as the system default.
-    // This keeps the member drawer certificate identical to the template
-    // selected as Default in the Certificate Template Manager.
-    const { data: templateRows } = await supabase
-      .from("system_settings")
-      .select("*")
-      .like("key", "certificate_template%")
-      .order("key");
-
-    const defaultTemplate =
-      (templateRows ?? []).find((row) => Boolean(row.is_default)) ??
-      (templateRows ?? [])[0];
-
-    if (defaultTemplate) {
-      setCertificateSettings({
-        ...DEFAULT_TEMPLATE_SETTINGS,
-        ...(defaultTemplate.value as CertificateTemplateSettings),
-      });
-    } else {
-      setCertificateSettings(DEFAULT_TEMPLATE_SETTINGS);
-    }
-
-    // Load certificate signatories using the same source as the
-    // Certificate Template Manager.
-    const { data: signatoryRows } = await supabase
-      .from("signatories")
-      .select("*")
-      .order("sort_order");
-
-    setCertificateSignatories((signatoryRows as Signatory[]) ?? []);
-
-    const { data: logs } = await supabase
-      .from("audit_logs")
-      .select("*")
-      .eq("member_id", m.id)
-      .order("timestamp", { ascending: false })
-      .limit(10);
-    setAudits((logs as AuditLog[]) ?? []);
-
-    setLoading(false);
   }, [memberId, supabase]);
 
   useEffect(() => {
-    if (open && memberId) {
-      load();
-    }
+    if (open && memberId) void load();
+    return () => {
+      loadVersion.current += 1;
+    };
   }, [open, memberId, load]);
 
   const selectedMembership =
@@ -242,15 +306,14 @@ export function MemberDetailDrawer({
     };
   }, [selectedMembership?.document_url, supabase]);
 
-  const selectedExpirationStatus = getExpirationStatus(
-    selectedMembership?.expiration_date ?? null
+  const selectedCertificateEligible = Boolean(
+    selectedMembership?.id &&
+    isCurrentMembership({
+      ministry: selectedMembership.ministry,
+      status: selectedMembership.status,
+      expiration_date: selectedMembership.expiration_date,
+    })
   );
-
-  const selectedCertificateEligible =
-    Boolean(selectedMembership) &&
-    (selectedMembership?.status === "New" || selectedMembership?.status === "Renewed") &&
-    selectedExpirationStatus !== "expired" &&
-    selectedExpirationStatus !== "expiring_soon";
 
   const handleMinistriesChange = (ministries: string[]) => {
     setEditMinistries(ministries);
@@ -263,7 +326,7 @@ export function MemberDetailDrawer({
           id: "",
           ministry,
           status: "Pending Verification" as MemberStatus,
-          start_date: new Date().toISOString().slice(0, 10),
+          start_date: null,
           expiration_date: null,
           renewal_date: null,
           document_url: null,
@@ -275,18 +338,6 @@ export function MemberDetailDrawer({
 
     setSelectedMinistry((current) =>
       current && ministries.includes(current) ? current : ministries[0] ?? null
-    );
-  };
-
-  const updateMembershipDraft = (
-    ministry: string,
-    field: "status" | "start_date" | "expiration_date" | "renewal_date",
-    value: MemberStatus | string | null
-  ) => {
-    setMembershipDrafts((current) =>
-      current.map((row) =>
-        row.ministry === ministry ? { ...row, [field]: value || null } : row
-      )
     );
   };
 
@@ -303,73 +354,31 @@ export function MemberDetailDrawer({
 
     setSaving(true);
     setError(null);
-
-    const { error } = await supabase
-      .from("members")
-      .update({
+    try {
+      await registryAdminWrite("save", {
+        member_id: member.id,
         first_name: firstName,
         last_name: lastName,
-        ministries: editMinistries,
         notes: notes.trim() || null,
-      })
-      .eq("id", member.id);
-
-    if (!error && membershipTableAvailable) {
-      const currentIds = new Set(
-        membershipDrafts.map((row) => row.id).filter((id): id is string => Boolean(id))
-      );
-      const removedMembershipIds = persistedMembershipIds.filter(
-        (id) => !currentIds.has(id)
-      );
-
-      if (removedMembershipIds.length > 0) {
-        const { error: removeError } = await supabase
-          .from("member_ministries")
-          .delete()
-          .in("id", removedMembershipIds);
-
-        if (removeError) {
-          setSaving(false);
-          setError(removeError.message);
-          return;
-        }
-      }
-
-      if (membershipDrafts.length > 0) {
-        const { error: membershipSaveError } = await supabase
-          .from("member_ministries")
-          .upsert(
-            membershipDrafts.map((row) => ({
-              member_id: member.id,
+        ...(membershipTableAvailable
+          ? { memberships: membershipDrafts.map((row) => ({
+              id: row.id || undefined,
               ministry: row.ministry,
               status: row.status,
               start_date: row.start_date,
               expiration_date: row.expiration_date,
               renewal_date: row.renewal_date,
-            })),
-            { onConflict: "member_id,ministry" }
-          );
-
-        if (membershipSaveError) {
-          setSaving(false);
-          setError(membershipSaveError.message);
-          return;
-        }
-      }
-    }
-
-    setSaving(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setEditingName(false);
-      toast({
-        title: "Saved",
-        description: "Member details updated.",
+            })) }
+          : { ministries: editMinistries }),
       });
-      load();
+      setEditingName(false);
+      toast({ title: "Saved", description: "Member details updated." });
+      void load();
       onUpdated?.();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Secure member update rejected");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -381,203 +390,217 @@ export function MemberDetailDrawer({
   };
 
   const handleUpload = async (file: File) => {
-    if (
-      !member ||
-      !membershipTableAvailable ||
-      !selectedMembership?.id
-    ) {
-      setError("Save the ministry assignment before uploading its recommendation letter.");
+    if (!member || !membershipTableAvailable || !selectedMembership?.id) {
+      setError("Save the ministry assignment before attaching a letter.");
       return;
     }
-
+    if (selectedMembership.document_url) {
+      setError("This ministry already has a recommendation letter. Existing documents cannot be overwritten by attachment.");
+      return;
+    }
     setUploading(true);
     setError(null);
-
-    const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
-    const nowIso = new Date().toISOString();
-    const uploadId = crypto.randomUUID();
-    const path = `${member.id}/${selectedMembership.id}/recommendation-letter-${uploadId}.${ext}`;
-
-    const archivedDocuments = selectedMembership.archived_documents ?? [];
-    const nextArchivedDocuments = selectedMembership.document_url
-      ? [
-          ...archivedDocuments,
-          {
-            document_url: selectedMembership.document_url,
-            uploaded_at: selectedMembership.document_uploaded_at,
-            archived_at: nowIso,
-            expiration_date: selectedMembership.expiration_date,
-            ministry: selectedMembership.ministry,
-          } satisfies ArchivedDocument,
-        ]
-      : archivedDocuments;
-
-    const { error: upErr } = await supabase.storage
-      .from("member-documents")
-      .upload(path, file, { upsert: false });
-
-    if (upErr) {
-      setError(upErr.message);
+    try {
+      await attachRecommendationLetter([selectedMembership.id], file);
+      toast({
+        title: "Recommendation letter attached",
+        description: `Document saved to ${selectedMembership.ministry}. No renewal, verification or date change was applied.`,
+      });
+      await load();
+      onUpdated?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to attach recommendation letter.");
+    } finally {
       setUploading(false);
-      return;
     }
-
-    const defaultExp = new Date();
-    defaultExp.setFullYear(defaultExp.getFullYear() + 1);
-    const newExpDate = defaultExp.toISOString().slice(0, 10);
-    const renewalDate = new Date().toISOString().slice(0, 10);
-
-    const { error: membershipRenewalError } = await supabase
-      .from("member_ministries")
-      .update({
-        status: "Renewed",
-        expiration_date: newExpDate,
-        renewal_date: renewalDate,
-        document_url: path,
-        document_uploaded_at: nowIso,
-        archived_documents: nextArchivedDocuments,
-      })
-      .eq("id", selectedMembership.id);
-
-    if (membershipRenewalError) {
-      // The DB update failed, so this newly uploaded object is not referenced.
-      // Remove only this new immutable object; never remove the previous letter.
-      await supabase.storage.from("member-documents").remove([path]);
-      setError(membershipRenewalError.message);
-      setUploading(false);
-      return;
-    }
-
-    // Temporary compatibility mirror for screens that still read member-level
-    // document/status fields. member_ministries remains the canonical source.
-    const { error: memberUpdateError } = await supabase
-      .from("members")
-      .update({
-        document_url: path,
-        expiration_date: newExpDate,
-        status: "Renewed",
-      })
-      .eq("id", member.id);
-
-    if (memberUpdateError) {
-      setError(memberUpdateError.message);
-      setUploading(false);
-      return;
-    }
-
-    setUploading(false);
-    toast({
-      title: "Letter uploaded",
-      description: `${selectedMembership.ministry} renewed for one year.`,
-    });
-    load();
-    onUpdated?.();
   };
 
   const handleDeleteDocument = async () => {
-    if (!selectedMembership?.id || !selectedMembership.document_url) return;
-
-    setError(null);
-
-    const documentPath = selectedMembership.document_url;
-    const isSharedBatchDocument = documentPath.startsWith("batch-renewals/");
-
-    // Batch-renewal letters are intentionally shared by many memberships and
-    // are also part of the durable renewal history. Never delete that physical
-    // storage object from an individual member drawer. Detaching this one
-    // membership is safe; the shared file remains available to the rest of the
-    // batch and to renewal-history records.
-    if (!isSharedBatchDocument) {
-      const { error: storageError } = await supabase.storage
-        .from("member-documents")
-        .remove([documentPath]);
-
-      if (storageError) {
-        setError(storageError.message);
-        return;
-      }
-    }
-
-    const { error: membershipUpdateError } = await supabase
-      .from("member_ministries")
-      .update({
-        document_url: null,
-        document_uploaded_at: null,
-        expiration_date: null,
-      })
-      .eq("id", selectedMembership.id);
-
-    if (membershipUpdateError) {
-      setError(membershipUpdateError.message);
+    if (!member || !selectedMembership?.id || !selectedMembership.document_url) return;
+    if (selectedMembership.document_url.startsWith("attachments/")) {
+      setError("Immutable attachments require a documented correction; they cannot be deleted from the member drawer.");
       return;
     }
-
-    // Clear the legacy mirror only when it points at the same document.
-    if (member?.document_url === documentPath) {
-      await supabase
-        .from("members")
-        .update({ document_url: null, expiration_date: null })
-        .eq("id", member.id);
+    setError(null);
+    try {
+      // Only detach the assignment reference. Retain the physical document
+      // and renewal history for all other covered ministry assignments.
+      await registryAdminWrite("detach", {
+        member_id: member.id,
+        membership_id: selectedMembership.id,
+      });
+      toast({
+        title: "Recommendation letter detached",
+        description: "The assignment returned to Pending Verification; private evidence was retained.",
+      });
+      await load();
+      onUpdated?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Secure document unlink rejected");
     }
-
-    toast({
-      title: isSharedBatchDocument ? "Batch letter detached" : "Document removed",
-      description: isSharedBatchDocument
-        ? "This membership no longer uses the shared letter. The batch document was retained for other members and renewal history."
-        : "The recommendation letter was removed from this membership.",
-    });
-
-    load();
-    onUpdated?.();
   };
 
   const publicVerifyUrl = member
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/verify?uid=${member.uid}`
     : "";
 
-  const handlePrintCertificate = () => {
-  if (!member?.uid || member.uid === "PENDING" || !selectedCertificateEligible) return;
+  // Use the exact same certificate data and renderer for the thumbnail and print
+  // source. Memoizing prevents thumbnail updates from triggering new canvas renders.
+  const certificateData = useMemo(() => {
+    if (!member) return null;
+    return {
+      firstName: member.first_name,
+      lastName: member.last_name,
+      parish: member.parish,
+      ministries: member.ministries,
+      uid: member.uid,
+      liturgicalYear: certificateSettings.liturgical_year,
+      verifyUrl: publicVerifyUrl,
+      selectedMinistry:
+        selectedMinistry ??
+        (member.ministries.length === 1 ? member.ministries[0] : null),
+    };
+  }, [member, certificateSettings.liturgical_year, publicVerifyUrl, selectedMinistry]);
 
-  const sourceCanvas = certificateRef.current?.getCanvas();
-  if (!sourceCanvas) return;
+  const certificatePreviewKey = useMemo(
+    () => certificateData
+      ? JSON.stringify({
+          data: certificateData,
+          settings: certificateSettings,
+          signatories: certificateSignatories,
+        })
+      : "",
+    [certificateData, certificateSettings, certificateSignatories]
+  );
 
-  setPrintingCertificate(true);
+  const visibleCertificateThumbnail =
+    certificateThumbnail?.key === certificatePreviewKey
+      ? certificateThumbnail.src
+      : null;
 
-  const printContainer = document.createElement("div");
-  printContainer.className = "member-certificate-direct-print";
-  printContainer.setAttribute("aria-hidden", "true");
+  useEffect(() => {
+    if (!open || !certificateData || !certificateMetadataReady) {
+      setCertificateThumbnail(null);
+      setCertificatePreviewError(null);
+      return;
+    }
+    let cancelled = false;
+    const cached = thumbnailCache.current.get(certificatePreviewKey);
+    setCertificatePreviewError(null);
+    if (cached) {
+      setCertificateThumbnail({ key: certificatePreviewKey, src: cached });
+      return;
+    }
+    setCertificateThumbnail(null);
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) setCertificatePreviewError("Certificate thumbnail is taking longer than expected.");
+    }, 15000);
 
-  const printCanvas = document.createElement("canvas");
-  printCanvas.width = sourceCanvas.width;
-  printCanvas.height = sourceCanvas.height;
-  printCanvas.className = "member-certificate-direct-print-canvas";
+    const prepareThumbnail = async () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, 340 / (certificateSettings.canvas_width || 600));
+        await renderCertificate(canvas, certificateData, certificateSettings, certificateSignatories, scale);
+        if (cancelled) return;
+        if (!canvas.width || !canvas.height) throw new Error("Empty certificate preview");
+        const src = canvas.toDataURL("image/jpeg", 0.88);
+        thumbnailCache.current.set(certificatePreviewKey, src);
+        if (thumbnailCache.current.size > 4) {
+          const oldest = thumbnailCache.current.keys().next().value;
+          if (oldest) thumbnailCache.current.delete(oldest);
+        }
+        setCertificateThumbnail({ key: certificatePreviewKey, src });
+        setCertificatePreviewError(null);
+      } catch {
+        if (!cancelled) setCertificatePreviewError("Certificate thumbnail could not be rendered.");
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    };
 
-  const printContext = printCanvas.getContext("2d");
-  if (!printContext) {
-    setPrintingCertificate(false);
-    return;
-  }
+    // Defer expensive artwork/font work until after the member drawer paints.
+    const start = window.setTimeout(() => { void prepareThumbnail(); }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(start);
+      window.clearTimeout(timeout);
+    };
+  }, [open, certificateData, certificatePreviewKey, certificateMetadataReady,
+      certificateSettings, certificateSignatories]);
 
-  printContext.drawImage(sourceCanvas, 0, 0);
+  useEffect(() => {
+    // Do not allow a full-size preview to survive a change of member, ministry,
+    // certificate template or signing configuration.
+    setFullCertificatePreview(null);
+    fullCertificateCanvas.current = null;
+  }, [certificatePreviewKey]);
 
-  printContainer.appendChild(printCanvas);
-  document.body.appendChild(printContainer);
-
-  const cleanup = () => {
-    printContainer.remove();
-    document.body.classList.remove("member-certificate-print-mode");
-    setPrintingCertificate(false);
-    window.removeEventListener("afterprint", cleanup);
+  const ensureFullCertificate = async (): Promise<HTMLCanvasElement> => {
+    if (!certificateData) throw new Error("Certificate data is unavailable.");
+    const cached = fullCertificateCanvas.current;
+    if (cached?.key === certificatePreviewKey) return cached.canvas;
+    const canvas = document.createElement("canvas");
+    await renderCertificate(canvas, certificateData, certificateSettings, certificateSignatories);
+    if (!canvas.width || !canvas.height) throw new Error("Empty print-ready certificate");
+    fullCertificateCanvas.current = { key: certificatePreviewKey, canvas };
+    return canvas;
   };
 
-  window.addEventListener("afterprint", cleanup);
+  const handleOpenCertificatePreview = async () => {
+    setCertificatePreviewOpen(true);
+    if (fullCertificatePreview?.key === certificatePreviewKey) return;
+    setPreparingFullPreview(true);
+    setCertificatePreviewError(null);
+    try {
+      const canvas = await ensureFullCertificate();
+      setFullCertificatePreview({ key: certificatePreviewKey, src: canvas.toDataURL("image/png") });
+    } catch {
+      setCertificatePreviewError("Full-resolution certificate could not be rendered.");
+    } finally {
+      setPreparingFullPreview(false);
+    }
+  };
 
-  document.body.classList.add("member-certificate-print-mode");
+  const handlePrintCertificate = async () => {
+    if (!member?.uid || member.uid === "PENDING" ||
+        !selectedCertificateEligible || printingCertificate) return;
+    setPrintingCertificate(true);
+    try {
+      const sourceCanvas = await ensureFullCertificate();
+      const printContainer = document.createElement("div");
+      printContainer.className = "member-certificate-direct-print";
+      printContainer.setAttribute("aria-hidden", "true");
+      const printCanvas = document.createElement("canvas");
+      printCanvas.width = sourceCanvas.width;
+      printCanvas.height = sourceCanvas.height;
+      printCanvas.className = "member-certificate-direct-print-canvas";
+      const printContext = printCanvas.getContext("2d");
+      if (!printContext) throw new Error("Print canvas unavailable");
+      printContext.drawImage(sourceCanvas, 0, 0);
+      printContainer.appendChild(printCanvas);
+      document.body.appendChild(printContainer);
 
-  requestAnimationFrame(() => {
-    window.print();
-  });
-};
+      const cleanup = () => {
+        printContainer.remove();
+        document.body.classList.remove("member-certificate-print-mode");
+        setPrintingCertificate(false);
+        window.removeEventListener("afterprint", cleanup);
+      };
+      window.addEventListener("afterprint", cleanup);
+      document.body.classList.add("member-certificate-print-mode");
+      requestAnimationFrame(() => {
+        try {
+          window.print();
+        } catch {
+          cleanup();
+          setCertificatePreviewError("The browser could not open the print dialog.");
+        }
+      });
+    } catch {
+      setPrintingCertificate(false);
+      setCertificatePreviewError("Print-ready certificate could not be rendered.");
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -591,10 +614,16 @@ export function MemberDetailDrawer({
           </div>
         ) : !member ? (
           <div className="flex items-center justify-center h-full min-h-[400px]">
-            <p className="text-sm text-muted-foreground">Member not found.</p>
+            <p role="alert" className="max-w-sm px-6 text-center text-sm text-muted-foreground">{error ?? "Member not found."}</p>
           </div>
         ) : (
           <div className="flex flex-col h-full">
+            {secureMinistryVerificationEnabled && (
+              <p role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs text-amber-950">
+                Member detail edits use protected administrator transactions. Ministry approval occurs in Verification;
+                supporting letters can be attached separately without renewing the membership.
+              </p>
+            )}
             {/* Header */}
             <SheetHeader className="border-b border-[#E3D8DA] bg-white px-5 pb-4 pt-7 sm:px-6">
               <SheetTitle className={`${ebGaramond.className} pr-10 text-[32px] leading-tight font-medium tracking-normal text-[#211018]`}>
@@ -727,9 +756,10 @@ export function MemberDetailDrawer({
 
                   <div className="space-y-3">
                     {membershipDrafts.map((membership) => {
-                      const expirationStatus = getExpirationStatus(
-                        membership.expiration_date
-                      );
+                      const expirationStatus =
+                        membership.status === "New" || membership.status === "Renewed"
+                          ? getExpirationStatus(membership.expiration_date)
+                          : "none";
 
                       return (
                         <div
@@ -753,87 +783,27 @@ export function MemberDetailDrawer({
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground">
-                                Status
-                              </label>
-                              <select
-                                value={membership.status}
-                                onChange={(event) =>
-                                  updateMembershipDraft(
-                                    membership.ministry,
-                                    "status",
-                                    event.target.value as MemberStatus
-                                  )
-                                }
-                                disabled={!membershipTableAvailable}
-                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                              >
-                                {STATUS_VALUES.map((value) => (
-                                  <option key={value} value={value}>
-                                    {value}
-                                  </option>
-                                ))}
-                              </select>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Status (read-only)</p>
+                              <p className="mt-1 text-sm font-semibold">{membership.status}</p>
                             </div>
-
-                            <div className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground">
-                                Expiration Date
-                              </label>
-                              <input
-                                type="date"
-                                value={membership.expiration_date ?? ""}
-                                onChange={(event) =>
-                                  updateMembershipDraft(
-                                    membership.ministry,
-                                    "expiration_date",
-                                    event.target.value
-                                  )
-                                }
-                                disabled={!membershipTableAvailable}
-                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                              />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Expiration (inclusive)</p>
+                              <p className="mt-1 text-sm font-medium">{membership.expiration_date ?? "Not established"}</p>
                             </div>
-
-                            <div className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground">
-                                Start Date
-                              </label>
-                              <input
-                                type="date"
-                                value={membership.start_date ?? ""}
-                                onChange={(event) =>
-                                  updateMembershipDraft(
-                                    membership.ministry,
-                                    "start_date",
-                                    event.target.value
-                                  )
-                                }
-                                disabled={!membershipTableAvailable}
-                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                              />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Effective start date</p>
+                              <p className="mt-1 text-sm font-medium">{membership.start_date ?? "Awaiting approval"}</p>
                             </div>
-
-                            <div className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground">
-                                Renewal Date
-                              </label>
-                              <input
-                                type="date"
-                                value={membership.renewal_date ?? ""}
-                                onChange={(event) =>
-                                  updateMembershipDraft(
-                                    membership.ministry,
-                                    "renewal_date",
-                                    event.target.value
-                                  )
-                                }
-                                disabled={!membershipTableAvailable}
-                                className="w-full rounded-none border border-[#DDD0D3] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                              />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Renewal date</p>
+                              <p className="mt-1 text-sm font-medium">{membership.renewal_date ?? "Not renewed"}</p>
                             </div>
                           </div>
+                          <p className="text-xs text-[#796870]">
+                            Validity dates are set by audited ministry approval or renewal,
+                            not by attaching a recommendation letter or saving this profile.
+                          </p>
                         </div>
                       );
                     })}
@@ -862,28 +832,7 @@ export function MemberDetailDrawer({
                 </div>
               </div>
 
-              <div className="member-certificate-print-target" aria-hidden="true">
-                <CertificateDesign
-                  ref={certificateRef}
-                  settings={certificateSettings}
-                  data={{
-                    firstName: member.first_name,
-                    lastName: member.last_name,
-                    parish: member.parish,
-                    ministries: member.ministries,
-                    uid: member.uid,
-                    liturgicalYear: certificateSettings.liturgical_year,
-                    verifyUrl: publicVerifyUrl,
-                    selectedMinistry:
-                      selectedMinistry ??
-                      (member.ministries.length === 1
-                        ? member.ministries[0]
-                        : null),
-                  }}
-                  signatories={certificateSignatories}
-                  className="member-certificate-print-canvas"
-                />
-              </div>
+              {/* Full-resolution certificate is rendered only on preview/print demand. */}
 
               {/* Print Certificate */}
               <div className="rounded-none border border-[#E3D8DA] border-t-2 border-t-[#890022] bg-white p-5  space-y-3">
@@ -891,6 +840,59 @@ export function MemberDetailDrawer({
                   <Printer className="h-4 w-4" />
                   UID Certificate
                 </h3>
+                <div className="flex h-[390px] w-full items-center justify-center overflow-hidden border border-[#E3D8DA] bg-[#FBF9F9] p-3">
+                  {visibleCertificateThumbnail ? (
+                    <button
+                      type="button"
+                      onClick={() => { void handleOpenCertificatePreview(); }}
+                      className="flex h-full w-full items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#890022]"
+                      aria-label="Enlarge full certificate preview"
+                      title="View full certificate"
+                    >
+                      <img
+                        src={visibleCertificateThumbnail}
+                        alt={`Complete certificate preview for ${member.first_name} ${member.last_name}`}
+                        className="block max-h-[360px] max-w-full h-auto w-auto object-contain shadow-sm"
+                      />
+                    </button>
+                  ) : (
+                    <div role="status" className="flex flex-col items-center gap-2 px-4 text-center text-xs text-[#796870]">
+                      {certificatePreviewError ? (
+                        <span>{certificatePreviewError}</span>
+                      ) : (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin text-[#890022]" aria-hidden="true" />
+                          <span>Preparing certificate preview…</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {visibleCertificateThumbnail && (
+                  <p className="text-center text-xs text-[#796870]">Select the thumbnail to view the complete certificate.</p>
+                )}
+                <Dialog open={certificatePreviewOpen} onOpenChange={setCertificatePreviewOpen}>
+                  <DialogContent className="flex max-h-[95vh] w-[min(96vw,1100px)] max-w-[1100px] flex-col border-[#E3D8DA] bg-[#FBF9F9] p-4 sm:p-6">
+                    <DialogHeader>
+                      <DialogTitle className="text-[#211018]">Certificate Preview</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-2">
+                      {fullCertificatePreview?.key === certificatePreviewKey ? (
+                        <img
+                          src={fullCertificatePreview.src}
+                          alt={`Full-resolution certificate for ${member.first_name} ${member.last_name}`}
+                          className="block max-h-[80vh] max-w-full h-auto w-auto object-contain"
+                        />
+                      ) : (
+                        <div role="status" className="text-center text-sm text-[#796870]">
+                          {certificatePreviewError ?? (preparingFullPreview
+                            ? "Rendering full-resolution certificate…"
+                            : "Preparing certificate preview…")}
+                        </div>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 {membershipDrafts.length > 1 && (
                   <div className="space-y-1.5">
                     <label className="text-xs text-muted-foreground">
@@ -911,7 +913,7 @@ export function MemberDetailDrawer({
                 )}
 
                 <button
-                  disabled={!selectedCertificateEligible || printingCertificate}
+                  disabled={!selectedCertificateEligible || printingCertificate || !certificateMetadataReady}
                   className="inline-flex items-center gap-2 rounded-none bg-[#890022] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#70001B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   onClick={() => {
                     if (member.uid && member.uid !== "PENDING") {
@@ -946,7 +948,7 @@ export function MemberDetailDrawer({
                 {membershipDrafts.length > 1 && (
                   <div className="space-y-1.5">
                     <label className="text-xs text-muted-foreground">
-                      Membership this letter renews
+                      Ministry this letter belongs to
                     </label>
                     <select
                       value={selectedMinistry ?? ""}
@@ -993,6 +995,7 @@ export function MemberDetailDrawer({
                         delete the stored batch file or its renewal history.
                       </div>
                     )}
+                    {!selectedMembership.document_url.startsWith("attachments/") && (
                     <button
                       onClick={handleDeleteDocument}
                       className="inline-flex items-center gap-1.5 text-xs text-destructive hover:underline"
@@ -1000,6 +1003,13 @@ export function MemberDetailDrawer({
                       <Trash2 className="h-3 w-3" />{" "}
                       {selectedDocumentIsSharedBatch ? "Detach from membership" : "Remove document"}
                     </button>
+                    )}
+                    {selectedMembership.document_url.startsWith("attachments/") && (
+                      <p className="text-xs text-muted-foreground">
+                        This attachment is immutable and may be shared with other ministry records.
+                        Detachment requires an audited administrative correction.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <label className="block">
@@ -1010,14 +1020,14 @@ export function MemberDetailDrawer({
                         <Upload className="mx-auto h-6 w-6 text-muted-foreground/60" />
                       )}
                       <p className="mt-2 text-xs text-muted-foreground">
-                        Drop a scan or click to upload (renews membership)
+                        Choose a PDF, PNG or JPEG to attach (maximum 5 MB)
                       </p>
                     </div>
                     <input
                       type="file"
                       accept="image/*,.pdf"
                       className="hidden"
-                      disabled={!selectedMembership?.id || !membershipTableAvailable}
+                      disabled={uploading || !!selectedMembership?.document_url || !selectedMembership?.id || !membershipTableAvailable}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f) handleUpload(f);
@@ -1026,8 +1036,7 @@ export function MemberDetailDrawer({
                   </label>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Uploading a new letter keeps the previous file intact in the
-                  membership archive and renews the selected ministry for one year.
+                  Attaching a letter does not change verification, status, renewal date, or expiration date.
                 </p>
               </div>
 

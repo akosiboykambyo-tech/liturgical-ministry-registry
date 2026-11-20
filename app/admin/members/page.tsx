@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { registryAdminWrite } from "@/lib/registry-admin-writes";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { StatusBadge } from "@/components/status-badge";
 import { MemberDetailDrawer } from "@/components/member-detail-drawer";
+import { BulkCertificateDialog } from "@/components/member-bulk-certificate-dialog";
+import { BatchLetterAttachmentDialog } from "@/components/batch-letter-attachment-dialog";
 import {
   MINISTRIES,
   PARISHES,
@@ -22,6 +27,10 @@ import {
   ChevronRight,
   Download,
   Printer,
+  FileBadge,
+  FileText,
+  ClipboardList,
+  CheckSquare,
   X,
   Filter,
   SlidersHorizontal,
@@ -83,6 +92,53 @@ const EMPTY_FILTERS: Filters = {
   status: [],
 };
 
+
+/** Compact, keyboard-accessible utilities used only by the selected-member bar.
+ * Tooltips preserve clarity without making the floating bar horizontally scroll.
+ */
+function SelectionUtility({
+  label,
+  icon,
+  onClick,
+  disabled = false,
+  variant = "light",
+  hint,
+}: {
+  label: string;
+  icon: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "light" | "outline";
+  hint?: string;
+}) {
+  return (
+    <span className="group relative inline-flex shrink-0">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        disabled={disabled}
+        className={
+          "inline-flex h-11 w-11 items-center justify-center border transition-colors " +
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white " +
+          "disabled:cursor-not-allowed disabled:opacity-45 " +
+          (variant === "outline"
+            ? "border-white/60 bg-transparent text-white hover:bg-white/15"
+            : "border-white bg-white text-[#890022] hover:bg-[#F7F2F3]")
+        }
+      >
+        {icon}
+      </button>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap border border-[#E6DADC] bg-white px-2.5 py-1.5 text-xs font-medium text-[#492A35] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {hint ?? label}
+      </span>
+    </span>
+  );
+}
+
 export default function MembersListPage() {
   const supabase = getSupabaseBrowserClient();
   const { toast } = useToast();
@@ -97,6 +153,8 @@ export default function MembersListPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectingAllFiltered, setSelectingAllFiltered] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [certificateBatchOpen, setCertificateBatchOpen] = useState(false);
+  const [letterBatchOpen, setLetterBatchOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMembers, setReportMembers] = useState<MemberWithMemberships[]>([]);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
@@ -216,7 +274,9 @@ export default function MembersListPage() {
     }
 
     if (dashboardAttention === "missing-documents") {
-      query = query.is("matched_memberships.document_url", null);
+      query = query
+          .is("matched_memberships.document_url", null)
+          .in("matched_memberships.status", ["Renewed", "Inactive"]);
     }
 
     if (dashboardAttention === "expiring") {
@@ -338,7 +398,9 @@ export default function MembersListPage() {
       }
 
       if (dashboardAttention === "missing-documents") {
-        query = query.is("matched_memberships.document_url", null);
+        query = query
+          .is("matched_memberships.document_url", null)
+          .in("matched_memberships.status", ["Renewed", "Inactive"]);
       }
 
       if (dashboardAttention === "expiring") {
@@ -390,36 +452,6 @@ export default function MembersListPage() {
 
     return Array.from(new Set(ids));
   }, [buildFilteredMembersQuery]);
-
-  const fetchAllFilteredMembers = useCallback(
-    async (): Promise<MemberWithMemberships[]> => {
-      const all: MemberWithMemberships[] = [];
-      const pageSize = 1000;
-
-      for (let from = 0; ; from += pageSize) {
-        const { data, error } = await buildFilteredMembersQuery("full")
-          .range(from, from + pageSize - 1)
-          .order("created_at", { ascending: false });
-
-        if (error) throw new Error(error.message);
-
-        const batch = ((data ?? []) as unknown as Array<
-          MemberWithMemberships & { matched_memberships?: unknown }
-        >).map(({ matched_memberships: _matchedMemberships, ...member }) => ({
-          ...member,
-          member_ministries: [...(member.member_ministries ?? [])].sort((a, b) =>
-            a.ministry.localeCompare(b.ministry)
-          ),
-        }));
-
-        all.push(...batch);
-        if (batch.length < pageSize) break;
-      }
-
-      return all;
-    },
-    [buildFilteredMembersQuery]
-  );
 
   const fetchMembersByIds = useCallback(
     async (ids: string[]): Promise<MemberWithMemberships[]> => {
@@ -622,14 +654,15 @@ export default function MembersListPage() {
       return;
     }
     setSavingEdit(true);
-    const { error } = await supabase
-      .from("members")
-      .update({ first_name: first, last_name: last, parish })
-      .eq("id", editTarget.id);
-    setSavingEdit(false);
-    if (error) {
-      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    try {
+      await registryAdminWrite("save", {
+        member_id: editTarget.id, first_name: first, last_name: last, parish,
+      });
+    } catch (error) {
+      toast({ title: "Update failed", description: error instanceof Error ? error.message : "Update rejected", variant: "destructive" });
       return;
+    } finally {
+      setSavingEdit(false);
     }
     toast({
       title: "Member corrected",
@@ -643,15 +676,15 @@ export default function MembersListPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    // Remove any linked document first (best-effort).
-    if (deleteTarget.document_url) {
-      await supabase.storage.from("member-documents").remove([deleteTarget.document_url]);
-    }
-    const { error } = await supabase.from("members").delete().eq("id", deleteTarget.id);
-    setDeleting(false);
-    if (error) {
-      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+    // Fail closed when a record carries letters, approved ministries, certificates,
+    // other dependent history, or Storage objects. Never delete evidence first.
+    try {
+      await registryAdminWrite("delete", { member_id: deleteTarget.id });
+    } catch (error) {
+      toast({ title: "Delete blocked", description: error instanceof Error ? error.message : "Secure deletion rejected", variant: "destructive" });
       return;
+    } finally {
+      setDeleting(false);
     }
     toast({
       title: "Record deleted",
@@ -668,16 +701,16 @@ export default function MembersListPage() {
           <div className="min-w-0">
             <p className="text-sm font-semibold">
               {attention === "pending" && "Pending Verification"}
-              {attention === "missing-documents" && "Recommendation Letter Needed"}
+              {attention === "missing-documents" && "Renewal Documents Missing"}
               {attention === "expiring" && "Expiring Soon"}
             </p>
             <p className="text-xs text-muted-foreground">
               {attention === "pending" &&
                 "Members currently waiting for approval."}
               {attention === "missing-documents" &&
-                "Members who still need a recommendation letter uploaded."}
+                "Previously registered or inactive ministries missing supporting renewal documents. New registrations are exempt."}
               {attention === "expiring" &&
-                "Members whose recommendation letters expire within 30 days."}
+                "Members whose ministry registration validity expires within 30 days."}
             </p>
           </div>
 
@@ -696,9 +729,10 @@ export default function MembersListPage() {
       )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>Members Registry</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage liturgical ministers, parish assignments, and verification records.
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">RECORD MANAGEMENT</p>
+          <h1 className={`${ebGaramond.className} mt-1 text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>Member Records</h1>
+          <p className="mt-2 text-sm leading-6 text-[#6B5C62]">
+            Manage registered liturgical ministers, parish assignments, and ministry records.
             <span className="block pt-1 text-xs font-medium text-[#66565A]">
               {loading ? "Loading members…" : `${totalCount.toLocaleString()} matching member${totalCount === 1 ? "" : "s"}`}
               {selected.size > 0 && ` · ${selected.size.toLocaleString()} selected`}
@@ -706,36 +740,6 @@ export default function MembersListPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={async () => {
-              setLoadingReport(true);
-              try {
-                const filteredMembers = await fetchAllFilteredMembers();
-                setReportMembers(filteredMembers);
-                setReportOpen(true);
-              } catch (error) {
-                toast({
-                  title: "Report failed",
-                  description:
-                    error instanceof Error
-                      ? error.message
-                      : "Unable to load the filtered member list.",
-                  variant: "destructive",
-                });
-              } finally {
-                setLoadingReport(false);
-              }
-            }}
-            disabled={loadingReport}
-            className="inline-flex min-h-10 items-center gap-2 border border-[#D7CACC] bg-white px-4 py-2 text-sm font-semibold text-[#682336] transition-colors hover:bg-[#fcf5f6] print:hidden disabled:opacity-60"
-          >
-            {loadingReport ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Printer className="h-4 w-4" />
-            )}
-            Print List
-          </button>
           <Link
             href="/admin/members/add"
             className="inline-flex min-h-10 items-center gap-2 bg-[#890022] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#6d1027] print:hidden"
@@ -868,9 +872,7 @@ export default function MembersListPage() {
 
       {/* Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
+        <CenteredAdminLoader label="Loading member records…" />
       ) : members.length === 0 ? (
         <div className="border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
           {isActiveSearch || activeFilterCount > 0
@@ -924,11 +926,23 @@ export default function MembersListPage() {
                   const needsVerification = memberships.some(
                     (membership) => membership.status === "Pending Verification"
                   );
-                  const needsLetter = memberships.some(
-                    (membership) => !membership.document_url
-                  );
-                  const letterExpiringSoon = memberships.some((membership) => {
-                    if (!membership.document_url || !membership.expiration_date) return false;
+                  const missingLetterMinistries = memberships
+                    .filter((membership) =>
+                      !membership.document_url &&
+                      (membership.status === "Inactive" || membership.status === "Renewed")
+                    )
+                    .map((membership) => shortMinistry(membership.ministry));
+                  const needsLetter = missingLetterMinistries.length > 0;
+                  // Legacy documents are stored at member level, not linked to
+                  // individual assignments. Don't present this as proof that
+                  // a new letter must be uploaded or suppress the warning.
+                  const letterWarning = needsLetter
+                    ? m.document_url
+                      ? `Ministry letter not linked: ${missingLetterMinistries.join(", ")} (older member-level letter exists; review coverage before linking)`
+                      : `Ministry recommendation letter missing: ${missingLetterMinistries.join(", ")}`
+                    : null;
+                  const registrationExpiringSoon = memberships.some((membership) => {
+                    if (!membership.expiration_date) return false;
                     const expirationDate = new Date(`${membership.expiration_date}T00:00:00`);
                     return expirationDate >= today && expirationDate <= in30Days;
                   });
@@ -955,18 +969,18 @@ export default function MembersListPage() {
                           className="text-left font-semibold text-[#47242d] hover:text-[#9a2548] hover:underline"
                         >
                           {m.first_name} {m.last_name}
-                        {(needsVerification || needsLetter || letterExpiringSoon) && (
+                        {(needsVerification || needsLetter || registrationExpiringSoon) && (
                           <span
                             className="ml-2 inline-flex align-middle text-amber-600"
                             title={[
                               needsVerification ? "Verification Needed" : null,
-                              needsLetter ? "Recommendation Letter Needed" : null,
-                              letterExpiringSoon ? "Letter Expiring Soon" : null,
+                              letterWarning,
+                              registrationExpiringSoon ? "Registration Expiring Soon" : null,
                             ].filter(Boolean).join(" - ")}
                             aria-label={[
                               needsVerification ? "Verification Needed" : null,
-                              needsLetter ? "Recommendation Letter Needed" : null,
-                              letterExpiringSoon ? "Letter Expiring Soon" : null,
+                              letterWarning,
+                              registrationExpiringSoon ? "Registration Expiring Soon" : null,
                             ].filter(Boolean).join(", ")}
                           >
                             <CircleAlert className="h-4 w-4" aria-hidden="true" />
@@ -1130,74 +1144,103 @@ export default function MembersListPage() {
         </div>
       )}
 
-      {/* Floating Action Bar */}
+      {/* Floating utilities: icon-only actions, responsive wrapping, no horizontal scroll. */}
       {selected.size > 0 && (
-        <div className="fixed bottom-3 left-2 right-2 z-40 animate-in slide-in-from-bottom-4 duration-200 sm:bottom-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2">
-          <div className="flex max-w-full items-center gap-2 overflow-x-auto border border-[#69001A] bg-[#890022] px-3 py-3 text-white shadow-lg sm:gap-3 sm:px-5">
-            <span className="inline-flex items-center gap-2 shrink-0 bg-white/15 px-3 py-1 text-sm font-semibold text-white">
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              {selected.size} Member{selected.size > 1 ? "s" : ""} Selected
+        <div className="pointer-events-none fixed bottom-3 left-2 right-2 z-40 flex justify-center animate-in slide-in-from-bottom-4 duration-200 sm:bottom-6">
+          <div className="pointer-events-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-2 border border-[#69001A] bg-[#890022] px-3 py-2.5 text-white shadow-lg sm:gap-3">
+            <span
+              role="status"
+              aria-live="polite"
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 bg-white/15 px-3 py-1 text-sm font-semibold text-white"
+            >
+              <CheckSquare className="h-[18px] w-[18px]" aria-hidden="true" />
+              {selected.size.toLocaleString()} selected
             </span>
-            <div className="h-5 w-px shrink-0 bg-white/30" />
-            <button
-              onClick={exportCsv}
-              className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors"
-            >
-              <Download className="h-4 w-4" />
-              Export Data (CSV)
-            </button>
-            <button
-              onClick={async () => {
-                const ids = Array.from(selected);
-                if (ids.length === 0) return;
-
-                setLoadingReport(true);
-                try {
-                  const selectedMembers = await fetchMembersByIds(ids);
-                  setReportMembers(selectedMembers);
-                  setReportOpen(true);
-                } catch (error) {
-                  toast({
-                    title: "Report failed",
-                    description:
-                      error instanceof Error
-                        ? error.message
-                        : "Unable to load selected members.",
-                    variant: "destructive",
-                  });
-                } finally {
-                  setLoadingReport(false);
-                }
-              }}
-              disabled={loadingReport}
-              className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors disabled:opacity-60"
-            >
-              {loadingReport ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Printer className="h-4 w-4" />
-              )}
-              Print Selected
-            </button>
-            <button
-              onClick={() => void openAttendanceSheetForSelected()}
-              disabled={loadingReport}
-              className="inline-flex items-center gap-1.5 shrink-0 border border-white bg-white px-3 py-2 text-sm font-medium text-[#890022] hover:bg-[#F7F2F3] transition-colors disabled:opacity-60"
-            >
-              <Printer className="h-4 w-4" />
-              Attendance Sheet
-            </button>
-            <div className="h-5 w-px shrink-0 bg-white/30" />
-            <button
-              onClick={clearSelection}
-              className="inline-flex items-center gap-1.5 shrink-0 border border-white/60 px-3 py-2 text-sm font-medium text-white hover:bg-white/15 transition-colors"
-            >
-              <X className="h-4 w-4" />
-              Clear Selection
-            </button>
+            <div role="group" aria-label="Selected member utilities" className="flex max-w-full flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+              <SelectionUtility
+                label="Export selected members as CSV"
+                hint="Export CSV"
+                icon={<Download className="h-5 w-5" aria-hidden="true" />}
+                onClick={() => void exportCsv()}
+              />
+              <SelectionUtility
+                label="Print selected member list"
+                hint="Print Selected"
+                icon={loadingReport
+                  ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                  : <Printer className="h-5 w-5" aria-hidden="true" />}
+                disabled={loadingReport}
+                onClick={async () => {
+                  const ids = Array.from(selected);
+                  if (ids.length === 0) return;
+                  setLoadingReport(true);
+                  try {
+                    const selectedMembers = await fetchMembersByIds(ids);
+                    setReportMembers(selectedMembers);
+                    setReportOpen(true);
+                  } catch (error) {
+                    toast({
+                      title: "Report failed",
+                      description:
+                        error instanceof Error
+                          ? error.message
+                          : "Unable to load selected members.",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setLoadingReport(false);
+                  }
+                }}
+              />
+              <SelectionUtility
+                label="Attach recommendation letters to selected members"
+                hint="Attach Letters"
+                icon={<FileText className="h-5 w-5" aria-hidden="true" />}
+                disabled={selected.size > 100}
+                onClick={() => setLetterBatchOpen(true)}
+              />
+              <SelectionUtility
+                label="Generate certificates PDF for selected ministries"
+                hint={filters.ministry.length === 0 ? "Choose a ministry filter first" : "Certificate PDF"}
+                icon={<FileBadge className="h-5 w-5" aria-hidden="true" />}
+                disabled={filters.ministry.length === 0}
+                onClick={() => setCertificateBatchOpen(true)}
+              />
+              <SelectionUtility
+                label="Create attendance sheet for selected members"
+                hint="Attendance Sheet"
+                icon={loadingReport
+                  ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                  : <ClipboardList className="h-5 w-5" aria-hidden="true" />}
+                disabled={loadingReport}
+                onClick={() => void openAttendanceSheetForSelected()}
+              />
+              <SelectionUtility
+                label="Clear member selection"
+                hint="Clear Selection"
+                icon={<X className="h-5 w-5" aria-hidden="true" />}
+                variant="outline"
+                onClick={clearSelection}
+              />
+            </div>
           </div>
         </div>
       )}
+
+      <BatchLetterAttachmentDialog
+        open={letterBatchOpen}
+        onOpenChange={setLetterBatchOpen}
+        selectedMemberIds={Array.from(selected)}
+        onUpdated={loadMembers}
+      />
+
+      <BulkCertificateDialog
+        open={certificateBatchOpen}
+        onOpenChange={setCertificateBatchOpen}
+        selectedMemberIds={Array.from(selected)}
+        selectedMinistries={filters.ministry}
+        loadMembers={fetchMembersByIds}
+      />
 
       {/* Printable Report Modal */}
       {reportOpen && (

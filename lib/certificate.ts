@@ -2,6 +2,7 @@
 
 import QRCode from "qrcode";
 import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
+import { effectiveSignatureOffset, signatoryLayout, signatureInkBounds, signatureInkPlacement } from "@/lib/signature-layout";
 
 export interface CertificateData {
   firstName: string;
@@ -294,6 +295,50 @@ function drawAdaptiveMemberName(
 }
 
 
+/**
+ * Reuse decoded certificate artwork between drawer thumbnails and full-size
+ * previews. Keep a short TTL and small cache to limit signed-URL retention.
+ * Failed assets never turn into synthetic/partial certificate artwork.
+ */
+const certificateImageCache = new Map<
+  string, { expiresAt: number; promise: Promise<HTMLImageElement | null> }
+>();
+
+async function loadCertificateImage(url: string): Promise<HTMLImageElement | null> {
+  const cached = certificateImageCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+  certificateImageCache.delete(url);
+  const promise = (async (): Promise<HTMLImageElement | null> => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const image = new Image();
+      await new Promise<void>((resolve) => {
+        image.onload = () => resolve();
+        image.onerror = () => resolve();
+        image.src = dataUrl;
+      });
+      return image.naturalWidth > 0 ? image : null;
+    } catch {
+      return null;
+    }
+  })();
+  certificateImageCache.set(url, { expiresAt: Date.now() + 120_000, promise });
+  while (certificateImageCache.size > 12) {
+    const oldest = certificateImageCache.keys().next().value;
+    if (!oldest) break;
+    certificateImageCache.delete(oldest);
+  }
+  return promise;
+}
+
 export async function renderCertificate(
   canvas: HTMLCanvasElement,
   data: CertificateData,
@@ -323,42 +368,7 @@ export async function renderCertificate(
       .filter((element) => element.visible !== false)
       .sort((a, b) => (a.z_index ?? 0) - (b.z_index ?? 0));
 
-    const loadImage = async (
-  url: string
-): Promise<HTMLImageElement | null> => {
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const blob = await response.blob();
-
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onloadend = () => {
-        resolve(reader.result as string);
-      };
-
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-
-    const image = new Image();
-
-    await new Promise<void>((resolve) => {
-      image.onload = () => resolve();
-      image.onerror = () => resolve();
-      image.src = dataUrl;
-    });
-
-    return image.naturalWidth > 0 ? image : null;
-  } catch {
-    return null;
-  }
-};
+    const loadImage = loadCertificateImage;
 
     const getTextValue = (
       element: CertificateTemplateSettings["elements"][number]
@@ -534,25 +544,24 @@ if (element.type === "member_name") {
           ctx.textAlign = alignment === "justify" ? "center" : alignment;
           ctx.textBaseline = "middle";
 
-          // Fixed baseline positions independent of image aspect ratio.
-          const top = -height / 2;
-          const titleY = height / 2 - titleSize / 2;
-          const nameY = titleY - titleSize / 2 - 3 - nameSize / 2;
-          const signatureBottom = nameY - nameSize / 2 - 5;
-          const signatureMaxHeight = Math.max(1, signatureBottom - top);
+          // Use the same anchored name/title and slightly overlapping signature
+          // positions as the draggable editor preview, regardless of image margins.
+          const { nameY, titleY } = signatoryLayout(
+            element.height, nameSize, titleSize, effectiveSignatureOffset(element)
+          );
 
           if (signatory.signature_url) {
             const signature = await loadImage(signatory.signature_url);
             if (signature?.naturalWidth && signature.naturalHeight) {
-              const factor = Math.min(
-                width / signature.naturalWidth,
-                signatureMaxHeight / signature.naturalHeight
+              const crop = signatureInkBounds(signature);
+              const ink = signatureInkPlacement(
+                element.width, element.height, nameSize, titleSize,
+                crop.width, crop.height, effectiveSignatureOffset(element),
+                signatory.signature_layout
               );
-              const imageWidth = signature.naturalWidth * factor;
-              const imageHeight = signature.naturalHeight * factor;
               ctx.drawImage(
-                signature, -imageWidth / 2,
-                signatureBottom - imageHeight, imageWidth, imageHeight
+                signature, crop.x, crop.y, crop.width, crop.height,
+                ink.left, ink.top, ink.width, ink.height
               );
             }
           }
@@ -570,34 +579,12 @@ if (element.type === "member_name") {
       ctx.restore();
     }
   };
-  // Background
+  // Background image shares the same short-lived decode cache as overlays.
   const templateUrl = settings.template_url;
   if (templateUrl) {
-    try {
-      const response = await fetch(templateUrl);
-      if (response.ok) {
-        const blob = await response.blob();
-        const dataUrl: string = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        const img = new Image();
-        await new Promise<void>((resolve) => {
-          img.onload = () => {
-            ctx.drawImage(img, 0, 0, canvasW, canvasH);
-            resolve();
-          };
-          img.onerror = () => resolve();
-          img.src = dataUrl;
-        });
-      } else {
-        drawDefaultBackground(ctx, canvasW, canvasH);
-      }
-    } catch {
-      drawDefaultBackground(ctx, canvasW, canvasH);
-    }
+    const image = await loadCertificateImage(templateUrl);
+    if (image) ctx.drawImage(image, 0, 0, canvasW, canvasH);
+    else drawDefaultBackground(ctx, canvasW, canvasH);
   } else {
     drawDefaultBackground(ctx, canvasW, canvasH);
   }
@@ -632,5 +619,49 @@ export async function downloadCertificateAsPdf(
   const pdf = new jsPDF({ orientation, unit: "mm", format: paperSize, compress: true });
   const imageData = canvas.toDataURL("image/jpeg", 0.96);
   pdf.addImage(imageData, "JPEG", 0, 0, pageW, pageH);
+  pdf.save(filename.replace(/\.(png|jpg|jpeg)$/i, ".pdf"));
+}
+
+
+/**
+ * Print a selected group of ministry certificates in a single PDF.
+ * Each page uses the identical Certificate Studio renderer, paper size,
+ * orientation, scaling and JPEG quality as the existing single PDF export.
+ * This admin export is read-only and does not allocate public issuance numbers.
+ */
+export async function downloadCertificateBatchAsPdf(
+  certificates: readonly CertificateData[],
+  settings: CertificateTemplateSettings,
+  signatories: Signatory[],
+  filename: string,
+  onProgress?: (completed: number, total: number) => void
+): Promise<void> {
+  if (certificates.length === 0 || certificates.length > 100) {
+    throw new Error("Select between 1 and 100 eligible ministry certificates per PDF.");
+  }
+
+  const { jsPDF } = await import("jspdf");
+  const canvas = document.createElement("canvas");
+  const canvasW = settings.canvas_width || 600;
+  const paperSize = settings.paper_size === "letter" ? "letter" : "a4";
+  const orientation = settings.orientation === "landscape" ? "landscape" : "portrait";
+  const pageW = paperSize === "a4"
+    ? (orientation === "portrait" ? 210 : 297)
+    : (orientation === "portrait" ? 215.9 : 279.4);
+  const pageH = paperSize === "a4"
+    ? (orientation === "portrait" ? 297 : 210)
+    : (orientation === "portrait" ? 279.4 : 215.9);
+  const scale = (pageW / 25.4 * 300) / canvasW;
+  const pdf = new jsPDF({ orientation, unit: "mm", format: paperSize, compress: true });
+
+  // Sequential rendering reuses a single canvas rather than retaining a canvas
+  // per member. A failed render aborts without saving an incomplete PDF.
+  for (let index = 0; index < certificates.length; index++) {
+    await renderCertificate(canvas, certificates[index], settings, signatories, scale);
+    if (index > 0) pdf.addPage(paperSize, orientation);
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, pageW, pageH);
+    onProgress?.(index + 1, certificates.length);
+  }
+
   pdf.save(filename.replace(/\.(png|jpg|jpeg)$/i, ".pdf"));
 }

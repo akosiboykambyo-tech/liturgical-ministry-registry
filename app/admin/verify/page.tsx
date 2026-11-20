@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useContext } from "react";
+import { RegistrationEmbeddedContext, RegistrationReviewSearchContext } from "@/lib/registration-embedded-context";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
 import { quickVerifyMember } from "@/lib/verify-actions";
+import SecureMinistryVerification from "@/components/secure-ministry-verification";
+import { secureMinistryVerificationEnabled } from "@/lib/secure-ministry-verification";
 import { StatusBadge } from "@/components/status-badge";
 import { shortMinistry, MINISTRIES, PARISHES } from "@/lib/constants";
 import { Member } from "@/lib/types";
@@ -40,10 +44,24 @@ const EMPTY_FILTERS: Filters = {
 };
 
 export default function QuickScanMatrixPage() {
+  const initialSearch = useContext(RegistrationReviewSearchContext);
+  return secureMinistryVerificationEnabled
+    ? <SecureMinistryVerification initialSearch={initialSearch} />
+    : <div role="alert" className="border border-[#E8D6BE] bg-[#FFF9ED] px-5 py-4 text-sm text-[#684B20]">
+        Verification is temporarily unavailable until the protected ministry approval
+        service is activated. Existing members can still be viewed, but approvals
+        are not accepted through the legacy member-wide Quick Scan.
+      </div>;
+}
+
+// Keep the legacy UI unchanged until the secure RPC has been separately
+// installed, granted to approved administrators, and fully tested.
+function LegacyQuickScanMatrixPage({ initialSearch }: { initialSearch: string }) {
+  const embedded = useContext(RegistrationEmbeddedContext);
   const supabase = getSupabaseBrowserClient();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [optimisticIds, setOptimisticIds] = useState<Record<string, string>>({});
@@ -230,64 +248,15 @@ export default function QuickScanMatrixPage() {
 
   const clearSelection = () => setSelectedIds(new Set());
 
-  const handleMassUpload = async (file: File) => {
-    if (selectedIds.size === 0) return;
-    setMassUploading(true);
-
-    const selectedMembers = members.filter((m) => selectedIds.has(m.id));
-    const defaultExp = new Date();
-    defaultExp.setFullYear(defaultExp.getFullYear() + 1);
-    const newExpDate = defaultExp.toISOString().slice(0, 10);
-
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const member of selectedMembers) {
-      const ext = file.name.split(".").pop();
-      const path = `${member.id}/recommendation-letter.${ext}`;
-
-      const { error: upErr } = await supabase.storage
-        .from("member-documents")
-        .upload(path, file, { upsert: true });
-      if (upErr) {
-        failCount++;
-        continue;
-      }
-
-      const { error: dbErr } = await supabase
-        .from("members")
-        .update({
-          document_url: path,
-          expiration_date: newExpDate,
-        })
-        .eq("id", member.id);
-
-      if (dbErr) {
-        failCount++;
-      } else {
-        successCount++;
-        setMembers((prev) =>
-          prev.map((m) =>
-            m.id === member.id
-              ? { ...m, document_url: path, expiration_date: newExpDate }
-              : m
-          )
-        );
-      }
-    }
-
-    setMassUploading(false);
-
-    if (successCount > 0) {
-      pushToast("success", `Recommendation letter attached to ${successCount} member(s).`);
-    }
-    if (failCount > 0) {
-      pushToast("error", `Failed to attach letter for ${failCount} member(s).`);
-    }
+  const handleMassUpload = async (_file: File) => {
+    // Historical mass upload implicitly assigned the same letter across members
+    // and altered registration validity. The approved flow uses explicit,
+    // private per-assignment attachment, with approval as a separate decision.
+    pushToast("error", "Use the secure Verification workspace to attach a recommendation letter to explicitly selected ministry assignments.");
   };
 
   return (
-    <div className="-mt-4 space-y-6 pb-24">
+    <div className={embedded ? "space-y-5 pb-16" : "-mt-4 space-y-6 pb-24"}>
       {/* Toasts */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
         {toasts.map((t) => (
@@ -310,6 +279,17 @@ export default function QuickScanMatrixPage() {
         ))}
       </div>
 
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className={ebGaramond.className + " text-[27px] font-medium text-[#28191E]"}>
+            Pending member approvals
+          </h3>
+          <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
+            <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
+            {members.length} pending
+          </span>
+        </div>
+      ) : (
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className={cn(ebGaramond.className, "text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]")}>
@@ -327,6 +307,8 @@ export default function QuickScanMatrixPage() {
           </span>
         </div>
       </div>
+
+      )}
 
       {/* Search and Filters */}
       <div className="space-y-4 overflow-hidden border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-4 sm:p-5">
@@ -379,9 +361,7 @@ export default function QuickScanMatrixPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
+        <CenteredAdminLoader label="Loading members awaiting verification…" />
       ) : filtered.length === 0 ? (
         <div className="border border-dashed border-border py-16 text-center">
           <Inbox className="mx-auto h-10 w-10 text-muted-foreground/50" />

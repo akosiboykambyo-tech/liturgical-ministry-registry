@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { withCertificateSessionRecovery, AdminReauthenticationRequiredError } from "@/lib/certificate-session-recovery";
 import type { CertificateTemplateSettings, Signatory } from "@/lib/types";
 import {
   CERTIFICATE_FONT_PAIRINGS,
@@ -32,12 +33,18 @@ import {
 import { CertificateDesign } from "@/components/certificate-design";
 import { CertificateEditor } from "@/components/certificate-editor";
 import { ebGaramond } from "@/app/fonts";
+import { CenteredAdminLoader } from "@/components/admin-centered-loader";
+import {
+  upgradeSignatoryOffsets, SIGNATURE_LAYOUT_KEY_PREFIX, signatureLayoutSettingsKey,
+  DEFAULT_SIGNATURE_COMPOSITION, normalizeSignatureComposition, attachSignatureCompositions,
+} from "@/lib/signature-layout";
+import { SignatoryLayoutCanvas } from "@/components/signatory-composition";
+import { resolveCertificateSignatory } from "@/lib/certificate";
+import type { SignatureComposition } from "@/lib/types";
 
 type TemplateRow = {
   key: string;
-  settings: CertificateTemplateSettings;
   is_default: boolean;
-  updated_at: string;
 };
 
 const TEMPLATE_KEY_PREFIX = "certificate_template";
@@ -60,6 +67,28 @@ function nameToKey(name: string) {
 }
 
 const DEFAULTS = DEFAULT_TEMPLATE_SETTINGS;
+
+// Keep a stalled network request from trapping the editor behind a spinner.
+// Timings are visible in development tools, without logging member data.
+async function readWithTimeout<T>(label: string, request: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 15000);
+  const started = performance.now();
+  try {
+    return await request(controller.signal);
+  } finally {
+    window.clearTimeout(timer);
+    if (process.env.NODE_ENV === "development") {
+      console.debug(`[Certificate Manager] ${label}: ${Math.round(performance.now() - started)} ms`);
+    }
+  }
+}
+
+function loadError(cause: unknown, resource: string) {
+  return cause instanceof Error && cause.name === "AbortError"
+    ? `${resource} timed out. Check your connection and retry.`
+    : `Unable to load ${resource.toLowerCase()}: ${cause instanceof Error ? cause.message : "Request failed"}`;
+}
   type Tab = "layout" | "signatories";
 
 export default function CertificateManagerPage() {
@@ -69,6 +98,12 @@ export default function CertificateManagerPage() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [reauthenticationRequired, setReauthenticationRequired] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [signatoriesError, setSignatoriesError] = useState<string | null>(null);
+  const activeLoadId = useRef(0);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fontUploading, setFontUploading] = useState(false);
@@ -163,6 +198,12 @@ export default function CertificateManagerPage() {
 
   // Signatory state
   const [signatories, setSignatories] = useState<Signatory[]>([]);
+  const [editingSignatureId, setEditingSignatureId] = useState<string | null>(null);
+  const [signatureDraft, setSignatureDraft] = useState<SignatureComposition>({ ...DEFAULT_SIGNATURE_COMPOSITION });
+  const [signatureSaving, setSignatureSaving] = useState(false);
+  const [signatureSaveError, setSignatureSaveError] = useState<string | null>(null);
+  const [signatureSavedNotice, setSignatureSavedNotice] = useState<string | null>(null);
+  const [signatureImageError, setSignatureImageError] = useState<string | null>(null);
   const [sigLoading, setSigLoading] = useState(true);
   const [sigSaving, setSigSaving] = useState(false);
   const [sigUploading, setSigUploading] = useState<string | null>(null);
@@ -172,53 +213,113 @@ export default function CertificateManagerPage() {
     title: "",
     display_type: "static" as "static" | "dynamic",
     ministry: "",
-    position_x: 60,
-    position_y: 720,
-    width: 150,
     alignment: "left" as "left" | "center" | "right",
   });
 
+  // Fetch one complete template for the editor. The saved-template index contains
+  // metadata only and is loaded independently, so it does not block first paint.
   const load = useCallback(async (selectedKey?: string) => {
+    const current = ++activeLoadId.current;
     setLoading(true);
-    const { data } = await supabase
-      .from("system_settings")
-      .select("*")
-      .like("key", `${TEMPLATE_KEY_PREFIX}%`)
-      .order("key");
-    const rows: TemplateRow[] = (data ?? []).map((row) => ({
-      key: row.key as string,
-      settings: { ...DEFAULTS, ...(row.value as CertificateTemplateSettings) },
-      is_default: Boolean(row.is_default),
-      updated_at: (row.updated_at as string) ?? "",
-    }));
-    setTemplates(rows);
-    const defaultRow = rows.find((r) => r.key === selectedKey) ?? rows.find((r) => r.is_default) ?? rows[0];
-    if (defaultRow) {
-      setSettings(defaultRow.settings);
-      setEditingKey(defaultRow.key);
-      setTemplateName(templateLabel(defaultRow.key));
-    } else {
-      setSettings(DEFAULTS);
-      setEditingKey(null);
-      setTemplateName("");
+    setTemplateError(null);
+    setReauthenticationRequired(false);
+    try {
+      const readOne = async (signal: AbortSignal, key?: string, first = false) => {
+        const { data, error } = await withCertificateSessionRecovery(supabase, async () => {
+          let query = supabase.from("system_settings")
+            .select("key,value,is_default")
+            .like("key", `${TEMPLATE_KEY_PREFIX}%`);
+          if (key) query = query.eq("key", key);
+          else if (!first) query = query.eq("is_default", true);
+          return await query.order("key").limit(1).abortSignal(signal).maybeSingle();
+        });
+        if (error) throw new Error(error.message);
+        return data;
+      };
+      const row = await readWithTimeout("Active template", async (signal) => {
+        const preferred = await readOne(signal, selectedKey);
+        return preferred ?? (selectedKey ? null : readOne(signal, undefined, true));
+      });
+      if (current !== activeLoadId.current) return;
+      if (row) {
+        const loaded = { ...DEFAULTS, ...(row.value as CertificateTemplateSettings) };
+        setSettings({
+          ...loaded,
+          elements: upgradeSignatoryOffsets(loaded.elements ?? []),
+        });
+        setEditingKey(row.key);
+        setTemplateName(templateLabel(row.key));
+      } else if (selectedKey) {
+        throw new Error("Selected template not found.");
+      } else {
+        setSettings(DEFAULTS);
+        setEditingKey(null);
+        setTemplateName("");
+      }
+    } catch (cause) {
+      if (current === activeLoadId.current) {
+        setTemplateError(loadError(cause, "Certificate template"));
+        setReauthenticationRequired(cause instanceof AdminReauthenticationRequiredError);
+      }
+    } finally {
+      if (current === activeLoadId.current) setLoading(false);
     }
-    setLoading(false);
+  }, [supabase]);
+
+  const loadTemplateList = useCallback(async () => {
+    setListLoading(true);
+    setListError(null);
+    try {
+      const { data, error } = await readWithTimeout("Template names", (signal) =>
+        withCertificateSessionRecovery(supabase, async () =>
+          await supabase.from("system_settings")
+            .select("key,is_default")
+            .like("key", `${TEMPLATE_KEY_PREFIX}%`)
+            .order("key").abortSignal(signal)
+        )
+      );
+      if (error) throw new Error(error.message);
+      setTemplates((data ?? []).map((row) => ({
+        key: row.key as string,
+        is_default: Boolean(row.is_default),
+      })));
+    } catch (cause) {
+      setListError(loadError(cause, "Saved template list"));
+    } finally {
+      setListLoading(false);
+    }
   }, [supabase]);
 
   const loadSignatories = useCallback(async () => {
     setSigLoading(true);
-    const { data } = await supabase
-      .from("signatories")
-      .select("*")
-      .order("sort_order");
-    setSignatories((data as Signatory[]) ?? []);
-    setSigLoading(false);
+    setSignatoriesError(null);
+    try {
+      const [signatoryQuery, layoutsQuery] = await Promise.all([
+        readWithTimeout("Signatories", (signal) =>
+          withCertificateSessionRecovery(supabase, async () =>
+            await supabase.from("signatories").select("*").order("sort_order").abortSignal(signal))),
+        readWithTimeout("Signatory layout presets", (signal) =>
+          withCertificateSessionRecovery(supabase, async () =>
+            await supabase.from("system_settings").select("key,value")
+              .like("key", `${SIGNATURE_LAYOUT_KEY_PREFIX}%`).abortSignal(signal))),
+      ]);
+      if (signatoryQuery.error) throw new Error(signatoryQuery.error.message);
+      if (layoutsQuery.error) throw new Error(layoutsQuery.error.message);
+      setSignatories(attachSignatureCompositions(
+        (signatoryQuery.data as Signatory[]) ?? [], layoutsQuery.data ?? []
+      ));
+    } catch (cause) {
+      setSignatoriesError(loadError(cause, "Signatories"));
+    } finally {
+      setSigLoading(false);
+    }
   }, [supabase]);
 
   useEffect(() => {
-    load();
-    loadSignatories();
-  }, [load, loadSignatories]);
+    void load();
+    void loadTemplateList();
+    void loadSignatories();
+  }, [load, loadTemplateList, loadSignatories]);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -269,30 +370,44 @@ export default function CertificateManagerPage() {
       return;
     }
     const key = creating ? nameToKey(name) : editingKey;
+    if (creating && (listLoading || listError)) {
+      setError("Load the saved template list before creating a new template.");
+      return;
+    }
     if (creating && (key === TEMPLATE_KEY_PREFIX || templates.some((row) => row.key === key))) {
       setError("A template with that name already exists. Use a different name or edit the existing template.");
       return;
     }
     setSaving(true);
     setError(null);
+    // Old database records may contain an 8+ MB embedded base64 background.
+    // Only the Storage template_url is used by the editor and renderer. Never
+    // re-save that obsolete inline image; doing so slows every certificate load.
+    const cleanSettings = Object.fromEntries(
+      Object.entries(settings).filter(([field]) => field !== "background_data_url")
+    ) as unknown as Record<string, unknown>;
     // Never upsert a new template: a concurrent name collision must not overwrite an existing design.
-    const { error } = creating
+    // RETURNING verifies that one row really persisted. A zero-row UPDATE must
+    // not be presented as "saved" even if Supabase returned no error.
+    const { data: persisted, error } = creating
       ? await supabase.from("system_settings").insert({
-          key, value: settings as unknown as Record<string, unknown>,
+          key, value: cleanSettings,
           is_default: templates.length === 0,
-        })
+        }).select("key").maybeSingle()
       : await supabase.from("system_settings")
-          .update({ value: settings as unknown as Record<string, unknown> }).eq("key", key);
+          .update({ value: cleanSettings }).eq("key", key).select("key").maybeSingle();
     setSaving(false);
-    if (error) {
-      setError(creating && error.code === "23505"
-        ? "A template with that name already exists. Choose another name."
-        : error.message);
+    if (error || persisted?.key !== key) {
+      setError(error
+        ? (creating && error.code === "23505"
+            ? "A template with that name already exists. Choose another name."
+            : error.message)
+        : "Template settings were not saved to this database. Your changes are still in the editor; check administrator access before leaving.");
       return;
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
-    await load(key);
+    await Promise.all([load(key), loadTemplateList()]);
   };
 
   const handleSetDefault = async (key: string) => {
@@ -320,7 +435,7 @@ export default function CertificateManagerPage() {
   setSetDefaultKey(null);
 
   if (!error) {
-    await load();
+    await Promise.all([load(), loadTemplateList()]);
   }
 };
 
@@ -340,19 +455,15 @@ export default function CertificateManagerPage() {
         setTemplateName("");
         setSettings(DEFAULTS);
       }
-      await load();
+      await Promise.all([load(), loadTemplateList()]);
     }
   };
 
   const handleEdit = (row: TemplateRow) => {
-    setEditingKey(row.key);
-    setTemplateName(templateLabel(row.key));
-    setSettings(row.settings);
     setSaved(false);
     setError(null);
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    void load(row.key);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleNew = () => {
@@ -557,9 +668,10 @@ export default function CertificateManagerPage() {
       signature_url: sigUploadUrl,
       display_type: sigForm.display_type,
       ministry: sigForm.display_type === "dynamic" ? sigForm.ministry : null,
-      position_x: sigForm.position_x,
-      position_y: sigForm.position_y,
-      width: sigForm.width,
+      // Required legacy signatories columns; actual certificate placement lives on the canvas element.
+      position_x: 60,
+      position_y: 720,
+      width: 150,
       alignment: sigForm.alignment,
       is_active: true,
       sort_order: signatories.length,
@@ -574,12 +686,103 @@ export default function CertificateManagerPage() {
         title: "",
         display_type: "static",
         ministry: "",
-        position_x: 60,
-        position_y: 720,
-        width: 150,
         alignment: "left",
       });
       await loadSignatories();
+    }
+  };
+
+  const editSignatureLayout = (signatory: Signatory) => {
+    setEditingSignatureId(signatory.id);
+    setSignatureDraft(normalizeSignatureComposition(signatory.signature_layout));
+    setSignatureSaveError(null);
+    setSignatureSavedNotice(null);
+  };
+
+  const saveSignatureLayout = async () => {
+    const id = editingSignatureId;
+    if (!id) return;
+    const preset = normalizeSignatureComposition(signatureDraft);
+    setSignatureSaving(true);
+    setSignatureSaveError(null);
+    let saveError: { message: string } | null = null;
+    try {
+      const key = signatureLayoutSettingsKey(id);
+      const result = await withCertificateSessionRecovery(supabase, async () =>
+        await supabase.from("system_settings")
+          .upsert({ key, value: preset as unknown as Record<string, unknown>, is_default: false }, { onConflict: "key" })
+      );
+      saveError = result.error;
+    } catch (cause) {
+      saveError = { message: cause instanceof Error ? cause.message : "Session recovery failed." };
+    }
+    setSignatureSaving(false);
+    if (saveError) {
+      setSignatureSaveError(`Could not save signature layout: ${saveError.message}`);
+      return;
+    }
+    setSignatories((previous) => previous.map((sig) =>
+      sig.id === id ? { ...sig, signature_layout: preset } : sig
+    ));
+    setEditingSignatureId(null);
+    const savedSignatory = signatories.find((sig) => sig.id === id);
+    const inCertificate = savedSignatory && settings.elements.some((element) =>
+      element.type === "signatory" &&
+      resolveCertificateSignatory(element.signatory_id, signatories, savedSignatory.ministry)?.id === id
+    );
+    if (inCertificate) {
+      setActiveTab("layout");
+      setSignatureSavedNotice(`Signature layout saved for ${savedSignatory.name}. The certificate canvas now uses this arrangement.`);
+    } else {
+      setSignatureSavedNotice("Signature layout saved. This signatory is not currently assigned to a block in the selected certificate; add or select the appropriate signatory there to see it.");
+    }
+  };
+
+  /** Replace handwriting on the same signatory ID so all assigned certificates
+   * immediately use the new asset, retaining the saved layout preset.
+   */
+  const replaceExistingSignature = async (sig: Signatory, file: File) => {
+    setSignatureImageError(null);
+    setSignatureSavedNotice(null);
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      setSignatureImageError("Signature image must be PNG or JPEG.");
+      return;
+    }
+    if (!file.size || file.size > 5 * 1024 * 1024) {
+      setSignatureImageError("Signature image must be smaller than 5 MB.");
+      return;
+    }
+    setSigUploading(sig.id);
+    try {
+      const extension = file.type === "image/png" ? "png" : "jpg";
+      const objectPath = `signatures-${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("certificate-templates")
+        .upload(objectPath, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw new Error(uploadError.message);
+      const { data } = supabase.storage.from("certificate-templates").getPublicUrl(objectPath);
+      const newUrl = data.publicUrl;
+      const { error: updateError } = await withCertificateSessionRecovery(supabase, async () =>
+        await supabase.from("signatories").update({ signature_url: newUrl }).eq("id", sig.id)
+      );
+      if (updateError) throw new Error(updateError.message);
+      // Updating the URL on the existing record invalidates the image cache key
+      // and immediately re-renders both the mini-canvas and certificate canvas.
+      setSignatories((previous) => previous.map((item) =>
+        item.id === sig.id ? { ...item, signature_url: newUrl } : item
+      ));
+      const linked = settings.elements.some((element) =>
+        element.type === "signatory" &&
+        resolveCertificateSignatory(element.signatory_id, signatories, sig.ministry)?.id === sig.id
+      );
+      setSignatureSavedNotice(linked
+        ? `Updated the signature image for ${sig.name} without changing its saved layout or certificate assignment.`
+        : `Updated the signature image for ${sig.name}. Select this signatory in the certificate template to display it there.`);
+      if (linked) setActiveTab("layout");
+    } catch (cause) {
+      setSignatureImageError(cause instanceof Error ? cause.message : "Unable to replace the signature image.");
+    } finally {
+      setSigUploading(null);
     }
   };
 
@@ -596,9 +799,9 @@ export default function CertificateManagerPage() {
     await loadSignatories();
   };
 
-  // Do not flash editing controls while screen/pointer capability is being checked.
+  // Keep the first paint centered while device capabilities are checked.
   if (isDesktop === null) {
-    return <div className="min-h-[60vh]" aria-label="Checking device compatibility" />;
+    return <CenteredAdminLoader label="Checking certificate editor compatibility…" />;
   }
 
   if (!isDesktop) {
@@ -609,7 +812,7 @@ export default function CertificateManagerPage() {
             <ImageIcon className="h-6 w-6" aria-hidden="true" />
           </div>
           <h1 className={`${ebGaramond.className} mt-5 text-[34px] font-medium leading-tight text-[#1E1114]`}>
-            Certificate Template Manager
+            Certificate Studio
           </h1>
           <p className="mt-3 text-sm font-semibold text-[#890022]">
             Desktop access required
@@ -628,9 +831,28 @@ export default function CertificateManagerPage() {
   }
 
   if (loading) {
+    return <CenteredAdminLoader label="Loading certificate template…" />;
+  }
+  if (templateError) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-[#890022]" />
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div role="alert" className="w-full max-w-lg space-y-4 border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white p-7 text-center">
+          <h1 className={`${ebGaramond.className} text-3xl text-[#1E1114]`}>Certificate Studio</h1>
+          <p className="text-sm text-[#682037]">{templateError}</p>
+          {reauthenticationRequired ? (
+            <button type="button" onClick={() => {
+              void supabase.auth.signOut({ scope: "local" }).finally(() => {
+                window.location.assign("/admin");
+              });
+            }} className="min-h-11 bg-[#890022] px-5 py-2 text-sm font-semibold text-white">
+              Sign out and sign in again
+            </button>
+          ) : (
+            <button type="button" onClick={() => void load()} className="min-h-11 bg-[#890022] px-5 py-2 text-sm font-semibold text-white">
+              Retry loading
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -639,12 +861,19 @@ export default function CertificateManagerPage() {
     <div className="space-y-5 text-[#1E1114]">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className={`${ebGaramond.className} text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
-            Certificate Template Manager
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#890022]">CERTIFICATE MANAGEMENT</p>
+          <h1 className={`${ebGaramond.className} mt-1 text-[42px] font-medium leading-none text-[#1E1114] sm:text-[48px]`}>
+            Certificate Studio
           </h1>
-          <p className="mt-2 text-sm text-[#66565A]">
-            Customize certificate text, fonts, layout, and signatories. The
-            default template is used for public certificate rendering.
+          <p className="mt-2 text-sm leading-6 text-[#6B5C62]">
+            Design and manage certificate templates, layouts, and signatories.
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[#6B5C62]">
+            {process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("rtptybxugjhvpfjvcvgw")
+              ? "Connected to Supabase TEST. Certificate designs are saved here independently of Production; a code redeploy does not reset this database."
+              : process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("zlvofcwnpdzfdnipvbbd")
+                ? "Connected to Supabase Production. Saved certificate designs are persistent database records, not application code."
+                : "Certificate designs belong to the currently connected Supabase database, not the deployed Git branch."}
           </p>
         </div>
 
@@ -681,6 +910,13 @@ export default function CertificateManagerPage() {
         </div>
       </div>
 
+      {signatoriesError && (
+        <div role="alert" className="flex items-center justify-between gap-3 border border-[#C9A5AF] bg-[#F8F1F3] px-4 py-3 text-sm text-[#682037]">
+          <span>{signatoriesError}</span>
+          <button type="button" onClick={() => void loadSignatories()}
+            className="shrink-0 border border-[#890022] px-3 py-2 font-semibold">Retry</button>
+        </div>
+      )}
       {error && (
         <div className="flex items-start gap-2 rounded-none border border-[#C9A5AF] bg-[#F8F1F3] px-4 py-3 text-sm text-[#682037]">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -1131,11 +1367,9 @@ export default function CertificateManagerPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <NumberField label="Position X" value={sigForm.position_x} onChange={(v) => setSigForm((f) => ({ ...f, position_x: v }))} />
-                  <NumberField label="Position Y" value={sigForm.position_y} onChange={(v) => setSigForm((f) => ({ ...f, position_y: v }))} />
-                  <NumberField label="Width" value={sigForm.width} onChange={(v) => setSigForm((f) => ({ ...f, width: v }))} />
-                </div>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Place and resize this signatory by dragging it in the Visual Canvas. Precise positioning remains available under the selected element.
+                </p>
 
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Alignment</label>
@@ -1197,6 +1431,11 @@ export default function CertificateManagerPage() {
               </div>
 
               {/* Existing signatories list */}
+              {signatureImageError && (
+                <p role="alert" className="border border-[#C9A5AF] bg-[#F8F1F3] px-4 py-3 text-sm text-[#682037]">
+                  {signatureImageError}
+                </p>
+              )}
               <div className="rounded-none border border-[#E5DDDF] border-t-[3px] border-t-[#890022] bg-white  overflow-hidden">
                 <div className="px-5 py-3 border-b border-border">
                   <h2 className="text-sm font-semibold tracking-tight text-[#27232A]">Configured Signatories</h2>
@@ -1232,6 +1471,22 @@ export default function CertificateManagerPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <label className="relative inline-flex cursor-pointer items-center border border-[#D9CDD1] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#890022]">
+                            {sigUploading === sig.id ? "Replacing…" : sig.signature_url ? "Replace Image" : "Upload Image"}
+                            <input type="file" accept="image/png,image/jpeg" className="sr-only"
+                              disabled={sigUploading !== null}
+                              aria-label={`Replace signature image for ${sig.name}`}
+                              onChange={(event) => {
+                                const uploaded = event.target.files?.[0];
+                                if (uploaded) void replaceExistingSignature(sig, uploaded);
+                                event.target.value = "";
+                              }} />
+                          </label>
+                          <button type="button" onClick={() => editSignatureLayout(sig)}
+                            disabled={!sig.signature_url || sigUploading !== null} title={sig.signature_url ? "Open signature layout canvas" : "Upload a signature image first"}
+                            className="border border-[#D9CDD1] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#890022] disabled:opacity-50">
+                            Adjust Signature
+                          </button>
                           <button
                             onClick={() => handleSigToggle(sig)}
                             className="text-xs font-medium text-[#890022] hover:underline"
@@ -1250,6 +1505,26 @@ export default function CertificateManagerPage() {
                   </div>
                 )}
               </div>
+              {signatureSavedNotice && (
+                <div role="status" className="mt-3 border border-[#C5D9D2] bg-[#F3F9F7] px-4 py-3 text-sm text-[#145C51]">
+                  {signatureSavedNotice}
+                </div>
+              )}
+              {editingSignatureId && (() => {
+                const chosen = signatories.find((sig) => sig.id === editingSignatureId);
+                return chosen ? (
+                  <div className="space-y-2">
+                    {signatureSaveError && <p role="alert" className="text-sm text-[#890022]">{signatureSaveError}</p>}
+                    <SignatoryLayoutCanvas key={chosen.id} signatory={chosen}
+                      settings={settings} certificateElement={settings.elements.find((element) =>
+                        element.type === "signatory" &&
+                        resolveCertificateSignatory(element.signatory_id, signatories, chosen.ministry)?.id === chosen.id
+                      )} value={signatureDraft} onChange={setSignatureDraft}
+                      saving={signatureSaving} onSave={() => void saveSignatureLayout()}
+                      onCancel={() => { setEditingSignatureId(null); setSignatureSaveError(null); }} />
+                  </div>
+                ) : null;
+              })()}
             </div>
           )}
         </div>
@@ -1270,6 +1545,11 @@ export default function CertificateManagerPage() {
         </div>
       </div>
 
+      {signatureSavedNotice && (
+        <div role="status" className="mb-3 border border-[#C5D9D2] bg-[#F3F9F7] px-4 py-3 text-sm text-[#145C51]">
+          {signatureSavedNotice}
+        </div>
+      )}
       <CertificateEditor
         settings={settings}
         onChange={setSettings}
@@ -1301,12 +1581,25 @@ export default function CertificateManagerPage() {
           <span className="text-xs text-muted-foreground">{templates.length} saved</span>
         </div>
 
-        {templates.length === 0 ? (
+        {listError ? (
+          <div role="alert" className="space-y-3 px-5 py-7 text-sm text-[#682037]">
+            <p>{listError}</p>
+            <button type="button" onClick={() => void loadTemplateList()}
+              className="border border-[#890022] px-4 py-2 font-semibold text-[#890022]">Retry list</button>
+          </div>
+        ) : listLoading ? (
+          <div role="status" className="flex items-center gap-2 px-5 py-7 text-sm text-[#66565A]">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading saved template names…
+          </div>
+        ) : templates.length === 0 ? (
           <div className="px-5 py-10 text-center">
             <FileText className="mx-auto h-8 w-8 text-muted-foreground/50" />
             <p className="mt-2 text-sm font-medium">No saved templates yet</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Configure the layout above and click Save Template to create one.
+              This Supabase database has no saved certificate templates. A different
+              TEST or Production database may still contain your original designs;
+              switching deployments does not transfer them. Save only after checking
+              which database is connected.
             </p>
           </div>
         ) : (
@@ -1334,9 +1627,7 @@ export default function CertificateManagerPage() {
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                      {row.settings.template_url ? "Custom background" : "No background image"} ·
-                      {" "}Liturgical year {row.settings.liturgical_year} ·
-                      {" "}Font: {row.settings.font_family?.split(",")[0] || "Georgia"}
+                      {isEditing ? "Currently selected" : "Select Edit to load full template"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -1348,7 +1639,7 @@ export default function CertificateManagerPage() {
                     </button>
                     <button
                       onClick={() => handleSetDefault(row.key)}
-                      disabled={isDefault || setDefaultKey !== null}
+                      disabled={listLoading || isDefault || setDefaultKey !== null}
                       className="inline-flex items-center gap-1 rounded-none bg-[#890022] px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#75001D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {setDefaultKey === row.key ? (
