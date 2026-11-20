@@ -3,38 +3,42 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const read = (filename) => fs.readFileSync(path.join(__dirname, "..", filename), "utf8");
-const server = read("app/rc1-qa/page.tsx");
-const client = read("app/rc1-qa/rc1-qa-client.tsx");
+const fullPath = (file) => path.join(__dirname, "..", file);
+const read = (file) => fs.readFileSync(fullPath(file), "utf8");
 
-test("QA page is inaccessible outside TEST-scoped Preview deployment", () => {
-  assert.match(server, /process\.env\.VERCEL_ENV !== "preview"/);
-  assert.match(server, /hostname === "rtptybxugjhvpfjvcvgw\.supabase\.co"/);
-  assert.match(server, /notFound\(\)/);
-  assert.match(server, /robots: \{ index: false, follow: false \}/);
+test("RC1 release source excludes all temporary signed-session QA routes", () => {
+  for (const filename of [
+    "app/rc1-qa/page.tsx",
+    "app/rc1-qa/rc1-qa-client.tsx",
+    "app/release-qa/page.tsx",
+    "app/release-qa/release-qa-client.tsx",
+    "app/release-qa/certificate-persistence-qa.tsx",
+    "app/release-qa/negative-access-qa.tsx",
+    "app/release-qa/storage-transfer-qa.tsx",
+  ]) {
+    assert.equal(fs.existsSync(fullPath(filename)), false, filename);
+  }
 });
 
-test("QA validates real JWT without sending credentials into reports", () => {
-  assert.match(client, /supabase\.auth\.getUser\(token\)/);
-  assert.match(client, /getSupabaseBrowserClient/);
-  assert.match(client, /sessionResult\.data\.session\?\.access_token/);
-  assert.match(client, /Authorization: "Bearer " \+ token/);
-  assert.match(client, /getSession\(\)/);
-  assert.doesNotMatch(client, /SUPABASE_SERVICE_ROLE_KEY/);
-  assert.doesNotMatch(client, /localStorage\.setItem|console\.log|sendBeacon/);
-  assert.doesNotMatch(client, /clipboard\.writeText\(token\)|JSON\.stringify\(session/);
+test("Retained financial read-only access verifies bearer JWT and exact role grants", () => {
+  const route = read("app/api/financial-stewardship/access/route.ts");
+  assert.match(route, /headers\.get\("authorization"\)/);
+  assert.match(route, /auth\.getUser\(token\)/);
+  assert.match(route, /\.from\("fs_staff_grants"\)/);
+  assert.match(route, /\.eq\("user_id", verified\.data\.user\.id\)/);
+  assert.match(route, /\.is\("revoked_at", null\)/);
+  assert.match(route, /return respond\(403/);
+  assert.match(route, /return respond\(503/);
+  assert.match(route, /Cache-Control": "private, no-store/);
+  assert.doesNotMatch(route, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(route, /\.insert\(|\.update\(|\.delete\(/);
 });
 
-test("QA includes real HTTP endpoint, RLS and guard-first invalid probes", () => {
-  assert.match(client, /\/api\/financial-stewardship\/access\?/);
-  assert.match(client, /\.from\("fs_staff_grants"\)/);
-  assert.match(client, /\.rpc\("registration_is_admin"\)/);
-  assert.match(client, /"registry_admin_member_write_v1"/);
-  assert.match(client, /"registration_intake_v1"/);
-  assert.match(client, /"registration_resolve_review_v1"/);
-  assert.match(client, /"fs_cowl_acknowledge_receipt_booklet"/);
-  assert.match(client, /"fs_curia_assign_receipt_booklet"/);
-  assert.match(client, /p_physically_checked: false/);
-  assert.match(client, /p_handover_confirmed: false/);
-  assert.match(client, /"inconclusive"/);
+test("Registry admin writes and secure verification still call guarded RPCs", () => {
+  const writer = read("lib/registry-admin-writes.ts");
+  const verifier = read("lib/secure-ministry-verification.ts");
+  assert.match(writer, /registry_admin_member_write_v1/);
+  assert.match(verifier, /registry_verify_ministries_v3/);
+  assert.match(verifier, /NEXT_PUBLIC_SECURE_MINISTRY_VERIFICATION === "enabled"/);
+  assert.doesNotMatch(verifier, /\.from\("members"\)\.update\(/);
 });
