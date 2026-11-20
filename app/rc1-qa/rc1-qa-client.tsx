@@ -20,7 +20,7 @@ const STATUS_STYLE: Record<Verdict, string> = {
   fail: "text-[#9A1E31] bg-[#FFF0F0] border-[#DBA5AC]",
   inconclusive: "text-[#705008] bg-[#FFF8E7] border-[#E3D1A5]",
 };
-const IDLE_LABEL = "Run all read-only checks";
+const IDLE_LABEL = "Run safe authorization checks";
 
 export default function Rc1QaClient() {
   const { loading, user } = useAuth();
@@ -213,9 +213,10 @@ export default function Rc1QaClient() {
           add(bucket + " Storage listing", denied ? "pass" : "inconclusive",
             denied ? "Direct listing explicitly denied." :
               "Storage returned an error; RLS denial could not be established.");
-        } else if ((result.data ?? []).length > 0 && !registryAdmin) {
+        } else if ((result.data ?? []).length > 0 && !registryAdmin &&
+          (bucket === "member-documents" || !hasWorkspace)) {
           add(bucket + " Storage listing", "fail",
-            "A non-Registry actor could list at least one private bucket entry. Review immediately.");
+            "An identity without the expected workspace could list a private bucket entry. Review immediately.");
         } else {
           add(bucket + " Storage listing", "inconclusive",
             "No unauthorized object was demonstrated; empty or authorized listing cannot prove private download denial.");
