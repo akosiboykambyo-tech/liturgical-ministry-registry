@@ -18,7 +18,7 @@ test("published design is a fixed-scope read-only server endpoint", () => {
   assert.doesNotMatch(route, /export async function (POST|PUT|PATCH|DELETE)/);
   assert.match(route, /process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(route, /\.eq\("is_default", true\)/);
-  assert.match(route, /PUBLIC_TEMPLATE_KEYS/);
+  assert.match(route, /Object\.keys\(DEFAULT_TEMPLATE_SETTINGS\)/);
   assert.match(route, /PUBLIC_ELEMENT_KEYS/);
   assert.match(route, /normalizeSignatureComposition/);
   assert.match(route, /Cache-Control/);
