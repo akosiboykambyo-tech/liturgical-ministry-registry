@@ -260,9 +260,13 @@ const fs = require('node:fs');
       const context=await browser.newContext({viewport});
       try {
         const page=await context.newPage();
-        // Intercept sign-in before page navigation: never send synthetic credentials to Supabase.
-        await page.route('**/auth/v1/token**',async route=>{
-          await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({code:'invalid_credentials',msg:'Invalid login credentials'})});
+        // This app submits via /api/admin/sign-in (not /auth/v1/token).
+        // Intercept the actual browser POST before it reaches Next.js and Supabase.
+        let signInIntercepts=0;
+        await page.route('**/api/admin/sign-in',async route=>{
+          assert.equal(route.request().method(),'POST','Sign-in must use POST');
+          signInIntercepts++;
+          await route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'We could not sign you in. Check your email and password, then try again.'})});
         });
         const response=await page.goto('http://127.0.0.1:3399/admin',{waitUntil:'domcontentloaded',timeout:45000});
         assert.equal(response?.status(),200,'Admin login HTTP status');
@@ -276,6 +280,7 @@ const fs = require('node:fs');
         await page.locator('input[type="password"]').first().fill('invalid-qa-only-password');
         await submit.click({timeout:20000});
         await page.getByText('We could not sign you in. Check your email and password, then try again.',{exact:true}).waitFor({state:'visible',timeout:30000});
+        assert.equal(signInIntercepts,1,'Browser must use the locally intercepted sign-in API exactly once');
         assert.ok(!page.url().includes('/admin/dashboard'),'Failed auth must never enter Registry dashboard');
         console.log('PASS: Chromium handled failed sign-in safely on '+viewport.width+'px viewport');
       } finally {await context.close();}
