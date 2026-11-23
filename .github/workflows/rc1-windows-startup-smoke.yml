@@ -38,5 +38,8 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
+          # Reproduce the operator's Windows profile containing spaces in the temporary path.
+          $env:TEMP=Join-Path $env:RUNNER_TEMP 'COWL DOK QA Path With Spaces'
+          New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
           $script=[IO.Path]::Combine($env:GITHUB_WORKSPACE,'scripts','qa','COWL-DOK-RC1-Real-Auth-Browser-QA-v3.ps1')
           & $script -RepoPath $env:GITHUB_WORKSPACE -SmokeOnly
