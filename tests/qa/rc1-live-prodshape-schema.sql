@@ -358,6 +358,16 @@ CREATE TRIGGER trg_touch_member_ministries_updated_at BEFORE UPDATE ON public.me
 CREATE TRIGGER trg_assign_member_uid BEFORE INSERT ON public.members FOR EACH ROW EXECUTE FUNCTION assign_member_uid();
 CREATE TRIGGER trg_log_member_changes AFTER INSERT OR DELETE OR UPDATE ON public.members FOR EACH ROW EXECUTE FUNCTION log_member_changes();
 
+-- Production-compatible active administrator authorization, with local GoTrue auth.uid().
+CREATE OR REPLACE FUNCTION public.registration_is_admin() RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+AS $qa$
+  SELECT EXISTS(SELECT 1 FROM registry_private.registration_administrators a
+     WHERE a.user_id = (SELECT auth.uid()) AND a.active AND a.revoked_at IS NULL);
+$qa$;
+REVOKE ALL ON FUNCTION public.registration_is_admin() FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.registration_is_admin() TO authenticated;
+
 -- Match the Data API security posture, but only synthetic authenticated users.
 DO $qa$
 DECLARE t text;
