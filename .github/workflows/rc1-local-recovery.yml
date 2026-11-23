@@ -30,13 +30,8 @@ jobs:
       - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
         with:
           version: 2.84.2
-      - name: Install PostgreSQL 17 client matching local Supabase database
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client-17
-          /usr/lib/postgresql/17/bin/pg_dump --version
-          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Verify Docker is available for matching container-native PG17 tools
+        run: docker --version
       - name: Start disposable local GoTrue and Storage APIs (no remote keys)
         run: |
           set -euo pipefail
