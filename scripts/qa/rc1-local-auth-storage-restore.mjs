@@ -21,11 +21,25 @@ assert.ok(['localhost','127.0.0.1'].includes(db.hostname),'No remote database pe
 const opts={auth:{autoRefreshToken:false,persistSession:false,detectSessionInUrl:false}};
 const admin=createClient(vars.API_URL,vars.SERVICE_ROLE_KEY,opts);
 function anon(){return createClient(vars.API_URL,vars.ANON_KEY,opts);}
-function pg(command,args){
- const r=spawnSync(command,[...args,'-h',db.hostname,'-p',db.port||'5432','-U',decodeURIComponent(db.username),'-d',db.pathname.replace(/^\//,'')],{
-  encoding:'utf8',env:{...process.env,PGPASSWORD:decodeURIComponent(db.password)}
- });
- if(r.status!==0){const safe=(r.stderr||'').split('\n').slice(0,3).join(' ').slice(0,350);throw Error(command+' local-only backup failed: '+safe);}
+// Use pg_dump/psql INSIDE the disposable Supabase PostgreSQL 17 container:
+// runner's host pg_dump is version 16 and cannot dump PG17.
+const found=spawnSync('docker',['ps','--filter','name=supabase_db_','--format','{{.Names}}'],{encoding:'utf8'});
+assert.equal(found.status,0,'Docker container listing failed');
+const candidates=found.stdout.split(/\r?\n/).filter(x=>/^supabase_db_[A-Za-z0-9_-]+$/.test(x));
+assert.equal(candidates.length,1,'Expected exactly one disposable Supabase DB container');
+const container=candidates[0];
+function pgDump(table,destination){
+ const r=spawnSync('docker',['exec','-e','PGPASSWORD=postgres',container,
+ 'pg_dump','-U','postgres','-d','postgres','--data-only','--column-inserts',
+ '--no-owner','--no-privileges','--table='+table],{encoding:'utf8',maxBuffer:8*1024*1024});
+ if(r.status!==0)throw Error('Local PG17 dump failed: '+(r.stderr||'').split('\n')[0].slice(0,320));
+ fs.writeFileSync(destination,r.stdout,{mode:0o600});
+}
+function pgRestore(file){
+ const r=spawnSync('docker',['exec','-i','-e','PGPASSWORD=postgres',container,
+  'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],
+  {input:fs.readFileSync(file),encoding:'utf8',maxBuffer:8*1024*1024});
+ if(r.status!==0)throw Error('Local PG17 restore failed: '+(r.stderr||'').split('\n')[0].slice(0,320));
 }
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'rc1-local-recovery-'));
 try {
@@ -42,10 +56,8 @@ try {
 
  const usersFile=path.join(directory,'synthetic_auth_users.sql');
  const identitiesFile=path.join(directory,'synthetic_auth_identities.sql');
- pg('pg_dump',['--data-only','--column-inserts','--no-owner','--no-privileges',
-  '-t','auth.users','-f',usersFile]);
- pg('pg_dump',['--data-only','--column-inserts','--no-owner','--no-privileges',
-  '-t','auth.identities','-f',identitiesFile]);
+ pgDump('auth.users',usersFile);
+ pgDump('auth.identities',identitiesFile);
  assert.ok(fs.statSync(usersFile).size>0&&fs.statSync(identitiesFile).size>0);
 
  const deletion=await admin.auth.admin.deleteUser(uid);
@@ -55,8 +67,8 @@ try {
 
  // Restore actual hashed synthetic Auth user row and identity record from
  // SQL backup into the same clean, disposable Auth system.
- pg('psql',['-X','-v','ON_ERROR_STOP=1','-f',usersFile]);
- pg('psql',['-X','-v','ON_ERROR_STOP=1','-f',identitiesFile]);
+ pgRestore(usersFile);
+ pgRestore(identitiesFile);
  const restored=await anon().auth.signInWithPassword({email,password});
  assert.ifError(restored.error);
  assert.equal(restored.data.user.id,uid);
