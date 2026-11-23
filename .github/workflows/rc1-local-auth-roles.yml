@@ -1,0 +1,59 @@
+name: RC1 local GoTrue role guard (no remote secrets)
+on:
+  push:
+    branches:
+      - qa/windows-rc1-runner-smoke-20261123
+  pull_request:
+    branches:
+      - integration/rc1-security-consolidation-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-signed-roles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
+        with:
+          version: 2.84.2
+      - name: Ensure PostgreSQL client is available
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Start disposable local Supabase Auth and PostgREST
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rc1-local-supabase"
+          cd "$RUNNER_TEMP/rc1-local-supabase"
+          supabase init
+          if ! supabase start -x studio,postgres-meta,imgproxy,logflare,vector,edge-runtime,realtime,supavisor > "$RUNNER_TEMP/rc1-supabase-start.log" 2>&1; then
+            echo "Local Supabase startup failed. No remote credentials or database connections were used."
+            exit 1
+          fi
+          supabase status -o env > "$RUNNER_TEMP/rc1-local-supabase-status.env"
+          chmod 600 "$RUNNER_TEMP/rc1-local-supabase-status.env"
+      - name: Install synthetic active Registry administrator guard
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -f tests/qa/rc1-local-auth-fixture.sql
+      - name: Exercise local GoTrue sessions and protected PostgREST RPC
+        run: node scripts/qa/rc1-local-auth-roles.mjs
+      - name: Record scope
+        if: success()
+        run: |
+          echo "PASS: disposable local Supabase GoTrue signed-session contract."
+          echo "No linked remote project, no Production/TEST keys, no real Registry data."
+          echo "Full Production schema, Registry writes and Storage restoration remain separate."

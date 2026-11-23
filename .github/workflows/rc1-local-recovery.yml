@@ -1,0 +1,58 @@
+name: RC1 disposable Auth and private Storage recovery rehearsal
+on:
+  push:
+    branches:
+      - qa/windows-rc1-runner-smoke-20261123
+  pull_request:
+    branches:
+      - integration/rc1-security-consolidation-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-auth-storage-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install pinned application libraries for local-only test
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --check scripts/qa/rc1-local-auth-storage-restore.mjs
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
+        with:
+          version: 2.84.2
+      - name: Verify Docker is available for matching container-native PG17 tools
+        run: docker --version
+      - name: Start disposable local GoTrue and Storage APIs (no remote keys)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rc1-local-recovery"
+          cd "$RUNNER_TEMP/rc1-local-recovery"
+          supabase init
+          if ! supabase start -x studio,postgres-meta,imgproxy,logflare,vector,edge-runtime,realtime,supavisor > "$RUNNER_TEMP/rc1-recovery-startup.log" 2>&1; then
+            echo "Local Supabase startup failed; no linked remote project was accessed."
+            exit 1
+          fi
+          supabase status -o env > "$RUNNER_TEMP/rc1-recovery-local.env"
+          chmod 600 "$RUNNER_TEMP/rc1-recovery-local.env"
+      - name: Backup, delete and restore synthetic Auth identity and private Storage object
+        env:
+          CI: 'true'
+        run: |
+          RC1_LOCAL_ENV="$RUNNER_TEMP/rc1-recovery-local.env" \
+          node scripts/qa/rc1-local-auth-storage-restore.mjs
+      - name: Scope of recovery acceptance
+        if: success()
+        run: |
+          echo "PASS: LOCAL synthetic Auth/Storage backup and restoration."
+          echo "No actual encrypted Production archive, real person or real Storage object used."
+          echo "Actual Production archive recovery remains a separate independently required gate."

@@ -1,0 +1,61 @@
+name: RC1 Windows startup and Chromium smoke
+on:
+  push:
+    branches:
+      - qa/windows-rc1-runner-smoke-20261123
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - integration/rc1-security-consolidation-20261123
+
+permissions:
+  contents: read
+
+jobs:
+  windows-startup:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout QA harness only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse exact user-facing QA script under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=[IO.Path]::Combine($env:GITHUB_WORKSPACE,'scripts','qa','COWL-DOK-RC1-Real-Auth-Browser-QA-v5.ps1')
+          $tokens=$null
+          $errors=$null
+          $ast=[System.Management.Automation.Language.Parser]::ParseFile($script,[ref]$tokens,[ref]$errors)
+          if($errors.Count -ne 0){foreach($e in $errors){Write-Host $e.Message};throw 'PowerShell 5.1 syntax check failed'}
+          $source=[IO.File]::ReadAllText($script)
+          $credentials=$source.IndexOf("Stage 'Validate required TEST credentials BEFORE build")
+          $build=$source.IndexOf('npm ci --no-audit')
+          $secrets=$source.IndexOf("SetEnvironmentVariable('SUPABASE_SERVICE_ROLE_KEY'")
+          if($credentials -lt 0 -or $build -lt 0 -or $secrets -lt 0 -or -not ($credentials -lt $build -and $build -lt $secrets)){
+            throw 'Credential preflight and delayed secret exposure ordering is incorrect'
+          }
+          if($source.Contains("Required TEST credentials missing.")){throw 'Old generic credentials error remains'}
+          Write-Host 'PASS: V5 credential checks execute before npm; server secrets are set after npm/build.'
+          Write-Host 'PASS: Full QA launcher parses in Windows PowerShell 5.1.'
+      - name: Verify TEST publishable key and Auth health without private credentials
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=[IO.Path]::Combine($env:GITHUB_WORKSPACE,'scripts','qa','COWL-DOK-RC1-Real-Auth-Browser-QA-v5.ps1')
+          & $script -RepoPath $env:GITHUB_WORKSPACE -PublicKeyCheckOnly
+          if($LASTEXITCODE -ne 0){throw 'TEST public-key preflight failed'}
+      - name: Run exact user-facing QA launcher in credential-free Windows smoke mode
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          # Reproduce the operator's Windows profile containing spaces in the temporary path.
+          $env:TEMP=Join-Path $env:RUNNER_TEMP 'COWL DOK QA Path With Spaces'
+          New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
+          $script=[IO.Path]::Combine($env:GITHUB_WORKSPACE,'scripts','qa','COWL-DOK-RC1-Real-Auth-Browser-QA-v5.ps1')
+          & $script -RepoPath $env:GITHUB_WORKSPACE -SmokeOnly
