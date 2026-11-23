@@ -39,7 +39,7 @@ const tokens=await authRequest("/auth/v1/token?grant_type=password",{email,passw
 assert.ok(tokens.access_token&&tokens.refresh_token,"Local GoTrue sign-in missing tokens");
 assert.match(signed.user.id,/^[0-9a-f-]{36}$/i);
 sql("INSERT INTO registry_private.registration_administrators(user_id,active,revoked_at) VALUES ('"+signed.user.id+"',true,NULL)");
-const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
+const browser=await chromium.launch({channel:"chrome",headless:true,args:["--no-sandbox"]});
 let writes=[];
 let page;
 const parish="San Lorenzo & Companion Martyrs Parish";
