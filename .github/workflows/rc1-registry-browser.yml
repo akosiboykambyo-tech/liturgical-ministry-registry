@@ -58,12 +58,13 @@ jobs:
           set -euo pipefail
           psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres -f tests/qa/rc1-local-auth-fixture.sql
           psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres -f tests/qa/rc1-registry-browser-fixture.sql
-      - name: Install pinned browser engine outside application tree
+      - name: Install Playwright library, use preinstalled Google Chrome
         run: |
           set -euo pipefail
+          command -v google-chrome
+          google-chrome --version
           mkdir -p "$RUNNER_TEMP/rc1-browser-tools"
           npm install --prefix "$RUNNER_TEMP/rc1-browser-tools" --no-save --no-audit --no-fund playwright@1.58.2
-          "$RUNNER_TEMP/rc1-browser-tools/node_modules/.bin/playwright" install --with-deps chromium >/dev/null
       - name: Start local Next.js Registry without remote secrets
         run: |
           set -euo pipefail
