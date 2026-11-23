@@ -227,5 +227,7 @@ const fs = require('node:fs');
       try { if(Test-Path $tempRoot) {Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue } } catch {}
       Write-Host ('FINAL: '+$(if($exitCode -eq 0){'PASS'}elseif($exitCode -eq 3){'PARTIAL'}else{'FAIL/BLOCKED'}))
       Write-Host 'LIMIT: TEST differs from Production; this does not apply PR #90 audit SQL or authorize PR #93 Production merge.'
+      # Propagate real outcome to PowerShell, CI and the calling terminal.
+      exit $exitCode
     }
 }
