@@ -25,7 +25,7 @@ function pg(command,args){
  const r=spawnSync(command,[...args,'-h',db.hostname,'-p',db.port||'5432','-U',decodeURIComponent(db.username),'-d',db.pathname.replace(/^\//,'')],{
   encoding:'utf8',env:{...process.env,PGPASSWORD:decodeURIComponent(db.password)}
  });
- assert.equal(r.status,0,command+' local synthetic Auth recovery operation failed (no SQL logs)');
+ if(r.status!==0){const safe=(r.stderr||'').replace(/(postgres(?:ql)?:\\/\\/)[^@]+@/g,'$1[REDACTED]@').replace(/(eyJ|sb_secret_)[A-Za-z0-9_.-]+/g,'[REDACTED]');throw Error(command+' local synthetic Auth recovery failed: '+safe.slice(0,550));}
 }
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'rc1-local-recovery-'));
 try {
