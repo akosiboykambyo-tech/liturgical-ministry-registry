@@ -26,6 +26,8 @@ jobs:
           cache: npm
       - name: Install pinned existing application dependencies
         run: npm ci --no-audit --no-fund
+      - name: Check browser script syntax before starting Docker
+        run: node --check scripts/qa/rc1-registry-browser.cjs
       - name: Pin local Supabase CLI
         uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
         with:
