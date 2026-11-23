@@ -86,7 +86,7 @@ const batch=await write(people.admin.token,'create_batch',{rows:[
  member('Batch','Valid2','Synthetic Parish C')
 ]});
 assert.equal(batch.status,200,'Batch RPC failed');
-assert.deepEqual(batch.data?.rows?.map(r=>r.status),['created','error','created']);
+assert.deepEqual(batch.data?.rows?.map(r=>r.status),['created','error','created'], 'Local-only batch row diagnostics: '+JSON.stringify((batch.data?.rows||[]).map(x=>({status:x.status,code:x.code,message:String(x.error||'').slice(0,180)}))));
 x=state();assert.equal(x.members,3);assert.equal(x.assignments,4);assert.equal(x.audit,7);
 console.log('PASS: exact RPC batch created two valid members, rolled back invalid row and logged only committed mutations.');
 
