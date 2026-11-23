@@ -32,6 +32,7 @@ async function authRequest(endpoint,body){
 }
 const email="registry-browser@rc1-local-only.invalid";
 const password="SyntheticOnly_RC1-7!2Jkq";
+async function main(){
 const signed=await authRequest("/auth/v1/signup",{email,password});
 assert.ok(signed.user?.id,"Local GoTrue user missing");
 const tokens=await authRequest("/auth/v1/token?grant_type=password",{email,password});
@@ -137,7 +138,6 @@ try{
  await fileInput.setInputFiles({name:"synthetic-registration.csv",mimeType:"text/csv",
   buffer:Buffer.from("First Name,Last Name,Parish,Ministry\nCsvsynthetic,Applicant,"+parish+","+ministry+"\n")});
  await page.getByText("1 valid row(s) ready to stage").waitFor({timeout:30000});
- await page.locator('input[type="checkbox"]').filter({has:page.locator("none")}).count(); // no-op
  const confirmation=page.getByText(/I understand that this action creates Pending Verification/);
  await confirmation.click();
  writes=[];
@@ -169,3 +169,6 @@ try{
  }
  process.exitCode=1;
 }finally{await browser.close();}
+
+}
+main().catch(error=>{console.error("RC1 harness initialization failed: "+String(error?.message||error));process.exitCode=1;});
