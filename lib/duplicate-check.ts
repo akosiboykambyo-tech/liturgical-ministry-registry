@@ -136,15 +136,13 @@ export async function findDuplicateMembers(
   if (exactError || !Array.isArray(exactMatches)) {
     throw new Error("Duplicate validation is unavailable (exact-name lookup).");
   }
-  {
-    for (const m of exactMatches as Member[]) {
-      matches.push({
-        existing: m,
-        isDuplicate: true,
-        matchType: "exact",
-        similarity: 1,
-      });
-    }
+  for (const m of exactMatches as Member[]) {
+    matches.push({
+      existing: m,
+      isDuplicate: true,
+      matchType: "exact",
+      similarity: 1,
+    });
   }
 
   // 2. Same name, different parish (potential transfer or duplicate entry)
@@ -158,17 +156,15 @@ export async function findDuplicateMembers(
   if (parishError || !Array.isArray(sameNameDiffParish)) {
     throw new Error("Duplicate validation is unavailable (cross-parish lookup).");
   }
-  {
-    for (const m of sameNameDiffParish as Member[]) {
-      // Avoid duplicates if already matched
-      if (!matches.some((x) => x.existing.id === m.id)) {
-        matches.push({
-          existing: m,
-          isDuplicate: true,
-          matchType: "same_name_different_parish",
-          similarity: 1,
-        });
-      }
+  for (const m of sameNameDiffParish as Member[]) {
+    // Avoid duplicates if already matched
+    if (!matches.some((x) => x.existing.id === m.id)) {
+      matches.push({
+        existing: m,
+        isDuplicate: true,
+        matchType: "same_name_different_parish",
+        similarity: 1,
+      });
     }
   }
 
