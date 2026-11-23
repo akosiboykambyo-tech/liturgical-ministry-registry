@@ -1,0 +1,95 @@
+name: RC1 Windows startup and Chromium smoke
+on:
+  push:
+    branches:
+      - qa/windows-rc1-runner-smoke-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-startup:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout QA harness only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Pinned RC1 install, build, localhost startup, and real Windows Chromium
+        shell: pwsh
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: local-fake-key-windows-smoke-no-cloud-access-1234567890
+          SUPABASE_SERVICE_ROLE_KEY: local-fake-service-key-no-cloud-access-1234567890
+          ADMIN_LOCKOUT_HMAC_SECRET: local-fake-lockout-secret-no-cloud-access-at-least-32-characters
+        run: |
+          $ErrorActionPreference='Stop'
+          $repo=$env:GITHUB_WORKSPACE
+          $expected='09f65a72993c7d59c421f03e9b6ba01759c65f58'
+          $source=Join-Path $env:RUNNER_TEMP 'pinned-rc1-app'
+          $tools=Join-Path $env:RUNNER_TEMP 'qa-tools'
+          $stdout=Join-Path $env:RUNNER_TEMP 'next-stdout.txt'
+          $stderr=Join-Path $env:RUNNER_TEMP 'next-stderr.txt'
+          $server=$null
+          $made=$false
+          try {
+            & git -C $repo fetch --no-tags origin 'refs/pull/93/head'
+            if($LASTEXITCODE -ne 0){throw 'Unable to fetch PR 93'}
+            $actual=[string]((& git -C $repo rev-parse FETCH_HEAD) -join '')
+            if($actual.Trim() -ne $expected){throw 'PR 93 head moved: refusing to test different code'}
+            & git -C $repo worktree add --detach $source $expected
+            if($LASTEXITCODE -ne 0){throw 'Unable to create pinned source worktree'}
+            $made=$true
+            Push-Location $source
+            try {
+              & npm.cmd ci --no-audit --no-fund
+              if($LASTEXITCODE -ne 0){throw 'npm ci failed'}
+              & npm.cmd run build
+              if($LASTEXITCODE -ne 0){throw 'Pinned RC1 Next.js build failed'}
+            } finally {Pop-Location}
+            New-Item -ItemType Directory -Force -Path $tools | Out-Null
+            & npm.cmd install --prefix $tools --no-audit --no-fund --no-save --package-lock=false playwright@1.55.0
+            if($LASTEXITCODE -ne 0){throw 'Playwright install failed'}
+            $cli=[IO.Path]::Combine($tools,'node_modules','playwright','cli.js')
+            $env:COWL_QA_PLAYWRIGHT_PATH=[IO.Path]::Combine($tools,'node_modules','playwright','index.js')
+            & node $cli install chromium
+            if($LASTEXITCODE -ne 0){throw 'Chromium installation failed'}
+            $next=[IO.Path]::Combine($source,'node_modules','next','dist','bin','next')
+            if(-not (Test-Path -LiteralPath $next)){throw 'Next.js CLI path missing'}
+            $node=(Get-Command 'node.exe').Source
+            $server=Start-Process -FilePath $node -WorkingDirectory $source `
+              -ArgumentList @(('"' + $next + '"'),'start','-p','3399','-H','127.0.0.1') `
+              -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -WindowStyle Hidden
+            $ready=$false
+            for($i=0;$i -lt 60;$i++){
+              if($server.HasExited){break}
+              try {
+                $result=Invoke-WebRequest -Uri 'http://127.0.0.1:3399/admin' -UseBasicParsing -TimeoutSec 2
+                if($result.StatusCode -eq 200){$ready=$true;break}
+              } catch {}
+              Start-Sleep -Seconds 2
+            }
+            if(-not $ready){throw 'Real Windows Next.js process did not become ready'}
+            & node ([IO.Path]::Combine($repo,'tests','qa','windows-rc1-startup-smoke.cjs'))
+            if($LASTEXITCODE -ne 0){throw 'Actual Windows Chromium browser smoke failed'}
+            Write-Host 'PASS: Pinned RC1 app built, launched on Windows and rendered in Chromium at desktop/mobile sizes.'
+            Write-Host 'SCOPE: credential-free localhost startup; no TEST/Production secrets or sessions.'
+          }
+          catch {
+            Write-Host ('FAIL: '+$_.Exception.Message)
+            if(Test-Path -LiteralPath $stderr){
+              Write-Host 'Diagnostic: last 35 Next.js stderr lines (all credentials in CI are fake)'
+              Get-Content -LiteralPath $stderr -Tail 35
+            }
+            throw
+          }
+          finally {
+            if($server -and -not $server.HasExited){Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue}
+            if($made){& git -C $repo worktree remove --force $source 2>$null | Out-Null}
+          }
