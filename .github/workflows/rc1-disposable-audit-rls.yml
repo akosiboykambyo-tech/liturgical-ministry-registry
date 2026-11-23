@@ -1,0 +1,58 @@
+name: RC1 disposable audit RLS contract (no secrets)
+on:
+  push:
+    branches:
+      - qa/windows-rc1-runner-smoke-20261123
+  pull_request:
+    branches:
+      - integration/rc1-security-consolidation-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-rls-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_DB: rc1_disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rc1_disposable"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: rc1_disposable
+      PGUSER: postgres
+      PGPASSWORD: synthetic-only
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Ensure PostgreSQL client is available
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Set up synthetic Production-like audit policy fixture
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/qa/rc1-audit-rls-fixture.sql
+      - name: Execute EXACT review-only SQL against disposable database
+        run: psql -X -v ON_ERROR_STOP=1 -f docs/sql/rc1-audit-log-allowlist-hardening.REVIEW-ONLY.sql
+      - name: Assert active admin, nonadmin, revoked, anon and invoker trigger
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/qa/rc1-audit-rls-contract.sql
+      - name: Record scope of evidence
+        run: |
+          echo "PASS: local PostgreSQL policy/trigger contract with synthetic identities."
+          echo "NOT tested: real Supabase GoTrue JWTs, full Production schema, Storage bytes, full Registry workflows."
+          echo "No TEST or Production service credentials were used."
