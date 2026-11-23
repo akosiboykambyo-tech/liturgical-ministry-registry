@@ -33,11 +33,25 @@ function harness(failAt) {
                 (failAt === "parish" && calls.lookup === 2)) {
               response = { data: null, error: { message: "simulated unavailable" } };
             }
+            if ((failAt === "null-exact" && calls.lookup === 1) ||
+                (failAt === "null-parish" && calls.lookup === 2)) {
+              response = { data: null, error: null };
+            }
           }
           if (table === "members" && phase === "range") {
             calls.ranges.push(fromIndex);
             if (failAt === "pagination") {
               response = { data: null, error: { message: "simulated page failure" } };
+            }
+            if (failAt === "null-page") {
+              response = { data: null, error: null };
+            }
+            if (failAt === "late-page") {
+              response = fromIndex === 0
+                ? { data: Array.from({ length: 1000 }, (_, i) => ({
+                    id: String(i), first_name: "Fixture", last_name: "Member", parish: "Mock Parish",
+                  })), error: null }
+                : { data: null, error: { message: "simulated page two outage" } };
             }
           }
           return Promise.resolve(response).then(resolve, reject);
@@ -116,3 +130,29 @@ test("source import handler leaves the UI unblocked and reports staging errors b
   assert.match(page, /Import stopped before member creation/);
   assert.match(page, /finally \{\s*setProcessing\(false\)/);
 });
+
+for (const failure of ["null-exact", "null-parish", "null-page", "late-page"]) {
+  test("individual intake rejects incomplete result " + failure + " before writing", async () => {
+    const { api, calls } = harness(failure);
+    const response = await api.importSingleMember(incoming);
+    assert.equal(response.status, "error");
+    assert.match(response.error, /not saved/i);
+    assert.equal(calls.privilegedWrites, 0);
+    if (failure === "late-page") assert.deepEqual(calls.ranges, [0, 1000]);
+  });
+}
+
+for (const failure of ["null-page", "late-page"]) {
+  test("batch staging rejects incomplete registry scan " + failure, async () => {
+    const { api, calls } = harness(failure);
+    await assert.rejects(
+      api.stageBatchRecords([{
+        first_name: "Test", last_name: "Person", parish: "Sample Parish",
+        ministry: "Ministry of Liturgical Music",
+      }], undefined, 2026),
+      /(?:full-registry response|simulated page two outage)/
+    );
+    assert.equal(calls.privilegedWrites, 0);
+    if (failure === "late-page") assert.deepEqual(calls.ranges, [0, 1000]);
+  });
+}
