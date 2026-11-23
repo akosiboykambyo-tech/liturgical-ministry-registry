@@ -1,0 +1,76 @@
+name: RC1 exact Production Registry RPC (signed local integration)
+on:
+  push:
+    branches:
+      - qa/windows-rc1-runner-smoke-20261123
+  pull_request:
+    branches:
+      - integration/rc1-security-consolidation-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-registry-backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Validate script before local environment startup
+        run: |
+          node --check scripts/qa/rc1-production-rpc-signed.mjs
+          python3 -m py_compile scripts/qa/rc1-extract-production-rpc.py
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
+        with:
+          version: 2.84.2
+      - name: Ensure PostgreSQL client exists
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Start ephemeral Supabase Auth and PostgREST (no remote credentials)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rc1-real-backend"
+          cd "$RUNNER_TEMP/rc1-real-backend"
+          supabase init
+          if ! supabase start -x studio,postgres-meta,imgproxy,logflare,vector,edge-runtime,realtime,supavisor > "$RUNNER_TEMP/rc1-real-backend.log" 2>&1; then
+            echo "ERROR: disposable Supabase startup failed."
+            exit 1
+          fi
+          supabase status -o env > "$RUNNER_TEMP/rc1-backend-local-status.env"
+          chmod 600 "$RUNNER_TEMP/rc1-backend-local-status.env"
+      - name: Apply read-only-catalog-derived synthetic Production table/trigger shape
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres -f tests/qa/rc1-live-prodshape-schema.sql
+      - name: Replay exact deployed Production Registry function definitions, no PROD preflight
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          python3 scripts/qa/rc1-extract-production-rpc.py "$RUNNER_TEMP/rc1-exact-prod-rpcs.sql"
+          psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres -f "$RUNNER_TEMP/rc1-exact-prod-rpcs.sql"
+          psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres -c "NOTIFY pgrst, 'reload schema';"
+      - name: Verify real signed writes, triggers, atomic rollback, role denial, duplicate bypass
+        env:
+          CI: 'true'
+        run: |
+          RC1_LOCAL_ENV="$RUNNER_TEMP/rc1-backend-local-status.env" \
+          node scripts/qa/rc1-production-rpc-signed.mjs
+      - name: Explain verification scope
+        if: always()
+        run: |
+          echo "All Registry data and signed Auth identities were ephemeral and synthetic."
+          echo "Exact deployed RC1 write function source: compared with Production live catalog before testing."
+          echo "No Production/TEST mutations, secrets, real members, or Storage object bytes."
+          echo "Security acceptance deliberately FAILS if authorized RPC bypasses duplicate review."
