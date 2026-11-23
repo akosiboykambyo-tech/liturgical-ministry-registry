@@ -28,12 +28,19 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $script=[IO.Path]::Combine($env:GITHUB_WORKSPACE,'scripts','qa','COWL-DOK-RC1-Real-Auth-Browser-QA-v3.ps1')
+          $script=[IO.Path]::Combine($env:GITHUB_WORKSPACE,'scripts','qa','COWL-DOK-RC1-Real-Auth-Browser-QA-v4.ps1')
           $tokens=$null
           $errors=$null
           $ast=[System.Management.Automation.Language.Parser]::ParseFile($script,[ref]$tokens,[ref]$errors)
           if($errors.Count -ne 0){foreach($e in $errors){Write-Host $e.Message};throw 'PowerShell 5.1 syntax check failed'}
           Write-Host 'PASS: Full QA launcher parses in Windows PowerShell 5.1.'
+      - name: Verify TEST publishable key and Auth health without private credentials
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=[IO.Path]::Combine($env:GITHUB_WORKSPACE,'scripts','qa','COWL-DOK-RC1-Real-Auth-Browser-QA-v4.ps1')
+          & $script -RepoPath $env:GITHUB_WORKSPACE -PublicKeyCheckOnly
+          if($LASTEXITCODE -ne 0){throw 'TEST public-key preflight failed'}
       - name: Run exact user-facing QA launcher in credential-free Windows smoke mode
         shell: powershell
         run: |
@@ -41,5 +48,5 @@ jobs:
           # Reproduce the operator's Windows profile containing spaces in the temporary path.
           $env:TEMP=Join-Path $env:RUNNER_TEMP 'COWL DOK QA Path With Spaces'
           New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
-          $script=[IO.Path]::Combine($env:GITHUB_WORKSPACE,'scripts','qa','COWL-DOK-RC1-Real-Auth-Browser-QA-v3.ps1')
+          $script=[IO.Path]::Combine($env:GITHUB_WORKSPACE,'scripts','qa','COWL-DOK-RC1-Real-Auth-Browser-QA-v4.ps1')
           & $script -RepoPath $env:GITHUB_WORKSPACE -SmokeOnly
