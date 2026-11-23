@@ -25,7 +25,7 @@ function pg(command,args){
  const r=spawnSync(command,[...args,'-h',db.hostname,'-p',db.port||'5432','-U',decodeURIComponent(db.username),'-d',db.pathname.replace(/^\//,'')],{
   encoding:'utf8',env:{...process.env,PGPASSWORD:decodeURIComponent(db.password)}
  });
- if(r.status!==0){const safe=(r.stderr||'').replace(/(postgres(?:ql)?:\\/\\/)[^@]+@/g,'$1[REDACTED]@').replace(/(eyJ|sb_secret_)[A-Za-z0-9_.-]+/g,'[REDACTED]');throw Error(command+' local synthetic Auth recovery failed: '+safe.slice(0,550));}
+ if(r.status!==0){const safe=(r.stderr||'').split('\n').slice(0,3).join(' ').slice(0,350);throw Error(command+' local-only backup failed: '+safe);}
 }
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'rc1-local-recovery-'));
 try {
