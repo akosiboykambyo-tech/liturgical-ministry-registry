@@ -50,7 +50,8 @@ async function fillMember(first,last){
  await page.locator("#lastName").fill(last);
  await page.getByRole("button",{name:"Custom",exact:true}).click();
  await page.locator("#customParish").fill(parish);
- await page.getByLabel(ministry,{exact:true}).check();
+ await page.getByText(ministry,{exact:true}).click();
+ assert.equal(await page.getByLabel(ministry,{exact:true}).isChecked(),true,"Visible ministry label did not toggle checkbox");
 }
 async function visitAddMember(){
  await page.goto(host+"/admin/members/add",{waitUntil:"domcontentloaded"});
