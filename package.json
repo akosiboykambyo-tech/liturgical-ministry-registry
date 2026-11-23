@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node --test tests/financial-access-model.test.cjs tests/admin-invitation-onboarding.test.cjs tests/auth-ui-release-baseline.test.cjs tests/rc0-finance-route-handler.test.cjs tests/rc1-staff-entry-routing.test.cjs tests/pr79-registry-no-bypass.test.cjs tests/pr79-effective-date-and-certificates.test.cjs tests/pr79-certificate-studio-preservation.test.cjs tests/rc1-settings-privacy.test.cjs tests/rc1-verification-rate-limit-contract.test.cjs tests/rc1-signed-session-qa-boundary.test.cjs tests/rc1-private-storage-qa.test.cjs",
+    "prebuild": "node --test tests/financial-access-model.test.cjs tests/admin-invitation-onboarding.test.cjs tests/auth-ui-release-baseline.test.cjs tests/rc0-finance-route-handler.test.cjs tests/rc1-staff-entry-routing.test.cjs tests/pr79-registry-no-bypass.test.cjs tests/pr79-effective-date-and-certificates.test.cjs tests/pr79-certificate-studio-preservation.test.cjs tests/rc1-settings-privacy.test.cjs tests/rc1-verification-rate-limit-contract.test.cjs tests/rc1-signed-session-qa-boundary.test.cjs tests/rc1-private-storage-qa.test.cjs tests/staff-and-access-contract.test.cjs",
     "test:auth-onboarding": "node --test tests/admin-invitation-onboarding.test.cjs",
     "build": "next build",
     "test:finance-access": "node --test tests/financial-access-model.test.cjs",
@@ -14,7 +14,8 @@
     "test:registration": "node --test tests/registration-matching.test.cjs tests/duplicate-review-plan.test.cjs tests/duplicate-review-queue.test.cjs tests/registration-intake-preflight.test.cjs tests/registration-intake-validation.test.cjs tests/registration-ministry-validation.test.cjs tests/registration-review-draft.test.cjs tests/recommendation-letter-check.test.cjs tests/registration-validity.test.cjs",
     "test:production-registration": "node --test tests/production-registration-*.test.cjs",
     "test:production-registration:http": "node scripts/pr54-staging-http-test.cjs",
-    "test:rc1-role-routing": "node --test tests/rc1-staff-entry-routing.test.cjs tests/rc0-finance-route-handler.test.cjs"
+    "test:rc1-role-routing": "node --test tests/rc1-staff-entry-routing.test.cjs tests/rc0-finance-route-handler.test.cjs",
+    "test:staff-access": "node --test tests/staff-and-access-contract.test.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

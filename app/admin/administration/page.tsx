@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ScrollText, Settings } from "@/components/phosphor-icons";
+import { ArrowRight, ScrollText, Settings, Users } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 
 const ADMIN_LINKS = [
@@ -8,6 +8,12 @@ const ADMIN_LINKS = [
     label: "Audit Trail",
     description: "Review recorded changes and administrative activity.",
     icon: ScrollText,
+  },
+  {
+    href: "/admin/staff-access",
+    label: "Staff and Access",
+    description: "Invite staff, review approved roles, and manage Registry, COWL, and Curia access.",
+    icon: Users,
   },
   {
     href: "/admin/site-settings",
@@ -27,7 +33,7 @@ export default function AdministrationPage() {
           Manage system configuration, administrative records, and audit activity.
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {ADMIN_LINKS.map((item) => {
           const Icon = item.icon;
           return (

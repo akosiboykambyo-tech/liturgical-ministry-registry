@@ -74,7 +74,7 @@ function isActiveRoute(pathname: string | null, href: string): boolean {
     ].some((route) => pathname === route || pathname?.startsWith(route + "/"));
   }
   if (href === "/admin/administration") {
-    return pathname === "/admin/audit" || pathname === "/admin/site-settings";
+    return pathname === "/admin/audit" || pathname === "/admin/site-settings" || pathname === "/admin/staff-access";
   }
   return false;
 }
