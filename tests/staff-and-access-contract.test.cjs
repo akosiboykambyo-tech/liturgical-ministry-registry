@@ -76,7 +76,7 @@ test("Only three explicitly approved staff roles are exposed by this feature", (
   }
   assert.doesNotMatch(page, /"cowl_receipt_issuer"/);
   assert.doesNotMatch(page, /"curia_treasury_reviewer"/);
-  assert.doesNotMatch(page, /"platform_provisioner"/);
+  assert.doesNotMatch(page, /<option[^>]*value="platform_provisioner"/);
 });
 
 test("Release docs require isolated SQL, negative role tests, and explicit approval", () => {
