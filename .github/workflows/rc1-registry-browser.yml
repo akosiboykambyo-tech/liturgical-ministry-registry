@@ -1,0 +1,95 @@
+name: RC1 Registry UI Chromium (local Auth/REST, intercepted writes)
+on:
+  push:
+    branches:
+      - qa/windows-rc1-runner-smoke-20261123
+  pull_request:
+    branches:
+      - integration/rc1-security-consolidation-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-registry-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install pinned existing application dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Pin local Supabase CLI
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
+        with:
+          version: 2.84.2
+      - name: Ensure PostgreSQL client is available
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Start fully disposable Supabase Auth and PostgREST
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rc1-browser-supabase"
+          cd "$RUNNER_TEMP/rc1-browser-supabase"
+          supabase init
+          if ! supabase start -x studio,postgres-meta,imgproxy,logflare,vector,edge-runtime,realtime,supavisor > "$RUNNER_TEMP/local-supabase.log" 2>&1; then
+            echo "FAILED: local Supabase startup. No TEST/Production access attempted."
+            exit 1
+          fi
+          supabase status -o env > "$RUNNER_TEMP/rc1-local-status.env"
+          chmod 600 "$RUNNER_TEMP/rc1-local-status.env"
+      - name: Install local synthetic admin guard and 1,001 Registry records
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres -f tests/qa/rc1-local-auth-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres -f tests/qa/rc1-registry-browser-fixture.sql
+      - name: Install pinned browser engine outside application tree
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rc1-browser-tools"
+          npm install --prefix "$RUNNER_TEMP/rc1-browser-tools" --no-save --no-audit --no-fund playwright@1.58.2
+          "$RUNNER_TEMP/rc1-browser-tools/node_modules/.bin/playwright" install --with-deps chromium >/dev/null
+      - name: Start local Next.js Registry without remote secrets
+        run: |
+          set -euo pipefail
+          set -a
+          . "$RUNNER_TEMP/rc1-local-status.env"
+          set +a
+          case "$API_URL" in http://127.0.0.1:*) ;; *) echo "Only loopback Supabase supported";exit 1;; esac
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
+          export SUPABASE_SERVICE_ROLE_KEY="DISABLED_NO_REMOTE_PRIVILEGES"
+          export RESEND_API_KEY="DISABLED_NO_REMOTE_MAIL"
+          export ADMIN_LOCKOUT_HMAC_SECRET="LOCAL_ONLY_SYNTHETIC_QA_NOT_A_REMOTE_KEY"
+          nohup npm run dev -- --hostname 127.0.0.1 --port 3499 > "$RUNNER_TEMP/rc1-next.log" 2>&1 &
+          for i in $(seq 1 110); do
+            if curl -fsS http://127.0.0.1:3499/admin >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          echo "FAILED: local Next.js never became healthy."
+          tail -n 40 "$RUNNER_TEMP/rc1-next.log" | sed -E 's/(sb_secret_|eyJ)[A-Za-z0-9_.-]+/[REDACTED]/g'
+          exit 1
+      - name: Run actual Chromium UI acceptance on loopback-only stack
+        run: |
+          RC1_LOCAL_ENV="$RUNNER_TEMP/rc1-local-status.env" \
+          RC1_PLAYWRIGHT_MODULE="$RUNNER_TEMP/rc1-browser-tools/node_modules/playwright" \
+          node scripts/qa/rc1-registry-browser.cjs
+      - name: Scope of PASS
+        if: success()
+        run: |
+          echo "PASS: rendered Add Member and CSV screens, real local Auth and PostgREST reads, 1,001-record fixture."
+          echo "Privileged writes intercepted locally: not direct DB write acceptance."
+          echo "All fixtures are synthetic, local, ephemeral, no TEST or Production network endpoints."
