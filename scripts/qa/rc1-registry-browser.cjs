@@ -143,28 +143,24 @@ try{
  await confirmation.click();
  writes=[];
  let csvOutage=0;
- let csvMemberReads=0;
  await page.route("**/rest/v1/members**",async route=>{
   if(route.request().method()==="GET"){
-   csvMemberReads++;
-   // The import staging pipeline first scans 0..999, then 1000..1999.
-   // Count HTTP member requests so the error injection is not tied to a
-   // browser's normalization of the PostgREST Range header.
-   if(csvMemberReads===2){
-    csvOutage++;
-    return route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({message:"Synthetic second-page outage"})});
-   }
+   // Block every member read, including any concurrent background lookups.
+   // This guarantees that the actual CSV staging scan cannot complete.
+   // Second-page-only error handling is covered by the separate 22-test suite.
+   csvOutage++;
+   return route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({message:"Synthetic Registry read outage"})});
   }
   return route.continue();
  });
  await page.getByRole("button",{name:/Import 1 Members/}).click();
  await page.getByText(/Import stopped before member creation/).waitFor({timeout:30000});
- assert.ok(csvOutage>0&&csvMemberReads>=2,"CSV did not exercise second-member-page outage");
+ assert.ok(csvOutage>0,"CSV did not exercise Registry read outage");
  assert.equal(writes.length,0,"CSV staging error triggered a write");
  assert.equal(await page.getByRole("button",{name:/Import 1 Members/}).isEnabled(),true,"Import button must reset");
  await page.unroute("**/rest/v1/members**");
  await verifyNoActualSqlWrites();
- console.log("PASS: actual CSV browser staging fails closed on page two, no RPC writes, submit button resets");
+ console.log("PASS: actual CSV browser staging rejects read outage, no RPC writes, submit button resets");
  console.log("FINAL: PASS RC1 real UI with synthetic local Auth, real PostgREST reads and intercepted writes");
 }catch(error){
  console.error("RC1 BROWSER QA FAILED: "+String(error?.message||error));
