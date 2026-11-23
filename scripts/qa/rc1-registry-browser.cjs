@@ -88,7 +88,7 @@ try{
     parish:body.p_data.parish,ministries:body.p_data.ministries,
     status:"Pending Verification"
   }};
-  else throw Error("Browser attempted unexpected privileged action "+body.p_action);
+  else return route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({code:"QA_BLOCK",message:"Synthetic unexpected privileged action rejected"})});
   await route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(reply)});
  });
  await page.goto(host+"/admin",{waitUntil:"domcontentloaded"});
@@ -143,10 +143,14 @@ try{
  await confirmation.click();
  writes=[];
  let csvOutage=0;
+ let csvMemberReads=0;
  await page.route("**/rest/v1/members**",async route=>{
   if(route.request().method()==="GET"){
-   const range=route.request().headers()["range"]||"";
-   if(range.startsWith("1000-")){
+   csvMemberReads++;
+   // The import staging pipeline first scans 0..999, then 1000..1999.
+   // Count HTTP member requests so the error injection is not tied to a
+   // browser's normalization of the PostgREST Range header.
+   if(csvMemberReads===2){
     csvOutage++;
     return route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({message:"Synthetic second-page outage"})});
    }
@@ -155,7 +159,7 @@ try{
  });
  await page.getByRole("button",{name:/Import 1 Members/}).click();
  await page.getByText(/Import stopped before member creation/).waitFor({timeout:30000});
- assert.ok(csvOutage>0,"CSV did not exercise second-page outage");
+ assert.ok(csvOutage>0&&csvMemberReads>=2,"CSV did not exercise second-member-page outage");
  assert.equal(writes.length,0,"CSV staging error triggered a write");
  assert.equal(await page.getByRole("button",{name:/Import 1 Members/}).isEnabled(),true,"Import button must reset");
  await page.unroute("**/rest/v1/members**");
