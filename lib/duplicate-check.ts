@@ -22,7 +22,10 @@ async function fetchAllMembers(): Promise<Member[]> {
       throw new Error(error.message);
     }
 
-    const batch = (data as Member[]) ?? [];
+    if (!Array.isArray(data)) {
+      throw new Error("Duplicate validation is unavailable (full-registry response).");
+    }
+    const batch = data as Member[];
     all.push(...batch);
 
     if (batch.length < MEMBER_PAGE_SIZE) break;
@@ -130,8 +133,10 @@ export async function findDuplicateMembers(
     .ilike("last_name", trimmedLast)
     .ilike("parish", trimmedParish);
 
-  if (exactError) throw new Error("Duplicate validation is unavailable (exact-name lookup).");
-  if (exactMatches) {
+  if (exactError || !Array.isArray(exactMatches)) {
+    throw new Error("Duplicate validation is unavailable (exact-name lookup).");
+  }
+  {
     for (const m of exactMatches as Member[]) {
       matches.push({
         existing: m,
@@ -150,8 +155,10 @@ export async function findDuplicateMembers(
     .ilike("last_name", trimmedLast)
     .not("parish", "ilike", trimmedParish);
 
-  if (parishError) throw new Error("Duplicate validation is unavailable (cross-parish lookup).");
-  if (sameNameDiffParish) {
+  if (parishError || !Array.isArray(sameNameDiffParish)) {
+    throw new Error("Duplicate validation is unavailable (cross-parish lookup).");
+  }
+  {
     for (const m of sameNameDiffParish as Member[]) {
       // Avoid duplicates if already matched
       if (!matches.some((x) => x.existing.id === m.id)) {
