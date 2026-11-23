@@ -39,7 +39,7 @@ BEGIN
     current := ARRAY[i];
     FOR j IN 1..pg_catalog.char_length(b) LOOP
       cost := CASE WHEN pg_catalog.substr(a,i,1)=pg_catalog.substr(b,j,1) THEN 0 ELSE 1 END;
-      current := pg_catalog.array_append(current, pg_catalog.least(
+      current := pg_catalog.array_append(current, least(
         previous[j+1]+1,
         current[j]+1,
         previous[j]+cost
@@ -71,7 +71,7 @@ BEGIN
   WITH ORDINALITY AS v(m,n);
   IF digits_a IS DISTINCT FROM digits_b THEN RETURN false; END IF;
   IF pg_catalog.char_length(a)<=3 OR pg_catalog.char_length(b)<=3 THEN RETURN false; END IF;
-  longest := pg_catalog.greatest(pg_catalog.char_length(a),pg_catalog.char_length(b));
+  longest := greatest(pg_catalog.char_length(a),pg_catalog.char_length(b));
   IF pg_catalog.abs(pg_catalog.char_length(a)-pg_catalog.char_length(b))::numeric / longest > 0.2
   THEN RETURN false; END IF;
   RETURN 1 - registry_private.rc1_name_edit_distance(a,b)::numeric/longest >= 0.8;
