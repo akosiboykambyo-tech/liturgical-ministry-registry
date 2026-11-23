@@ -260,12 +260,16 @@ const fs = require('node:fs');
       const context=await browser.newContext({viewport});
       try {
         const page=await context.newPage();
+        // Intercept sign-in before page navigation: never send synthetic credentials to Supabase.
+        await page.route('**/auth/v1/token**',async route=>{
+          await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({code:'invalid_credentials',msg:'Invalid login credentials'})});
+        });
         const response=await page.goto('http://127.0.0.1:3399/admin',{waitUntil:'domcontentloaded',timeout:45000});
         assert.equal(response?.status(),200,'Admin login HTTP status');
         await page.locator('input[type="email"]').first().waitFor({state:'visible',timeout:20000});
         await page.locator('input[type="password"]').first().waitFor({state:'visible',timeout:20000});
         console.log('PASS: Chromium rendered login on '+viewport.width+'px viewport');
-        // Browser-auth negative path: uses FAKE local API only; never signs into TEST or PROD.
+        // Browser-auth negative path: Playwright intercepts the token request locally.
         const submit=page.locator('button[type="submit"]').first();
         await submit.waitFor({state:'visible',timeout:15000});
         await page.locator('input[type="email"]').first().fill('synthetic-qa@example.invalid');
