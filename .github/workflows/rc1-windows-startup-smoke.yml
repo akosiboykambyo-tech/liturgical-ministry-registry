@@ -4,6 +4,9 @@ on:
     branches:
       - qa/windows-rc1-runner-smoke-20261123
   workflow_dispatch:
+  pull_request:
+    branches:
+      - integration/rc1-security-consolidation-20261123
 
 permissions:
   contents: read
