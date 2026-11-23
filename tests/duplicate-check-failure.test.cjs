@@ -113,6 +113,6 @@ test("source import handler leaves the UI unblocked and reports staging errors b
   const page = fs.readFileSync(path.resolve(__dirname, "../app/admin/import/page.tsx"), "utf8");
   assert.match(page, /const stagingResult = await stageBatchRecords/);
   assert.match(page, /if \(writesStarted\)/);
-  assert.match(page, /Import stopped before any writes/);
+  assert.match(page, /Import stopped before member creation/);
   assert.match(page, /finally \{\s*setProcessing\(false\)/);
 });
