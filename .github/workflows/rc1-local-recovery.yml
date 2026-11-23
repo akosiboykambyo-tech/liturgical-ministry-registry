@@ -30,13 +30,13 @@ jobs:
       - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
         with:
           version: 2.84.2
-      - name: Ensure PostgreSQL client tools exist
+      - name: Install PostgreSQL 17 client matching local Supabase database
         run: |
           set -euo pipefail
-          if ! command -v pg_dump >/dev/null 2>&1 || ! command -v psql >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo apt-get install -y postgresql-client
-          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
       - name: Start disposable local GoTrue and Storage APIs (no remote keys)
         run: |
           set -euo pipefail
