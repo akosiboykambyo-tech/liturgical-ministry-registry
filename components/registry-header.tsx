@@ -7,7 +7,7 @@ import { Menu, X } from "@/components/phosphor-icons";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type RegistryHeaderProps = {
-  current?: "home" | "verify";
+  current?: "home" | "verify" | "ordo";
 };
 
 const MARQUEE_SETTING_KEY = "public_marquee";
@@ -153,6 +153,13 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
               How it works
             </Link>
             <Link
+              href="/ordo"
+              aria-current={current === "ordo" ? "page" : undefined}
+              className="border-b-2 border-transparent py-2 text-[15px] font-medium uppercase tracking-[0.045em] transition-colors duration-200 text-[#0B5C5A] hover:border-[#0B5C5A] hover:text-[#084644] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5C5A]/30"
+            >
+              Ordo
+            </Link>
+            <Link
               href="/report"
               className="border-b-2 border-transparent py-2 text-[15px] font-medium uppercase tracking-[0.045em] transition-colors duration-200 text-[#0B5C5A] hover:border-[#0B5C5A] hover:text-[#084644] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5C5A]/30"
             >
@@ -176,6 +183,9 @@ export function RegistryHeader({ current }: RegistryHeaderProps) {
             <div className="mx-auto flex max-w-[1120px] flex-col text-[15px] font-medium uppercase tracking-[0.045em]">
               <Link href="/how-it-works" className="border-b border-[#E6DADC] py-4 text-[#0B5C5A] transition-colors hover:text-[#084644]" onClick={() => setMenuOpen(false)}>
                 How it works
+              </Link>
+              <Link href="/ordo" aria-current={current === "ordo" ? "page" : undefined} className="border-b border-[#E6DADC] py-4 text-[#0B5C5A] transition-colors hover:text-[#084644]" onClick={() => setMenuOpen(false)}>
+                Ordo
               </Link>
               <Link href="/report" className="py-4 text-[#0B5C5A] transition-colors hover:text-[#084644]" onClick={() => setMenuOpen(false)}>
                 Inquiries & Concerns
