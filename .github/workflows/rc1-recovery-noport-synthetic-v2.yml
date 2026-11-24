@@ -1,0 +1,54 @@
+name: RC1 no-port PostgreSQL v2 synthetic confirmation
+on:
+  push:
+    branches: [qa/recovery-cli-windows-preflight-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  no-port-db:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Start isolated Supabase PostgreSQL without ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --pull always --detach --name cowl_pg_rehearsal_v2 \
+            --network none --tmpfs /var/lib/postgresql/data:rw,size=2g \
+            -e POSTGRES_PASSWORD=postgres \
+            supabase/postgres:15.8.1.085
+          mode="$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_pg_rehearsal_v2)"
+          bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_pg_rehearsal_v2)"
+          echo "NetworkMode: $mode | Host port bindings: $bindings"
+          test "$mode" = none
+          test "$bindings" = '{}' || test "$bindings" = null
+          if docker ps --filter name=cowl_pg_rehearsal_v2 --format '{{.Ports}}' | grep -E '0.0.0.0:|127.0.0.1:|\[::\]:'; then
+            echo 'FAIL: published port'; exit 1
+          fi
+          ready=0
+          for i in $(seq 1 80); do
+            if docker exec cowl_pg_rehearsal_v2 pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then
+              ready=1; break
+            fi
+            if test "$(docker inspect --format '{{.State.Running}}' cowl_pg_rehearsal_v2)" != true; then
+              echo "Container stopped before readiness"
+              docker logs --tail 18 cowl_pg_rehearsal_v2 2>&1 | sed -E 's/(password|secret|key)=([^ ]+)/\1=[REDACTED]/Ig'
+              exit 1
+            fi
+            sleep 2
+          done
+          if test "$ready" != 1; then
+            echo "Container not ready; safe diagnostic"
+            docker logs --tail 18 cowl_pg_rehearsal_v2 2>&1 | sed -E 's/(password|secret|key)=([^ ]+)/\1=[REDACTED]/Ig'
+            exit 1
+          fi
+          docker exec -e PGPASSWORD=postgres cowl_pg_rehearsal_v2 psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+            -c "CREATE TABLE public.recovery_synthetic_only (id integer primary key); INSERT INTO public.recovery_synthetic_only VALUES (38);"
+          result="$(docker exec -e PGPASSWORD=postgres cowl_pg_rehearsal_v2 psql -X -A -t -U postgres -d postgres \
+            -c 'SELECT count(*) FROM public.recovery_synthetic_only WHERE id=38;')"
+          test "$result" = 1
+          echo 'PASS: offline PostgreSQL start, no host ports, synthetic SQL replay'
+      - name: Cleanup disposable container
+        if: always()
+        run: docker rm --force cowl_pg_rehearsal_v2 || true
