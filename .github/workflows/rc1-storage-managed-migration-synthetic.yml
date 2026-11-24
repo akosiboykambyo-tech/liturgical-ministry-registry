@@ -1,0 +1,67 @@
+name: RC1 offline Storage API managed schema migration test
+on:
+  push:
+    branches: [qa/recovery-cli-windows-preflight-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  storage-schema:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Start disconnected Supabase PostgreSQL 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name cowl_storage_catalog_qa --network none \
+            --tmpfs /var/lib/postgresql/data:rw,size=2g --tmpfs /var/lib/storage:rw,size=256m \
+            -e POSTGRES_PASSWORD=postgres supabase/postgres:17.6.1.136
+          for i in $(seq 1 90); do
+            if docker exec cowl_storage_catalog_qa pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_storage_catalog_qa)" = none
+          test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_storage_catalog_qa)" = '{}'
+      - name: Run official Storage API migrations in disconnected PG namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name cowl_storage_service_qa \
+            --network container:cowl_storage_catalog_qa \
+            --tmpfs /var/lib/storage:rw,size=256m \
+            -e ANON_KEY='synthetic-test-only-anon' \
+            -e SERVICE_KEY='synthetic-test-only-service' \
+            -e AUTH_JWT_SECRET='synthetic-test-only-jwt-secret-123456' \
+            -e DATABASE_URL='postgres://supabase_storage_admin:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
+            -e POSTGREST_URL='http://127.0.0.1:3000' \
+            -e STORAGE_PUBLIC_URL='http://127.0.0.1:5000' \
+            -e FILE_SIZE_LIMIT=52428800 \
+            -e STORAGE_BACKEND=file \
+            -e FILE_STORAGE_BACKEND_PATH='/var/lib/storage' \
+            -e GLOBAL_S3_BUCKET='synthetic-bucket' \
+            -e TENANT_ID='synthetic-tenant' -e REGION='local' \
+            -e ENABLE_IMAGE_TRANSFORMATION=false \
+            supabase/storage-api:v1.60.4
+          # Service may require PostgREST to be running, but migration may complete before failing.
+          for i in $(seq 1 30); do
+            COUNT=$(docker exec cowl_storage_catalog_qa psql -X -A -t -U postgres -d postgres -c \
+              "SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='storage' AND c.relname IN ('buckets','objects') AND c.relkind IN ('r','p')")
+            if test "$COUNT" = 2; then break; fi
+            if test "$(docker inspect --format '{{.State.Running}}' cowl_storage_service_qa)" != true; then break; fi
+            sleep 2
+          done
+          echo "Storage buckets/objects tables initialized: $COUNT / 2"
+          if test "$COUNT" != 2; then
+            docker inspect --format 'Storage service exit status={{.State.ExitCode}}' cowl_storage_service_qa
+            echo 'INCOMPLETE: Storage schema not initialized by this synthetic configuration'
+            exit 1
+          fi
+          docker exec cowl_storage_catalog_qa psql -X -A -t -U postgres -d postgres -c \
+            "SELECT 'CATALOG|'||c.relname||'|'||string_agg(a.attname,',' ORDER BY a.attnum) FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='storage' AND c.relname IN ('buckets','objects') AND a.attnum>0 AND NOT a.attisdropped GROUP BY c.relname ORDER BY c.relname"
+          echo 'PASS: official Storage API initialized managed buckets/objects in zero-port disconnected PostgreSQL'
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f cowl_storage_service_qa || true
+          docker rm -f cowl_storage_catalog_qa || true
