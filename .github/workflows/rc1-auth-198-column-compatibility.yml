@@ -1,0 +1,47 @@
+name: RC1 Auth v2.198.0 link token hash regression
+on:
+  push:
+    branches: [qa/recovery-cli-windows-preflight-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auth-compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Boot disconnected Supabase PostgreSQL 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name cowl_gotrue_198_qa --network none \
+            --tmpfs /var/lib/postgresql/data:rw,size=2g -e POSTGRES_PASSWORD=postgres \
+            supabase/postgres:17.6.1.136
+          for i in $(seq 1 90); do
+            if docker exec cowl_gotrue_198_qa pg_isready -U postgres -h 127.0.0.1 >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_gotrue_198_qa)" = none
+          test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_gotrue_198_qa)" = '{}'
+      - name: Apply GoTrue 2.198.0 migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network container:cowl_gotrue_198_qa \
+            -e GOTRUE_DB_DRIVER=postgres \
+            -e GOTRUE_DB_DATABASE_URL='postgres://supabase_auth_admin:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
+            -e GOTRUE_JWT_SECRET='synthetic-only-jwt-secret-not-for-real-use-123456' \
+            -e GOTRUE_SITE_URL='http://localhost:9999' -e API_EXTERNAL_URL='http://localhost:9999' \
+            -e GOTRUE_API_HOST='127.0.0.1' \
+            supabase/gotrue:v2.198.0 gotrue migrate >/dev/null 2>&1
+          column_exists=$(docker exec cowl_gotrue_198_qa psql -X -A -t -U postgres -d postgres -c \
+            "SELECT count(*) FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auth' AND c.relname='one_time_tokens' AND a.attname='link_token_hash' AND a.attnum>0 AND NOT a.attisdropped")
+          echo "Offline auth.one_time_tokens.link_token_hash exists: $column_exists"
+          test "$column_exists" = 1
+          # Synthetic backup COPY header must now be accepted by psql (zero rows)
+          printf 'COPY auth.one_time_tokens (link_token_hash) FROM stdin;\n\\.\n' |
+            docker exec -i cowl_gotrue_198_qa psql -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=sqlstate -U supabase_admin -d postgres
+          echo 'PASS: official Auth v2.198.0 migrations allow the formerly missing backup column'
+      - name: Cleanup
+        if: always()
+        run: docker rm -f cowl_gotrue_198_qa || true
