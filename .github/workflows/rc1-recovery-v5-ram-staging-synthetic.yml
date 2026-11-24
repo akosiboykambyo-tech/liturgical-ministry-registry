@@ -1,0 +1,138 @@
+name: RC1 recovery v5 RAM staging and SQLSTATE synthetic regression
+on:
+  push:
+    branches:
+      - qa/recovery-cli-windows-preflight-20261124
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  docker-ram-sql:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Start isolated PostgreSQL 17 with SQL RAM staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --pull always -d --name cwldok_v5_stage_qa --network none \
+            --tmpfs /var/lib/postgresql/data:rw,size=2g \
+            --tmpfs /restore-input:rw,size=256m \
+            --tmpfs /restore-storage:rw,size=256m \
+            -e POSTGRES_PASSWORD=postgres \
+            supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cwldok_v5_stage_qa)" = none
+          test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' cwldok_v5_stage_qa)" = '{}'
+          for i in $(seq 1 90); do
+            if docker exec cwldok_v5_stage_qa pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker exec cwldok_v5_stage_qa pg_isready -h 127.0.0.1 -U postgres
+      - name: Generate only synthetic backup SQL and 53MB stress file
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cowl_v5_synthetic"
+          cd "$RUNNER_TEMP/cowl_v5_synthetic"
+          printf '%s\n' 'CREATE ROLE cowl_v5_synthetic_role NOLOGIN;' > roles.sql
+          printf '%s\n' \
+            'CREATE TABLE public.cowl_v5_synthetic (id integer PRIMARY KEY, label text NOT NULL);' \
+            'ALTER TABLE public.cowl_v5_synthetic ENABLE ROW LEVEL SECURITY;' \
+            'CREATE POLICY synthetic_select ON public.cowl_v5_synthetic FOR SELECT TO authenticated USING (true);' > schema.sql
+          printf 'COPY public.cowl_v5_synthetic (id, label) FROM stdin;\n1\tsynthetic\n\\.\n' > data.sql
+          echo 'SELECT 1/0;' > should_fail.sql
+          python3 - <<'PY'
+          import pathlib
+          p=pathlib.Path('large-file.bin')
+          with p.open('wb') as f:
+              for i in range(53):
+                  f.write((b'COWL-DOK synthetic staging stress fixture; no private information. ' * 17000)[:1024*1024])
+          print('Synthetic large file bytes',p.stat().st_size)
+          PY
+      - name: Test exact Node pipeline into Docker RAM, file SQL replay, SQLSTATE diagnosis
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v5-stage-smoke.mjs" <<'JS'
+          import fs from 'node:fs';
+          import {spawn, spawnSync} from 'node:child_process';
+          import {pipeline} from 'node:stream/promises';
+          import crypto from 'node:crypto';
+          import path from 'node:path';
+          const base=process.env.RUNNER_TEMP+'/cowl_v5_synthetic';
+          const name='cwldok_v5_stage_qa';
+          function sh(args){return spawnSync('docker',args,{encoding:'utf8',maxBuffer:65536});}
+          async function copy(source,target) {
+            const child=spawn('docker',['exec','-i',name,'sh','-c','umask 077; cat > "$1"','sh',target],{stdio:['pipe','ignore','pipe']});
+            child.stdin.on('error',()=>{});
+            let streamError=null;
+            const closed=new Promise(resolve=>child.once('close',code=>resolve(code)));
+            try{await pipeline(fs.createReadStream(source,{highWaterMark:256*1024}),child.stdin)}catch(e){streamError=e;child.stdin.destroy()}
+            const code=await closed;
+            if(streamError||code!==0)throw Error('RAM stream rejected');
+            const sha=crypto.createHash('sha256').update(fs.readFileSync(source)).digest('hex');
+            const r=sh(['exec',name,'sha256sum',target]);
+            if(r.status!==0||r.stdout.split(/\s+/)[0]!==sha)throw Error('RAM SHA-256 mismatch');
+          }
+          await copy(path.join(base,'roles.sql'),'/restore-input/roles.sql');
+          await copy(path.join(base,'schema.sql'),'/restore-input/schema.sql');
+          await copy(path.join(base,'data.sql'),'/restore-input/data.sql');
+          await copy(path.join(base,'large-file.bin'),'/restore-input/large-file.bin');
+          let r=sh(['exec',name,'psql','-X','-q','--single-transaction','-v','ON_ERROR_STOP=1','-v','VERBOSITY=sqlstate','-U','supabase_admin','-d','postgres','-f','/restore-input/roles.sql','-f','/restore-input/schema.sql']);
+          if(r.status!==0)throw Error('Synthetic role/schema psql failed '+r.status);
+          r=sh(['exec',name,'psql','-X','-q','--single-transaction','-v','ON_ERROR_STOP=1','-v','VERBOSITY=sqlstate','-U','supabase_admin','-d','postgres','-c','SET session_replication_role = replica;','-f','/restore-input/data.sql']);
+          if(r.status!==0)throw Error('Synthetic COPY psql failed '+r.status);
+          r=sh(['exec',name,'psql','-X','-A','-t','-U','supabase_admin','-d','postgres','-c','SELECT count(*) FROM public.cowl_v5_synthetic;']);
+          if(r.status!==0||r.stdout.trim()!=='1')throw Error('Synthetic row verification failed');
+          await copy(path.join(base,'should_fail.sql'),'/restore-input/should_fail.sql');
+          r=sh(['exec',name,'psql','-X','-q','--single-transaction','-v','ON_ERROR_STOP=1','-v','VERBOSITY=sqlstate','-U','supabase_admin','-d','postgres','-f','/restore-input/should_fail.sql']);
+          if(r.status===0||!/(?:ERROR|FATAL):?\s*22012/.test(r.stderr))throw Error('SQLSTATE not detected on deliberate SQL error');
+          console.log('PASS: 53MB byte-exact RAM staging, COPY replay and SQLSTATE 22012 surfaced without SQL contents');
+          JS
+          node "$RUNNER_TEMP/v5-stage-smoke.mjs"
+      - name: Remove temporary synthetic container
+        if: always()
+        run: docker rm -f cwldok_v5_stage_qa || true
+  windows-stream:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Verify Windows pipe behavior with 53MB synthetic input and spaces in path
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'COWL DOK Synthetic Input Path'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $fixture = Join-Path $dir 'synthetic 53mb.bin'
+          $bytes = New-Object byte[] (1024*1024)
+          [System.Random]::new(19).NextBytes($bytes)
+          $f=[System.IO.File]::Create($fixture)
+          try { for ($i=0; $i -lt 53; $i++) { $f.Write($bytes,0,$bytes.Length) } } finally { $f.Dispose() }
+          $script = Join-Path $dir 'stream-windows.mjs'
+          @'
+          import fs from 'node:fs';
+          import {pipeline} from 'node:stream/promises';
+          import {spawn} from 'node:child_process';
+          import crypto from 'node:crypto';
+          const file=process.argv[2], output=process.argv[3];
+          const receiver='const fs=require("node:fs");const s=fs.createWriteStream(process.argv[1]);process.stdin.pipe(s);';
+          const child=spawn(process.execPath,['-e',receiver,output],{stdio:['pipe','ignore','pipe'],windowsHide:true});
+          const closed=new Promise(resolve=>child.once('close',resolve));
+          child.stdin.on('error',()=>{});
+          await pipeline(fs.createReadStream(file,{highWaterMark:256*1024}),child.stdin);
+          const code=await closed;
+          if(code!==0)throw new Error('Windows subprocess returned '+code);
+          const dig=p=>crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+          if(dig(file)!==dig(output))throw new Error('53MB Windows stream hash mismatch');
+          console.log('PASS: 53MB Windows child_process pipeline, path with spaces, SHA-256 byte match');
+          '@ | Set-Content -Path $script -Encoding utf8
+          node $script $fixture (Join-Path $dir 'copied 53mb.bin')
