@@ -1,0 +1,39 @@
+name: RC1 recovery CLI Windows preflight — no backup files
+on:
+  push:
+    branches:
+      - qa/recovery-cli-windows-preflight-20261124
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-windows-cli:
+    runs-on: windows-2025
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Download official SHA-256-pinned Windows CLI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = Join-Path $env:RUNNER_TEMP 'supabase_windows_amd64.tar.gz'
+          $dir = Join-Path $env:RUNNER_TEMP 'supabase-cli-pinned'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $url = 'https://github.com/supabase/cli/releases/download/v2.84.2/supabase_windows_amd64.tar.gz'
+          curl.exe --fail --location --retry 2 --silent --show-error --output $archive $url
+          if ($LASTEXITCODE -ne 0) { throw 'Official pinned CLI download failed' }
+          $digest = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          if ($digest -ne '617b37d756d3a6457ac63f60372ce85a816112350f97ebda711fddb4002b346c') {
+            throw 'GitHub official binary checksum mismatch'
+          }
+          tar.exe -xzf $archive -C $dir
+          if ($LASTEXITCODE -ne 0) { throw 'Official archive extraction failed' }
+          if (!(Test-Path (Join-Path $dir 'supabase.exe'))) { throw 'supabase.exe missing' }
+      - name: Verify executable invocation, pin and local-init on real Windows
+        shell: pwsh
+        run: |
+          node --check scripts/qa/recovery-cli-windows-preflight.cjs
+          $exe = Join-Path $env:RUNNER_TEMP 'supabase-cli-pinned\supabase.exe'
+          node scripts/qa/recovery-cli-windows-preflight.cjs $exe
