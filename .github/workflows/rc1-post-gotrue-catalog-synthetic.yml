@@ -16,7 +16,7 @@ jobs:
           set -euo pipefail
           docker run -d --name cowl_catalog_after_auth --network none \
             --tmpfs /var/lib/postgresql/data:rw,size=2g -e POSTGRES_PASSWORD=postgres \
-            supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0eb7481467c00
+            supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
           for i in $(seq 1 90); do
             if docker exec cowl_catalog_after_auth pg_isready -h 127.0.0.1 -U postgres > /dev/null 2>&1; then break; fi
             sleep 2
