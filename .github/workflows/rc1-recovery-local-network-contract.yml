@@ -28,7 +28,7 @@ jobs:
           echo "WORK=$WORK" >> "$GITHUB_ENV"
           cd "$WORK"
           supabase init
-          docker network create --driver bridge --internal -o com.docker.network.bridge.host_binding_ipv4=127.0.0.1 cwldok_recovery_ci
+          docker network create --driver bridge -o com.docker.network.bridge.enable_ip_masquerade=false -o com.docker.network.bridge.host_binding_ipv4=127.0.0.1 cwldok_recovery_ci
       - name: Start local Supabase with explicit network isolation
         run: |
           set -euo pipefail
@@ -52,7 +52,13 @@ jobs:
           docker exec -e PGPASSWORD=postgres "$DB" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE TABLE public.qa_disposable_restore_only (id integer primary key); INSERT INTO public.qa_disposable_restore_only VALUES (93);"
           ACTUAL=$(docker exec -e PGPASSWORD=postgres "$DB" psql -X -U postgres -d postgres -At -c "SELECT count(*) FROM public.qa_disposable_restore_only WHERE id=93")
           test "$ACTUAL" = 1
-          echo 'PASS: localhost-only bindings and synthetic SQL restore contract'
+          # Try to open a raw public TCP connection FROM inside disposable DB.
+          # If it succeeds, the network is NOT acceptable for confidential data.
+          if docker exec "$DB" timeout 5 bash -c 'echo >/dev/tcp/1.1.1.1/443' >/dev/null 2>&1; then
+            echo 'FAIL: network allows outbound TCP; would refuse confidential data'
+            exit 1
+          fi
+          echo 'PASS: localhost-only bindings, outbound TCP denied, and synthetic SQL restore contract'
       - name: Destroy only this disposable stack and network
         if: always()
         run: |
