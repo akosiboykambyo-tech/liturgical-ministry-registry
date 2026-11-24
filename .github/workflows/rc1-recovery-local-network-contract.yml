@@ -35,6 +35,7 @@ jobs:
           cd "$WORK"
           supabase start --network-id cwldok_recovery_ci -x studio,postgres-meta,imgproxy,logflare,vector,edge-runtime,realtime,supavisor > "$RUNNER_TEMP/local-stack-start.log" 2>&1 || {
             echo "FAIL: local CLI start with isolated network"
+            python3 -c "import re,os; p=os.environ['RUNNER_TEMP']+'/local-stack-start.log'; ls=open(p,errors='replace').read().splitlines(); matched=[x for x in ls if re.search('error|failed|denied|network|timeout|connection|unable',x,re.I)]; safe=[re.sub(r'(eyJ|sb_secret_)[A-Za-z0-9_.-]+','[REDACTED]',x) for x in matched[-12:]]; print('DIAGNOSTIC:', '\\n'.join(x[:240] for x in safe))"
             exit 1
           }
           echo 'PASS: local Supabase started on the internal bridge'
