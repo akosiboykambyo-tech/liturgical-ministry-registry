@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Menu, X, type LucideIcon } from "lucide-react";
+import { ChevronRight, Menu, X } from "@/components/phosphor-icons";
+import type { Icon as LucideIcon } from "@phosphor-icons/react";
 import { ebGaramond, inter } from "@/app/fonts";
 
 export type PortalNavItem = {

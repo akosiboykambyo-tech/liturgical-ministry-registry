@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, BookOpenCheck, Database, Eye, Lock, LogOut, ShieldCheck } from "lucide-react";
+import { ArrowsLeftRight as ArrowLeftRight, ClipboardCheck as BookOpenCheck, Layers as Database, Eye, Lock, LogOut, ShieldCheck } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import PortalShell, { type PortalNavGroup } from "@/components/portal-shell";
 

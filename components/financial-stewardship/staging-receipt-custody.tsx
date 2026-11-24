@@ -4,10 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
-import {
-  AlertTriangle, ArrowLeftRight, BookOpenCheck, CheckCircle2, Clock3,
-  Database, FileWarning, Landmark, Loader2, LogOut, RefreshCw, ShieldCheck,
-} from "lucide-react";
+import { AlertTriangle, ArrowsLeftRight as ArrowLeftRight, ClipboardCheck as BookOpenCheck, CheckCircle2, Clock as Clock3, Layers as Database, FileWarning, Bank as Landmark, Loader2, LogOut, RefreshCw, ShieldCheck } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import PortalShell, { type PortalNavGroup } from "@/components/portal-shell";
 import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";

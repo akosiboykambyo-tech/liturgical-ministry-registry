@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import {
-  AlertTriangle, BookOpenCheck, CheckCircle2, ClipboardList, CreditCard,
-  HandCoins, Landmark, LockKeyhole, ReceiptText, RefreshCw, ShieldCheck,
-} from "lucide-react";
+import { AlertTriangle, ClipboardCheck as BookOpenCheck, CheckCircle2, ClipboardList, Wallet as CreditCard, Wallet as HandCoins, Bank as Landmark, Lock as LockKeyhole, Receipt as ReceiptText, RefreshCw, ShieldCheck } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";
 

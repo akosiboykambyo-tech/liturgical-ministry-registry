@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Loader2, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, ShieldCheck } from "@/components/phosphor-icons";
 import { ebGaramond, inter } from "@/app/fonts";
 import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";
 import { getStagingWorkspaces, WORKSPACES, type FinancialWorkspace } from "@/lib/financial-stewardship/staging-workspaces";
