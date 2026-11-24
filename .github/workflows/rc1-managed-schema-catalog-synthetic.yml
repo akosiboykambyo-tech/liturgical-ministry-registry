@@ -1,0 +1,28 @@
+name: RC1 recovery managed schema compatibility — public metadata only
+on:
+  push:
+    branches: [qa/recovery-cli-windows-preflight-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pg17-managed-catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    steps:
+      - name: Start isolated PG17 and print only managed schema column definitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name cowl_schema_diff_qa --network none --tmpfs /var/lib/postgresql/data:rw,size=2g -e POSTGRES_PASSWORD=postgres \
+            supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
+          for i in $(seq 1 100); do
+            if docker exec cowl_schema_diff_qa pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker exec cowl_schema_diff_qa psql -X -A -t -U postgres -d postgres -c \
+            "SELECT table_schema || '.' || table_name AS rel, string_agg(column_name || ':' || udt_name,', ' ORDER BY ordinal_position) AS cols FROM information_schema.columns WHERE (table_schema='storage' AND table_name IN ('buckets','objects')) OR (table_schema='auth' AND table_name IN ('users','identities')) GROUP BY table_schema,table_name ORDER BY rel;"
+          echo 'PASS: isolated PG17 managed schema column catalog extracted without any Production data'
+      - name: Cleanup
+        if: always()
+        run: docker rm -f cowl_schema_diff_qa || true
