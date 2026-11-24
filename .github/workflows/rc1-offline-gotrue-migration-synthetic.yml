@@ -1,0 +1,47 @@
+name: RC1 offline GoTrue schema migration synthetic test
+on:
+  push:
+    branches: [qa/recovery-cli-windows-preflight-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auth-migration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Boot PostgreSQL 17 with network disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name cwldok_auth_migration_qa --network none \
+             --tmpfs /var/lib/postgresql/data:rw,size=2g \
+             -e POSTGRES_PASSWORD=postgres \
+             supabase/postgres:17.6.1.136
+          for i in $(seq 1 90); do
+            if docker exec cwldok_auth_migration_qa pg_isready -U postgres -h 127.0.0.1 >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cwldok_auth_migration_qa)" = none
+          docker exec cwldok_auth_migration_qa psql -X -A -t -U postgres -d postgres -c \
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema='auth' AND table_name='users' AND column_name='email_confirmed_at';"
+      - name: Run official GoTrue migrations in same offline network namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull supabase/gotrue:v2.197.0 >/dev/null
+          docker image inspect --format 'Entrypoint={{json .Config.Entrypoint}} Cmd={{json .Config.Cmd}}' supabase/gotrue:v2.197.0
+          docker run --rm --network container:cwldok_auth_migration_qa \
+            -e GOTRUE_DB_DRIVER=postgres \
+            -e GOTRUE_DB_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
+            -e GOTRUE_JWT_SECRET='synthetic-only-jwt-secret-not-for-real-use-123456' \
+            -e GOTRUE_SITE_URL='http://localhost:9999' \
+            -e GOTRUE_API_HOST='127.0.0.1' \
+            supabase/gotrue:v2.197.0 gotrue migrate
+          cols="$(docker exec cwldok_auth_migration_qa psql -X -A -t -U postgres -d postgres -c \
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema='auth' AND table_name='users' AND column_name='email_confirmed_at';")"
+          test "$cols" = 1
+          echo 'PASS: GoTrue migrated Auth schema while all host ports remained disabled'
+      - name: Cleanup
+        if: always()
+        run: docker rm -f cwldok_auth_migration_qa || true
