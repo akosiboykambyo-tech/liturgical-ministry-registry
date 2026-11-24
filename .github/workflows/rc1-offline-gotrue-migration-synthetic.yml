@@ -36,6 +36,7 @@ jobs:
             -e GOTRUE_DB_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
             -e GOTRUE_JWT_SECRET='synthetic-only-jwt-secret-not-for-real-use-123456' \
             -e GOTRUE_SITE_URL='http://localhost:9999' \
+            -e API_EXTERNAL_URL='http://localhost:9999' \
             -e GOTRUE_API_HOST='127.0.0.1' \
             supabase/gotrue:v2.197.0 gotrue migrate
           cols="$(docker exec cwldok_auth_migration_qa psql -X -A -t -U postgres -d postgres -c \
