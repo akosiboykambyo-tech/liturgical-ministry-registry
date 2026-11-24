@@ -1,0 +1,52 @@
+name: RC1 offline managed schema catalog after GoTrue migrations
+on:
+  push:
+    branches: [qa/recovery-cli-windows-preflight-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-managed-catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Start disconnected Supabase PostgreSQL 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name cowl_catalog_after_auth --network none \
+            --tmpfs /var/lib/postgresql/data:rw,size=2g -e POSTGRES_PASSWORD=postgres \
+            supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0eb7481467c00
+          for i in $(seq 1 90); do
+            if docker exec cowl_catalog_after_auth pg_isready -h 127.0.0.1 -U postgres > /dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_catalog_after_auth)" = none
+          test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_catalog_after_auth)" = '{}'
+      - name: Apply official GoTrue schema migrations, no network access
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network container:cowl_catalog_after_auth \
+            -e GOTRUE_DB_DRIVER=postgres \
+            -e GOTRUE_DB_DATABASE_URL='postgres://supabase_auth_admin:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
+            -e GOTRUE_JWT_SECRET='synthetic-only-jwt-secret-not-for-real-use-123456' \
+            -e GOTRUE_SITE_URL='http://localhost:9999' -e API_EXTERNAL_URL='http://localhost:9999' \
+            -e GOTRUE_API_HOST='127.0.0.1' \
+            supabase/gotrue:v2.197.0 gotrue migrate >/dev/null 2>&1
+      - name: Print DDL catalog only (no rows, no personal information)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec cowl_catalog_after_auth psql -X -A -t -U postgres -d postgres -c \
+            "SELECT 'CATALOG|' || n.nspname || '.' || c.relname || '|' || string_agg(a.attname, ',' ORDER BY a.attnum)
+            FROM pg_catalog.pg_attribute a
+            JOIN pg_catalog.pg_class c ON c.oid=a.attrelid
+            JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+            WHERE n.nspname IN ('auth','storage') AND c.relkind IN ('r','p')
+              AND a.attnum>0 AND NOT a.attisdropped
+            GROUP BY n.nspname,c.relname ORDER BY n.nspname,c.relname;" | grep '^CATALOG|'
+          echo 'PASS: read-only Auth/Storage column catalog from isolated PG17 post-GoTrue migrations'
+      - name: Clean synthetic Docker container
+        if: always()
+        run: docker rm -f cowl_catalog_after_auth || true
