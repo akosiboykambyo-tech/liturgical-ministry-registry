@@ -1,0 +1,42 @@
+name: RC1 fully unexposed PostgreSQL rehearsal — synthetic only
+on:
+  push:
+    branches:
+      - qa/recovery-cli-windows-preflight-20261124
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sql-recovery-no-open-ports:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Run Supabase PostgreSQL without Docker network or host ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --pull always -d --name cowl_synthetic_nopub --network none \
+            --tmpfs /var/lib/postgresql/data:rw,size=2g \
+            -e POSTGRES_PASSWORD=postgres \
+            supabase/postgres:15.8.1.085
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_synthetic_nopub)" = none
+          test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_synthetic_nopub)" = null
+          if docker ps --format '{{.Ports}}' --filter name=cowl_synthetic_nopub | grep -E '0.0.0.0:|127.0.0.1:|\[::\]:'; then
+            echo 'FAIL: unexpected published port'; exit 1
+          fi
+          for i in $(seq 1 90); do
+            if docker exec -e PGPASSWORD=postgres cowl_synthetic_nopub \
+              pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker exec -e PGPASSWORD=postgres cowl_synthetic_nopub \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            'CREATE TABLE public.disposable_recovery_qa (id int primary key); INSERT INTO public.disposable_recovery_qa VALUES (38);'
+          result=$(docker exec -e PGPASSWORD=postgres cowl_synthetic_nopub \
+            psql -X -A -t -U postgres -d postgres -c \
+            'SELECT count(*) FROM public.disposable_recovery_qa WHERE id=38')
+          test "$result" = 1
+          echo 'PASS: unexposed Supabase PostgreSQL with network none and synthetic SQL restore'
+      - name: Remove disposable unexposed container
+        if: always()
+        run: docker rm -f cowl_synthetic_nopub || true
