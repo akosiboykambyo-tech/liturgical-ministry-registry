@@ -35,5 +35,8 @@ jobs:
         shell: pwsh
         run: |
           node --check scripts/qa/recovery-cli-windows-preflight.cjs
-          $exe = Join-Path $env:RUNNER_TEMP 'supabase-cli-pinned\supabase.exe'
+          $withSpaces = Join-Path $env:RUNNER_TEMP 'COWL DOK Recovery CLI with spaces'
+          New-Item -ItemType Directory -Force $withSpaces | Out-Null
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'supabase-cli-pinned\supabase.exe') (Join-Path $withSpaces 'supabase.exe')
+          $exe = Join-Path $withSpaces 'supabase.exe'
           node scripts/qa/recovery-cli-windows-preflight.cjs $exe
