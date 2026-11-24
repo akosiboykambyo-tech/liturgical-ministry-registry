@@ -9,6 +9,8 @@ import { ebGaramond } from "@/app/fonts";
 import PortalShell, { type PortalNavGroup } from "@/components/portal-shell";
 import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";
 import StagingFinancialOperations from "@/components/financial-stewardship/staging-financial-operations";
+import DemoFinancialReports from "@/components/financial-stewardship/demo-financial-reports";
+import ReceiptManagementPreview from "@/components/financial-stewardship/receipt-management-preview";
 import StagingReadOnlyViewer from "@/components/financial-stewardship/staging-readonly-viewer";
 
 type Mode = "curia" | "cowl";
@@ -63,7 +65,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const router = useRouter();
   const requiredRole = mode === "curia"
     ? "curia_receipt_custodian" : "cowl_receipt_issuer";
-  const [section, setSection] = useState<"custody" | "collections" | "remittances">("custody");
+  const [section, setSection] = useState<"custody" | "collections" | "remittances" | "reports" | "receipt-management">("custody");
   const [authLoading, setAuthLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -171,6 +173,8 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const [bookletReference, setBookletReference] = useState("");
   const [firstNo, setFirstNo] = useState("");
   const [lastNo, setLastNo] = useState("");
+  const [priorIssued,setPriorIssued] = useState("0");
+  const [priorVoided,setPriorVoided] = useState("0");
   const [checkedRegister, setCheckedRegister] = useState(false);
   const [assignee, setAssignee] = useState("");
   const [checkedHandover, setCheckedHandover] = useState(false);
@@ -186,22 +190,24 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const total = numbers.length;
   const available = numbers.filter(n => n.status === "available").length;
   const issued = numbers.filter(n => n.status === "issued").length;
-  const exceptions = numbers.filter(n => n.status === "voided" || n.status === "missing").length;
+  const exceptions = numbers.filter(n => n.status === "voided" || n.status === "missing" || n.status === "returned").length;
+  const opening = numbers.filter(n => n.status === "previously_issued" || n.status === "previously_voided").length;
 
   async function operate(fn: string, params: Record<string, unknown>, done: string) {
     if (!client || !allowed || working) return;
     setWorking(true);
     setFeedback(null);
     if (fn === "fs_curia_register_receipt_series" && !/^DEMO-[A-Z0-9-]+$/i.test(String(params.p_series_code))) { setWorking(false); setFeedback({ok:false,message:"Use a DEMO-prefixed series."}); return; }
-    if (fn === "fs_curia_register_checked_booklet" && !/^DEMO-[A-Z0-9-]+$/i.test(String(params.p_booklet_reference))) { setWorking(false); setFeedback({ok:false,message:"Use a DEMO-prefixed booklet reference."}); return; }
-    const result = await client.rpc(fn, params);
+    if (fn === "fs_demo_register_opening_booklet" && !/^DEMO-[A-Z0-9-]+$/i.test(String(params.p_booklet_reference))) { setWorking(false); setFeedback({ok:false,message:"Use a DEMO-prefixed booklet reference."}); return; }
+    let result;
+    try { result = await client.rpc(fn, params); } catch { setWorking(false); setFeedback({ok:false,message:"Network error. Refresh before retrying to check whether the operation completed."}); return; }
     setWorking(false);
     if (result.error) {
       setFeedback({ ok: false, message: result.error.message });
       return;
     }
     setFeedback({ ok: true, message: done });
-    if (fn === "fs_curia_register_checked_booklet" && typeof result.data === "string") setSelectedId(result.data);
+    if (fn === "fs_demo_register_opening_booklet" && typeof result.data === "string") setSelectedId(result.data);
     if (fn === "fs_curia_register_receipt_series" && typeof result.data === "string") setSeriesId(result.data);
     setCheckedRegister(false); setCheckedHandover(false); setCheckedAck(false); setCheckedException(false);
     setExceptionSerialId(""); setExceptionReason("");
@@ -269,6 +275,8 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
         onSelect: () => { setSection("collections"); setFeedback(null); } },
       { id: "remittances", label: "Remittances & Curia", icon: ArrowLeftRight, active: section === "remittances",
         onSelect: () => { setSection("remittances"); setFeedback(null); } },
+      ...(mode === "cowl" && roles.includes("cowl_receipt_issuer") ? [{id:"receipt-management",label:"Receipt Management",icon:BookOpenCheck,active:section==="receipt-management",onSelect:()=>setSection("receipt-management")}] : []),
+      ...((mode==="cowl" && roles.includes("cowl_remittance_preparer") || mode==="curia" && roles.includes("curia_treasury_reviewer")) ? [{id:"reports",label:"Financial Reports",icon:Database,active:section==="reports",onSelect:()=>setSection("reports")}] : []),
       ...(
         roles.some(role => role.startsWith("curia_"))
         && roles.some(role => role.startsWith("cowl_"))
@@ -284,7 +292,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     ? "Official Receipt Inventory"
     : section === "collections"
       ? "Collections and Receipts"
-      : "Remittances & Curia";
+      : section === "reports" ? "Financial Reports" : section === "receipt-management" ? "Receipt Management" : "Remittances & Curia";
   return <PortalShell title={label} subtitle="Financial Stewardship · Test"
     homeHref={mode === "curia" ? "/demo/finance/curia" : "/demo/finance/cowl"}
     navigationLabel="Financial staging navigation" groups={groups}
@@ -306,7 +314,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
               ? "Track registered receipt series, physical booklet custody, and individual printed serials."
               : section === "collections"
                 ? "Verify QR Ph and OTC collections, and record official receipt issuance."
-                : "Reconcile recorded remittances and Curia treasury acknowledgment."}
+                : section === "reports" ? "Reconcile fictional collections, receipts and remittances." : section === "receipt-management" ? "Prepare a watermarked paper overlay, review the register and calibrate a draft." : "Reconcile recorded remittances and Curia treasury acknowledgment."}
           </p>
         </div>
         {section === "custody" && (
@@ -325,12 +333,14 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           ["Registered test booklets", booklets.length],
           ["Individual printed serials", total],
           ["Available / unused", available],
-          ["Issued / voided / missing", issued + exceptions],
+          ["Issued / exceptions", issued + exceptions],
+          ["Opening stock already used", opening],
         ].map(([name, count]) => <div key={name} className={card}>
           <p className="text-xs font-semibold text-[#6F6265]">{name}</p>
           <p className="mt-2 text-[27px] font-semibold tabular-nums">{count}</p>
         </div>)}
       </div>
+      {mode === "curia" && <section className={card}><h2 className="font-semibold">Start a fresh rehearsal</h2><p className="mt-2 text-sm text-[#6F6265]">Creates a new fictional 50-form booklet (10 previously issued, 2 previously voided, 38 unused) and a ₱500 unpaid quote. Earlier rehearsals remain in the audit history; no records are deleted.</p><button type="button" disabled={working} className={solid+" mt-4"} onClick={()=>void operate("fs_demo_new_rehearsal",{},"New rehearsal created. Select the new booklet and assign it to COWL.")}>Create fresh rehearsal</button></section>}
       {mode === "curia" && <div className="grid gap-5 xl:grid-cols-2">
         <form className={card} onSubmit={e => { e.preventDefault(); void operate("fs_curia_register_receipt_series",
           { p_issuing_entity: issuer, p_series_code: seriesCode }, "Curia series registered in the isolated test database."); }}>
@@ -342,12 +352,12 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           </div>
           <button type="submit" disabled={working} className={solid + " mt-4"}><BookOpenCheck className="h-4 w-4" /> Register test series</button>
         </form>
-        <form className={card} onSubmit={e => { e.preventDefault(); void operate("fs_curia_register_checked_booklet",
+        <form className={card} onSubmit={e => { e.preventDefault(); void operate("fs_demo_register_opening_booklet",
           { p_series_id: seriesId, p_booklet_reference: bookletReference.trim(), p_first_no: firstNo.trim(),
-            p_last_no: lastNo.trim(), p_physical_range_checked: checkedRegister },
+            p_last_no: lastNo.trim(), p_prior_issued:Number(priorIssued),p_prior_voided:Number(priorVoided),p_checked: checkedRegister },
           "Preprinted booklet recorded in the shared test database, currently held by Curia."); }}>
-          <h2 className={ebGaramond.className + " text-[27px]"}>Register unused demo booklet</h2>
-          <p className="mt-2 text-xs leading-5 text-[#6F6265]">Use fictional serials only. Partially used booklets require separate opening-stock reconciliation and are not supported by this form.</p>
+          <h2 className={ebGaramond.className + " text-[27px]"}>Register new or partially used demo booklet</h2>
+          <p className="mt-2 text-xs leading-5 text-[#6F6265]">Use fictional serials only. This rehearsal assumes previously issued forms are the first contiguous serials, followed by previously voided forms. Earlier use does not create revenue. Set both counts to zero for new stock.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block sm:col-span-2"><span className="mb-1.5 block text-xs font-semibold text-[#635359]">Registered Curia series</span>
               <select className={control} required value={seriesId} onChange={e => setSeriesId(e.target.value)}>
@@ -357,10 +367,12 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
             <div className="sm:col-span-2"><Field label="Internal booklet identifier" value={bookletReference} setValue={setBookletReference} placeholder="e.g. DEMO-CUR-001" /></div>
             <Field label="First preprinted No." value={firstNo} setValue={setFirstNo} placeholder="000301" />
             <Field label="Last preprinted No." value={lastNo} setValue={setLastNo} placeholder="000350" />
+            <Field label="Previously issued (first serials)" value={priorIssued} setValue={setPriorIssued} type="number"/>
+            <Field label="Previously voided (next serials)" value={priorVoided} setValue={setPriorVoided} type="number"/>
           </div>
           <label className="mt-4 flex items-start gap-2 text-sm leading-6"><input type="checkbox" checked={checkedRegister} onChange={e => setCheckedRegister(e.target.checked)} className="mt-1 accent-[#890022]"/>
             <span>For this simulation, I checked this booklet's exact printed range and count.</span></label>
-          <button type="submit" disabled={working || !checkedRegister || !seriesId} className={solid + " mt-4"}>Register checked booklet</button>
+          <button type="submit" disabled={working || !checkedRegister || !seriesId || !/^\d+$/.test(priorIssued) || !/^\d+$/.test(priorVoided)} className={solid + " mt-4"}>Register checked booklet</button>
         </form>
       </div>}
       <section className={card}>
@@ -458,7 +470,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
             <div className="mt-3 max-h-80 overflow-auto border border-[#E6DADC]">
               <table className="w-full min-w-[300px] text-left text-sm"><thead className="sticky top-0 bg-[#FBF9F9] text-xs text-[#6F6265]"><tr><th className="px-3 py-2">Official Receipt No.</th><th className="px-3 py-2">Status</th></tr></thead>
                 <tbody className="divide-y divide-[#F1E8EB]">{(showAllNumbers?selectedNumbers:selectedNumbers.slice(0,12)).map(n=>
-                  <tr key={n.id}><td className="px-3 py-2 font-semibold tabular-nums">{n.printed_no}</td><td className="px-3 py-2 capitalize">{n.status}</td></tr>)}</tbody>
+                  <tr key={n.id}><td className="px-3 py-2 font-semibold tabular-nums">{n.printed_no}</td><td className="px-3 py-2 capitalize">{n.status.replaceAll("_"," ")}</td></tr>)}</tbody>
               </table>
             </div>
           </div>
@@ -476,7 +488,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
         <div><h2 className="font-semibold">Receipt custodian role required</h2>
           <p className="mt-1 text-sm text-[#6F6265]">This workspace is available only to the assigned {mode === "curia" ? "Curia receipt custodian" : "COWL receipt issuer / custodian"}. A finance or treasury role alone does not permit control of printed receipt stock.</p>
         </div>
-      </div>) : <StagingFinancialOperations mode={mode} section={section} roles={roles} />}
+      </div>) : section==="reports" ? <DemoFinancialReports/> : section==="receipt-management" ? <ReceiptManagementPreview/> : <StagingFinancialOperations mode={mode} section={section} roles={roles} /> }
       <footer className="border-t border-[#E6DADC] pt-5 text-xs leading-5 text-[#6F6265]">
         <div className="flex flex-wrap items-center gap-2"><Database className="h-4 w-4" /> Test-project records only · Requires distinct Curia and COWL staff authorization · Manual refresh or focus refresh across devices</div>
         <p className="mt-2">No financial staff privilege is inferred from receipt custody. Posting and confirmation require their specific test staff grants, approved evidence, and guarded database operations.</p>
