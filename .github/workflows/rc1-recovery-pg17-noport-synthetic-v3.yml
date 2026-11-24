@@ -1,0 +1,42 @@
+name: RC1 PostgreSQL17 no-port synthetic recovery contract
+on:
+  push:
+    branches: [qa/recovery-cli-windows-preflight-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pg17-no-port:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Boot Supabase PG17 offline with zero host ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --pull always -d --name cowl_pg17_only --network none \
+            --tmpfs /var/lib/postgresql/data:rw,size=2g --tmpfs /restore-storage:rw,size=128m \
+            -e POSTGRES_PASSWORD=postgres supabase/postgres:17.6.1.136
+          mode="$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_pg17_only)"
+          bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_pg17_only)"
+          echo "Network mode: $mode; port bindings: $bindings"
+          test "$mode" = none
+          if [ "$bindings" != '{}' ] && [ "$bindings" != null ]; then echo 'FAIL unexpected ports'; exit 1; fi
+          ready=0
+          for i in $(seq 1 85); do
+            if docker exec cowl_pg17_only pg_isready -U postgres -h 127.0.0.1 >/dev/null 2>&1; then ready=1; break; fi
+            if [ "$(docker inspect --format '{{.State.Running}}' cowl_pg17_only)" != true ]; then echo 'FAIL premature exit'; exit 1; fi
+            sleep 2
+          done
+          test "$ready" = 1 || { echo 'FAIL startup timeout'; exit 1; }
+          docker exec cowl_pg17_only psql -X -A -t -U postgres -d postgres -c \
+            "SELECT current_setting('server_version'), to_regnamespace('auth') IS NOT NULL, to_regnamespace('storage') IS NOT NULL, EXISTS (SELECT 1 FROM pg_available_extensions WHERE name='supabase_vault');"
+          docker exec cowl_pg17_only psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            "CREATE TABLE public.recovery_synthetic_only (id integer primary key); INSERT INTO public.recovery_synthetic_only VALUES (38);"
+          docker exec cowl_pg17_only mkdir -p /restore-storage/certificate-templates/nested
+          echo 'synthetic test file' | docker exec -i cowl_pg17_only sh -c 'cat > "$1"' sh /restore-storage/certificate-templates/nested/test.txt
+          docker exec cowl_pg17_only sha256sum /restore-storage/certificate-templates/nested/test.txt
+          echo 'PASS: Supabase PostgreSQL 17 no-port boot, synthetic SQL and Storage materialization'
+      - name: Cleanup
+        if: always()
+        run: docker rm -f cowl_pg17_only || true
