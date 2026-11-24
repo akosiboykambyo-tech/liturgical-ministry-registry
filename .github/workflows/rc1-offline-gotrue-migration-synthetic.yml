@@ -42,7 +42,13 @@ jobs:
           cols="$(docker exec cwldok_auth_migration_qa psql -X -A -t -U postgres -d postgres -c \
             "SELECT count(*) FROM information_schema.columns WHERE table_schema='auth' AND table_name='users' AND column_name='email_confirmed_at';")"
           test "$cols" = 1
-          echo 'PASS: GoTrue migrated Auth schema while all host ports remained disabled'
+          echo 'PASS: GoTrue migrated Auth schema with network disabled'
+          docker exec cwldok_auth_migration_qa psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
+            "BEGIN; SET session_replication_role = replica; INSERT INTO auth.users (instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,created_at,updated_at,raw_app_meta_data,raw_user_meta_data) VALUES ('00000000-0000-0000-0000-000000000000','11111111-1111-4111-8111-111111111111','authenticated','authenticated','synthetic-test@example.invalid','!',now(),now(),now(),'{}'::jsonb,'{}'::jsonb); INSERT INTO auth.identities (id,user_id,provider_id,identity_data,provider,created_at,updated_at) VALUES ('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111','synthetic-test@example.invalid','{\"sub\":\"11111111-1111-4111-8111-111111111111\",\"email\":\"synthetic-test@example.invalid\"}'::jsonb,'email',now(),now()); SET session_replication_role = origin; COMMIT;"
+          result=$(docker exec cwldok_auth_migration_qa psql -X -A -t -U supabase_admin -d postgres -c \
+            "SELECT (SELECT count(*) FROM auth.users WHERE id='11111111-1111-4111-8111-111111111111'),(SELECT count(*) FROM auth.identities WHERE user_id='11111111-1111-4111-8111-111111111111');")
+          test "$result" = '1|1'
+          echo 'PASS: offline PostgreSQL 17 Auth user plus identity restored with triggers suppressed'
       - name: Cleanup
         if: always()
         run: docker rm -f cwldok_auth_migration_qa || true
