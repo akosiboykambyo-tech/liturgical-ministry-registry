@@ -33,7 +33,7 @@ jobs:
           docker image inspect --format 'Entrypoint={{json .Config.Entrypoint}} Cmd={{json .Config.Cmd}}' supabase/gotrue:v2.197.0
           docker run --rm --network container:cwldok_auth_migration_qa \
             -e GOTRUE_DB_DRIVER=postgres \
-            -e GOTRUE_DB_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
+            -e GOTRUE_DB_DATABASE_URL='postgres://supabase_auth_admin:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
             -e GOTRUE_JWT_SECRET='synthetic-only-jwt-secret-not-for-real-use-123456' \
             -e GOTRUE_SITE_URL='http://localhost:9999' \
             -e API_EXTERNAL_URL='http://localhost:9999' \
