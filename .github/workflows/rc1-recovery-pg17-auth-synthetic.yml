@@ -1,0 +1,66 @@
+name: RC1 PG17 synthetic Auth and SQL restore
+on:
+  push:
+    branches: [qa/recovery-cli-windows-preflight-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-auth-restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Start PG17 disconnected from every network
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name cwldok_synthetic_auth17 \
+            --network none --tmpfs /var/lib/postgresql/data:rw,size=2g \
+            -e POSTGRES_PASSWORD=postgres \
+            supabase/postgres:17.6.1.136
+          for i in $(seq 1 90); do
+            if docker exec cwldok_synthetic_auth17 pg_isready -U postgres -h 127.0.0.1 >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker exec cwldok_synthetic_auth17 pg_isready -U postgres -h 127.0.0.1
+      - name: Replay synthetic PostgreSQL SQL and Auth user/identity data
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/synthetic_restore.sql" <<'SQL'
+          BEGIN;
+          CREATE TABLE public.cowl_recovery_synthetic_only (id int PRIMARY KEY, value text NOT NULL);
+          ALTER TABLE public.cowl_recovery_synthetic_only ENABLE ROW LEVEL SECURITY;
+          CREATE POLICY allow_read_to_authenticated ON public.cowl_recovery_synthetic_only FOR SELECT TO authenticated USING (true);
+          INSERT INTO public.cowl_recovery_synthetic_only VALUES (1, 'synthetic');
+          SET session_replication_role = replica;
+          INSERT INTO auth.users (
+            instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+            created_at, updated_at, raw_app_meta_data, raw_user_meta_data
+          ) VALUES (
+            '00000000-0000-0000-0000-000000000000',
+            '11111111-1111-4111-8111-111111111111',
+            'authenticated','authenticated','synthetic-restore@example.invalid','!',
+            now(),now(),now(),'{}'::jsonb,'{}'::jsonb
+          );
+          INSERT INTO auth.identities (
+            id,user_id,provider_id,identity_data,provider,created_at,updated_at
+          ) VALUES (
+            '22222222-2222-4222-8222-222222222222',
+            '11111111-1111-4111-8111-111111111111',
+            'synthetic-restore@example.invalid',
+            '{"sub":"11111111-1111-4111-8111-111111111111","email":"synthetic-restore@example.invalid"}'::jsonb,
+            'email',now(),now()
+          );
+          SET session_replication_role = origin;
+          COMMIT;
+          SQL
+          docker exec -i cwldok_synthetic_auth17 psql -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=sqlstate \
+            -U postgres -d postgres < "$RUNNER_TEMP/synthetic_restore.sql"
+          result=$(docker exec cwldok_synthetic_auth17 psql -X -A -t -U postgres -d postgres -c \
+            "SELECT (SELECT count(*) FROM auth.users WHERE id='11111111-1111-4111-8111-111111111111'),(SELECT count(*) FROM auth.identities WHERE user_id='11111111-1111-4111-8111-111111111111'),(SELECT count(*) FROM public.cowl_recovery_synthetic_only);")
+          test "$result" = "1|1|1"
+          echo 'PASS: synthetic SQL transactions and Auth users/identities restored on offline Supabase PostgreSQL 17'
+      - name: Cleanup isolated test
+        if: always()
+        run: docker rm --force cwldok_synthetic_auth17 || true
