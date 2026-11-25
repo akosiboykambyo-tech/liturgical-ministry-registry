@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { AlertTriangle, ClipboardCheck as BookOpenCheck, CheckCircle2, ClipboardList, Wallet as CreditCard, Wallet as HandCoins, Bank as Landmark, Lock as LockKeyhole, Receipt as ReceiptText, RefreshCw, ShieldCheck } from "@/components/phosphor-icons";
+import { AlertTriangle, ClipboardCheck as BookOpenCheck, CheckCircle2, ClipboardList, QrCode, Wallet as HandCoins, Bank as Landmark, Lock as LockKeyhole, Receipt as ReceiptText, RefreshCw, ShieldCheck } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";
 
@@ -237,7 +237,7 @@ export default function StagingFinancialOperations({
   const pending = remittances.filter(r => r.status === "submitted");
   const chosen = collections.find(c => c.id === receiptCollection);
   const tabs: {id:CollectionTab;label:string;icon:typeof HandCoins}[] = [
-    ...(canVerify?[{id:"otc" as const,label:"OTC Payments",icon:HandCoins},{id:"qr" as const,label:"QR Ph Verification",icon:CreditCard}]:[]),
+    ...(canVerify?[{id:"otc" as const,label:"OTC Payments",icon:HandCoins},{id:"qr" as const,label:"QR Ph Verification",icon:QrCode}]:[]),
     ...(canIssue?[{id:"issue" as const,label:"Receipt Issuance",icon:ReceiptText}]:[]),
     {id:"ledger",label:"Collections Ledger",icon:ClipboardList},
   ];
@@ -398,7 +398,7 @@ export default function StagingFinancialOperations({
           <button className={primary + " mt-4"} disabled={busy || loading || loadFailed || !selectedRequest || !cashChecked || !centavos(cashAmount) || (centavos(cashAmount)??0)>(selectedRequest?.remaining??0)} type="submit">Record OTC payment</button>
         </form>}
         {activeTab==="qr" && canVerify && <div className={box}>
-          <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-[color:var(--registry-crimson)]" /><h3 className={ebGaramond.className + " text-[26px]"}>QR Ph verification queue</h3></div>
+          <div className="flex items-center gap-2"><QrCode className="h-5 w-5 text-[color:var(--registry-crimson)]" /><h3 className={ebGaramond.className + " text-[26px]"}>QR Ph verification queue</h3></div>
           <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">The portal never marks a screenshot Paid. The receiving-account statement, reference, amount and beneficiary must be checked independently.</p>
           <div className="mt-4 divide-y divide-[#EEE5E7] border-y border-[color:var(--registry-hairline)]">
             {outstandingClaims.map(c => <div key={c.id} className="py-3 text-sm">
