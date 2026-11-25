@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import { AlertTriangle, ArrowsLeftRight as ArrowLeftRight, ClipboardCheck as BookOpenCheck, CheckCircle2, Clock as Clock3, Layers as Database, FileWarning, Bank as Landmark, Loader2, LogOut, RefreshCw, ShieldCheck } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
-import PortalShell, { type PortalNavGroup } from "@/components/portal-shell";
+import PortalShell, { type PortalNavGroup } from "@/components/financial-stewardship/demo-portal-shell";
 import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";
 import StagingFinancialOperations from "@/components/financial-stewardship/staging-financial-operations";
 import DemoFinancialReports from "@/components/financial-stewardship/demo-financial-reports";
@@ -29,12 +29,12 @@ type CustodyEvent = {
 };
 type Custodian = { user_id: string; display_label: string };
 type Feedback = { ok: boolean; message: string };
-const burgundy = "#890022";
-const control = "h-11 w-full min-w-0 rounded-sm border border-[#CDBFC3] bg-white px-3 text-sm outline-none focus:border-[#890022] focus:ring-1 focus:ring-[#890022]";
+const burgundy = "var(--registry-crimson)";
+const control = "h-11 w-full min-w-0 rounded-sm border border-[color:var(--finance-control-border)] bg-white px-3 text-sm outline-none focus:border-[color:var(--registry-button)] focus:ring-1 focus:ring-[color:var(--registry-button)]";
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40";
-const solid = button + " bg-[#890022] text-white hover:bg-[#71001C]";
-const outline = button + " border border-[#CDBFC3] bg-white text-[#49363A] hover:border-[#890022]";
-const card = "rounded-sm border border-[#E6DADC] bg-white p-5 sm:p-6";
+const solid = button + " bg-[color:var(--registry-button)] text-white hover:bg-[color:var(--registry-oxblood)]";
+const outline = button + " border border-[color:var(--finance-control-border)] bg-white text-[color:var(--registry-ink)] hover:border-[color:var(--registry-crimson)]";
+const card = "finance-panel";
 const prettyState = (s: string) => ({
   curia_stock: "Curia stock",
   awaiting_cowl_ack: "Awaiting COWL acknowledgment",
@@ -46,7 +46,7 @@ function Field({ label, value, setValue, placeholder, type = "text", required = 
   placeholder?: string; type?: string; required?: boolean;
 }) {
   return <label className="block min-w-0">
-    <span className="mb-1.5 block text-xs font-semibold text-[#635359]">{label}</span>
+    <span className="mb-1.5 block text-xs font-semibold text-[color:var(--registry-muted)]">{label}</span>
     <input className={control} type={type} required={required} autoComplete="off"
       placeholder={placeholder} value={value} onChange={e => setValue(e.target.value)} />
   </label>;
@@ -54,8 +54,8 @@ function Field({ label, value, setValue, placeholder, type = "text", required = 
 function ErrorMessage({ value }: { value: Feedback | null }) {
   if (!value) return null;
   return <div role="status" className={"border px-4 py-3 text-sm leading-6 " +
-    (value.ok ? "border-[#B8DCD3] bg-[#ECF8F3] text-[#145747]"
-      : "border-[#E6B6BB] bg-[#FFF1F2] text-[#922A38]")}>
+    (value.ok ? "border-[color:var(--finance-success-border)] bg-[color:var(--finance-success-surface)] text-[color:var(--finance-success)]"
+      : "border-[color:var(--finance-error-border)] bg-[color:var(--finance-error-surface)] text-[color:var(--registry-error)]")}>
     {value.message}
   </div>;
 }
@@ -226,23 +226,23 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     if (!authLoading && client && !user) router.replace("/demo/finance");
   }, [authLoading, client, user, router]);
 
-  if (!client) return <div className="min-h-screen bg-[#FBF9F9] px-5 py-16">
-    <div className="mx-auto max-w-xl border border-[#E6DADC] bg-white p-8">
-      <FileWarning className="h-8 w-8 text-[#890022]" />
+  if (!client) return <div className="min-h-screen bg-[color:var(--registry-page)] px-5 py-16">
+    <div className="mx-auto max-w-xl border border-[color:var(--registry-hairline)] bg-white p-8">
+      <FileWarning className="h-8 w-8 text-[color:var(--registry-crimson)]" />
       <h1 className={ebGaramond.className + " mt-3 text-3xl"}>Financial staging unavailable</h1>
-      <p className="mt-3 text-sm leading-6 text-[#5F4A4F]">This route only connects when isolated test-project environment variables are present. Production credentials are never used as a fallback.</p>
+      <p className="mt-3 text-sm leading-6 text-[color:var(--registry-muted)]">This route only connects when isolated test-project environment variables are present. Production credentials are never used as a fallback.</p>
     </div>
   </div>;
 
-  if (authLoading || (user && roleLoading)) return <div className="grid min-h-screen place-items-center bg-[#FBF9F9]">
-    <div role="status" className="flex items-center gap-3 text-sm text-[#890022]"><Loader2 className="h-5 w-5 animate-spin" /> Checking isolated staging access</div>
+  if (authLoading || (user && roleLoading)) return <div className="grid min-h-screen place-items-center bg-[color:var(--registry-page)]">
+    <div role="status" className="flex items-center gap-3 text-sm text-[color:var(--registry-crimson)]"><Loader2 className="h-5 w-5 animate-spin" /> Checking isolated staging access</div>
   </div>;
 
-  if (!user) return <div className="grid min-h-screen place-items-center bg-[#FBF9F9] p-6">
+  if (!user) return <div className="grid min-h-screen place-items-center bg-[color:var(--registry-page)] p-6">
     <div className="max-w-md text-center">
-      <Loader2 className="mx-auto h-6 w-6 animate-spin text-[#890022]" />
+      <Loader2 className="mx-auto h-6 w-6 animate-spin text-[color:var(--registry-crimson)]" />
       <p className="mt-3 text-sm">Redirecting to the unified COWL-DOK sign-in…</p>
-      <Link href="/demo/finance" className="mt-4 inline-block text-sm font-semibold text-[#0B5C5A] underline">Open sign-in page</Link>
+      <Link href="/demo/finance" className="mt-4 inline-block text-sm font-semibold text-[color:var(--registry-teal)] underline">Open sign-in page</Link>
     </div>
   </div>;
 
@@ -255,12 +255,12 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
       roles={roles} onSignOut={signOut} />;
   }
 
-  if (!allowed) return <div className="grid min-h-screen place-items-center bg-[#FBF9F9] p-5">
-    <section className="w-full max-w-lg border border-[#E6DADC] bg-white p-7">
-      <ShieldCheck className="h-9 w-9 text-[#890022]" />
+  if (!allowed) return <div className="grid min-h-screen place-items-center bg-[color:var(--registry-page)] p-5">
+    <section className="w-full max-w-lg border border-[color:var(--registry-hairline)] bg-white p-7">
+      <ShieldCheck className="h-9 w-9 text-[color:var(--registry-crimson)]" />
       <h1 className={ebGaramond.className + " mt-3 text-3xl"}>Role approval required</h1>
-      <p className="mt-3 text-sm leading-6 text-[#5F4A4F]">This test identity has no active <strong>{requiredRole.replaceAll("_", " ")}</strong> grant. Financial data is protected until an authorized test administrator provisions the role.</p>
-      <p className="mt-3 break-all text-xs text-[#6F6265]">Signed in as {user.email || user.id}</p>
+      <p className="mt-3 text-sm leading-6 text-[color:var(--registry-muted)]">This test identity has no active <strong>{requiredRole.replaceAll("_", " ")}</strong> grant. Financial data is protected until an authorized test administrator provisions the role.</p>
+      <p className="mt-3 break-all text-xs text-[color:var(--registry-muted)]">Signed in as {user.email || user.id}</p>
       <div className="mt-5 flex gap-3"><button onClick={() => void signOut()} className={outline}>Sign out</button>
         <Link href={mode === "curia" ? "/demo/finance/cowl" : "/demo/finance/curia"} className={outline}>Other workspace</Link>
       </div>
@@ -299,17 +299,17 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     footer={<div className="space-y-2">
       <p className="truncate text-xs text-white/85" title={user.email}>{user.email}</p>
       <p className="text-xs font-semibold text-white/90">TEST DATABASE ONLY</p>
-      <button className="inline-flex min-h-10 items-center gap-2 text-sm text-white hover:underline" onClick={() => void signOut()}><LogOut className="h-4 w-4" /> Sign out</button>
+      <button className="inline-flex min-h-11 items-center gap-2 text-sm text-white hover:underline" onClick={() => void signOut()}><LogOut className="h-4 w-4" /> Sign out</button>
     </div>}
     compactFooter={<button aria-label="Sign out of staging" title="Sign out of staging" onClick={() => void signOut()} className="grid h-11 w-11 place-items-center text-white hover:bg-white/15"><LogOut className="h-5 w-5" /></button>}>
-    <div className="mx-auto w-full max-w-[1350px] space-y-6 px-4 py-7 sm:px-7 lg:px-10">
+    <div className="finance-content">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#890022]">Financial Stewardship</p>
-          <h1 className={ebGaramond.className + " mt-2 text-[38px] font-medium leading-tight sm:text-[47px]"}>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[color:var(--registry-crimson)]">Financial Stewardship</p>
+          <h1 className={ebGaramond.className + " mt-2 finance-page-title"}>
             {sectionTitle}
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#65575A]">
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed sm:text-base text-[color:var(--registry-muted)]">
             {section === "custody"
               ? "Track registered receipt series, physical booklet custody, and individual printed serials."
               : section === "collections"
@@ -323,8 +323,8 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           </button>
         )}
       </header>
-      <div role="note" className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
-        <strong>Isolated Supabase staging.</strong> These workspaces use the same database, but enforce distinct COWL and Curia staff privileges. All records and attestations are fictional. No actual paper, money or official receipt is transferred.
+      <div role="note" className="border-l-4 border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] px-4 py-3 text-sm leading-6 text-[color:var(--registry-ink)]">
+        <strong>Demonstration only.</strong> These workspaces use the same database, but enforce distinct COWL and Curia staff privileges. All records and attestations are fictional. No actual paper, money or official receipt is transferred.
       </div>
       <ErrorMessage value={feedback} />
       {section === "custody" ? (custodyAllowed ? <>
@@ -335,17 +335,17 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           ["Available / unused", available],
           ["Issued / exceptions", issued + exceptions],
           ["Opening stock already used", opening],
-        ].map(([name, count]) => <div key={name} className={card}>
-          <p className="text-xs font-semibold text-[#6F6265]">{name}</p>
-          <p className="mt-2 text-[27px] font-semibold tabular-nums">{count}</p>
+        ].map(([name, count]) => <div key={name} className={card+" finance-metric"}>
+          <p className="text-xs font-semibold text-[color:var(--registry-muted)]">{name}</p>
+          <p className={ebGaramond.className + " finance-metric-value"}>{count}</p>
         </div>)}
       </div>
-      {mode === "curia" && <section className={card}><h2 className="font-semibold">Start a fresh rehearsal</h2><p className="mt-2 text-sm text-[#6F6265]">Creates a new fictional 50-form booklet (10 previously issued, 2 previously voided, 38 unused) and a ₱500 unpaid quote. Earlier rehearsals remain in the audit history; no records are deleted.</p><button type="button" disabled={working} className={solid+" mt-4"} onClick={()=>void operate("fs_demo_new_rehearsal",{},"New rehearsal created. Select the new booklet and assign it to COWL.")}>Create fresh rehearsal</button></section>}
+      {mode === "curia" && <section className={card}><h2 className="font-semibold">Start a fresh rehearsal</h2><p className="mt-2 text-sm text-[color:var(--registry-muted)]">Creates a new fictional 50-form booklet (10 previously issued, 2 previously voided, 38 unused) and a ₱500 unpaid quote. Earlier rehearsals remain in the audit history; no records are deleted.</p><button type="button" disabled={working} className={solid+" mt-4"} onClick={()=>void operate("fs_demo_new_rehearsal",{},"New rehearsal created. Select the new booklet and assign it to COWL.")}>Create fresh rehearsal</button></section>}
       {mode === "curia" && <div className="grid gap-5 xl:grid-cols-2">
         <form className={card} onSubmit={e => { e.preventDefault(); void operate("fs_curia_register_receipt_series",
           { p_issuing_entity: issuer, p_series_code: seriesCode }, "Curia series registered in the isolated test database."); }}>
-          <div className="flex items-center gap-2"><Landmark className="h-5 w-5 text-[#890022]" /><h2 className={ebGaramond.className + " text-[27px]"}>Register receipt series</h2></div>
-          <p className="mt-2 text-xs leading-5 text-[#6F6265]">Use a fictional issuing entity and a DEMO-prefixed series.</p>
+          <div className="flex items-center gap-2"><Landmark className="h-5 w-5 text-[color:var(--registry-crimson)]" /><h2 className={ebGaramond.className + " text-[27px]"}>Register receipt series</h2></div>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Use a fictional issuing entity and a DEMO-prefixed series.</p>
           <div className="mt-4 grid gap-3">
             <Field label="Curia issuing entity (as authorized)" value={issuer} setValue={setIssuer} placeholder="Enter issuing entity" />
             <Field label="Printed series identifier" value={seriesCode} setValue={setSeriesCode} placeholder="DEMO-SERIES-01" />
@@ -357,9 +357,9 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
             p_last_no: lastNo.trim(), p_prior_issued:Number(priorIssued),p_prior_voided:Number(priorVoided),p_checked: checkedRegister },
           "Preprinted booklet recorded in the shared test database, currently held by Curia."); }}>
           <h2 className={ebGaramond.className + " text-[27px]"}>Register new or partially used demo booklet</h2>
-          <p className="mt-2 text-xs leading-5 text-[#6F6265]">Use fictional serials only. This rehearsal assumes previously issued forms are the first contiguous serials, followed by previously voided forms. Earlier use does not create revenue. Set both counts to zero for new stock.</p>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Use fictional serials only. This rehearsal assumes previously issued forms are the first contiguous serials, followed by previously voided forms. Earlier use does not create revenue. Set both counts to zero for new stock.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block sm:col-span-2"><span className="mb-1.5 block text-xs font-semibold text-[#635359]">Registered Curia series</span>
+            <label className="block sm:col-span-2"><span className="mb-1.5 block text-xs font-semibold text-[color:var(--registry-muted)]">Registered Curia series</span>
               <select className={control} required value={seriesId} onChange={e => setSeriesId(e.target.value)}>
                 <option value="">Select series</option>{series.map(s => <option key={s.id} value={s.id}>{s.issuing_entity} · {s.series_code}</option>)}
               </select>
@@ -370,92 +370,92 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
             <Field label="Previously issued (first serials)" value={priorIssued} setValue={setPriorIssued} type="number"/>
             <Field label="Previously voided (next serials)" value={priorVoided} setValue={setPriorVoided} type="number"/>
           </div>
-          <label className="mt-4 flex items-start gap-2 text-sm leading-6"><input type="checkbox" checked={checkedRegister} onChange={e => setCheckedRegister(e.target.checked)} className="mt-1 accent-[#890022]"/>
+          <label className="mt-4 flex items-start gap-2 text-sm leading-6"><input type="checkbox" checked={checkedRegister} onChange={e => setCheckedRegister(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]"/>
             <span>For this simulation, I checked this booklet's exact printed range and count.</span></label>
           <button type="submit" disabled={working || !checkedRegister || !seriesId || !/^\d+$/.test(priorIssued) || !/^\d+$/.test(priorVoided)} className={solid + " mt-4"}>Register checked booklet</button>
         </form>
       </div>}
       <section className={card}>
         <h2 className={ebGaramond.className + " text-[29px]"}>Shared booklet inventory</h2>
-        <p className="mt-2 text-xs leading-5 text-[#6F6265]">These are actual database records in the isolated test project, not the browser-local Phase 2/3 sample inventory.</p>
-        {booklets.length === 0 ? <div className="mt-4 border border-dashed border-[#D7C5CC] p-6 text-sm text-[#6F6265]">
+        <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">These are actual database records in the isolated test project, not the browser-local Phase 2/3 sample inventory.</p>
+        {booklets.length === 0 ? <div className="mt-4 border border-dashed border-[color:var(--finance-control-border)] p-6 text-sm text-[color:var(--registry-muted)]">
           No test receipt booklets are registered. Only an authorized Curia custodian may create the first series and booklet.
         </div> : <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {booklets.map(b => <button key={b.id} type="button" onClick={() => {
             setSelectedId(b.id); setShowAllNumbers(false); setFeedback(null);
             setCheckedAck(false);setCheckedHandover(false);setExceptionSerialId("");
           }} className={"rounded-sm border px-4 py-4 text-left " + (selected?.id === b.id
-            ? "border-[#890022] bg-[#FFF7F9]" : "border-[#E6DADC] bg-white hover:border-[#BFA1AA]")}>
+            ? "border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)]" : "border-[color:var(--registry-hairline)] bg-white hover:border-[color:var(--finance-control-border)]")}>
             <span className="font-semibold">{b.booklet_reference}</span>
             <span className="mt-1 block text-sm tabular-nums">{b.first_printed_no}–{b.last_printed_no}</span>
-            <span className="mt-2 block text-xs font-semibold text-[#890022]">{prettyState(b.custody_state)}</span>
+            <span className="mt-2 block text-xs font-semibold text-[color:var(--registry-crimson)]">{prettyState(b.custody_state)}</span>
           </button>)}
         </div>}
       </section>
       {selected && <section className={card}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-xs font-bold uppercase tracking-wider text-[#890022]">Selected booklet</p>
+          <div><p className="text-xs font-bold uppercase tracking-wider text-[color:var(--registry-crimson)]">Selected booklet</p>
             <h2 className={ebGaramond.className + " mt-1 text-[29px]"}>{selected.booklet_reference}</h2>
             <p className="mt-1 text-sm tabular-nums">{selected.first_printed_no}–{selected.last_printed_no}</p></div>
-          <span className="border border-[#DAC6CC] bg-[#FBF7F8] px-3 py-2 text-xs font-semibold text-[#890022]">{prettyState(selected.custody_state)}</span>
+          <span className="border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] px-3 py-2 text-xs font-semibold text-[color:var(--registry-crimson)]">{prettyState(selected.custody_state)}</span>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           {[
             ["Receipt series", series.find(s => s.id === selected.series_id)?.series_code || "—"],
             ["Assigned custodian", custodians.find(c => c.user_id === selected.assigned_to)?.display_label || (selected.assigned_to ? "Assigned (authorized account)" : "Not assigned")],
             ["COWL acknowledged at", selected.acknowledged_at ? new Date(selected.acknowledged_at).toLocaleString("en-PH") : "Pending"],
-          ].map(([name, val]) => <div key={name} className="bg-[#FBF9F9] p-3"><p className="text-xs text-[#6F6265]">{name}</p><p className="mt-1 break-words text-sm font-semibold">{val}</p></div>)}
+          ].map(([name, val]) => <div key={name} className="bg-[color:var(--registry-page)] p-3"><p className="text-xs text-[color:var(--registry-muted)]">{name}</p><p className="mt-1 break-words text-sm font-semibold">{val}</p></div>)}
         </div>
-        {mode === "curia" && selected.custody_state === "curia_stock" && <form className="mt-5 border border-[#E6DADC] bg-[#FFFCFD] p-4" onSubmit={e => {
+        {mode === "curia" && selected.custody_state === "curia_stock" && <form className="mt-5 border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4" onSubmit={e => {
           e.preventDefault();void operate("fs_curia_assign_receipt_booklet",{
             p_booklet_id:selected.id,p_cowl_custodian_id:assignee,p_handover_confirmed:checkedHandover,
           },"Curia handover recorded; awaiting independent COWL acknowledgment.");}}>
           <h3 className="font-semibold">Hand over physical booklet to COWL</h3>
-          <label className="mt-3 block"><span className="mb-1.5 block text-xs font-semibold text-[#635359]">Authorized receiving COWL custodian</span>
+          <label className="mt-3 block"><span className="mb-1.5 block text-xs font-semibold text-[color:var(--registry-muted)]">Authorized receiving COWL custodian</span>
             <select value={assignee} onChange={e=>setAssignee(e.target.value)} required className={control}>
               <option value="">Select test officer</option>
               {custodians.map(c => <option key={c.user_id} value={c.user_id}>{c.display_label}</option>)}
             </select></label>
-          {custodians.length===0 && <p className="mt-2 text-xs leading-5 text-[#8A4D29]">No authorized COWL receipt custodians are provisioned in the test project yet.</p>}
-          <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={checkedHandover} onChange={e=>setCheckedHandover(e.target.checked)} className="mt-1 accent-[#890022]"/>
+          {custodians.length===0 && <p className="mt-2 text-xs leading-5 text-[color:var(--registry-amber)]">No authorized COWL receipt custodians are provisioned in the test project yet.</p>}
+          <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={checkedHandover} onChange={e=>setCheckedHandover(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]"/>
             <span>For this simulation, I handed over the fictional booklet and verified the receiving officer.</span></label>
           <button className={solid + " mt-3"} type="submit" disabled={working || !assignee || !checkedHandover}>Record Curia handover</button>
         </form>}
-        {mode === "cowl" && selected.custody_state === "awaiting_cowl_ack" && <form className="mt-5 border border-[#E6DADC] bg-[#FFFCFD] p-4" onSubmit={e => {
+        {mode === "cowl" && selected.custody_state === "awaiting_cowl_ack" && <form className="mt-5 border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4" onSubmit={e => {
           e.preventDefault();void operate("fs_cowl_acknowledge_receipt_booklet",{
             p_booklet_id:selected.id,p_physically_checked:checkedAck,
           },"COWL physical custody acknowledged in the shared test database.");}}>
           <h3 className="font-semibold">Acknowledge physical COWL custody</h3>
-          <p className="mt-2 text-sm text-[#6F6265]">Only the actual officer designated by Curia can acknowledge this physical booklet.</p>
+          <p className="mt-2 text-sm text-[color:var(--registry-muted)]">Only the actual officer designated by Curia can acknowledge this physical booklet.</p>
           <label className="mt-3 flex items-start gap-2 text-sm leading-6">
-            <input type="checkbox" checked={checkedAck} onChange={e=>setCheckedAck(e.target.checked)} className="mt-1 accent-[#890022]"/>
+            <input type="checkbox" checked={checkedAck} onChange={e=>setCheckedAck(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]"/>
             <span>For this simulation, I counted and checked the printed receipt numbers <strong>{selected.first_printed_no}–{selected.last_printed_no}</strong>.</span>
           </label>
           <button type="submit" disabled={working || !checkedAck || selected.assigned_to!==user.id} className={solid + " mt-3"}><CheckCircle2 className="h-4 w-4" /> Acknowledge custody</button>
-          {selected.assigned_to!==user.id && <p className="mt-3 text-xs text-[#8A4D29]">This booklet is assigned to another custodian. Your account cannot acknowledge it.</p>}
+          {selected.assigned_to!==user.id && <p className="mt-3 text-xs text-[color:var(--registry-amber)]">This booklet is assigned to another custodian. Your account cannot acknowledge it.</p>}
         </form>}
-        {mode === "cowl" && selected.custody_state === "cowl_custody" && <form className="mt-5 border border-[#E6DADC] bg-[#FFFCFD] p-4" onSubmit={e => {
+        {mode === "cowl" && selected.custody_state === "cowl_custody" && <form className="mt-5 border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4" onSubmit={e => {
           e.preventDefault();void operate("fs_cowl_report_receipt_exception",{
             p_receipt_number_id:exceptionSerialId,p_status:exceptionType,
             p_reason:exceptionReason,p_physically_verified:checkedException,
           },"Receipt exception recorded and removed from available test stock.");}}>
-          <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-[#922A38]"/><h3 className="font-semibold">Report unusable printed receipt</h3></div>
-          <p className="mt-2 text-xs text-[#6F6265]">Issued receipts cannot be voided through this form. This records a pre-issue physical exception only.</p>
+          <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-[color:var(--registry-error)]"/><h3 className="font-semibold">Report unusable printed receipt</h3></div>
+          <p className="mt-2 text-xs text-[color:var(--registry-muted)]">Issued receipts cannot be voided through this form. This records a pre-issue physical exception only.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[#635359]">Available printed number</span>
+            <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[color:var(--registry-muted)]">Available printed number</span>
               <select value={exceptionSerialId} onChange={e=>setExceptionSerialId(e.target.value)} required className={control}>
                 <option value="">Select unused serial</option>{selectedNumbers.filter(n=>n.status==="available").map(n=><option key={n.id} value={n.id}>{n.printed_no}</option>)}
               </select></label>
-            <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[#635359]">Exception type</span>
+            <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[color:var(--registry-muted)]">Exception type</span>
               <select value={exceptionType} onChange={e=>setExceptionType(e.target.value)} className={control}>
                 <option value="voided">Voided</option><option value="missing">Missing</option>
               </select></label>
           </div>
-          <label className="mt-3 block"><span className="mb-1.5 block text-xs font-semibold text-[#635359]">Physical evidence and reason (minimum 10 characters)</span>
+          <label className="mt-3 block"><span className="mb-1.5 block text-xs font-semibold text-[color:var(--registry-muted)]">Physical evidence and reason (minimum 10 characters)</span>
             <textarea required minLength={10} value={exceptionReason} onChange={e=>setExceptionReason(e.target.value)}
-              className="min-h-24 w-full border border-[#CDBFC3] p-3 text-sm outline-none focus:border-[#890022]" />
+              className="min-h-24 w-full border border-[color:var(--finance-control-border)] p-3 text-sm outline-none focus:border-[color:var(--registry-button)]" />
           </label>
-          <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={checkedException} onChange={e=>setCheckedException(e.target.checked)} className="mt-1 accent-[#890022]"/>
+          <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={checkedException} onChange={e=>setCheckedException(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]"/>
             <span>For this simulation, I inspected the fictional receipt exception.</span></label>
           <button type="submit" disabled={working || !checkedException || !exceptionSerialId || exceptionReason.trim().length<10} className={outline + " mt-3"}>Record physical exception</button>
         </form>}
@@ -463,34 +463,34 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           <div>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-semibold">Preprinted serial accountability ({selectedNumbers.length})</h3>
-              {selectedNumbers.length>12 && <button type="button" onClick={()=>setShowAllNumbers(v=>!v)} className="text-xs font-semibold text-[#0B5C5A] underline underline-offset-2">
+              {selectedNumbers.length>12 && <button type="button" onClick={()=>setShowAllNumbers(v=>!v)} className="text-xs font-semibold text-[color:var(--registry-teal)] underline underline-offset-2">
                 {showAllNumbers ? "Show fewer" : "Show all"}
               </button>}
             </div>
-            <div className="mt-3 max-h-80 overflow-auto border border-[#E6DADC]">
-              <table className="w-full min-w-[300px] text-left text-sm"><thead className="sticky top-0 bg-[#FBF9F9] text-xs text-[#6F6265]"><tr><th className="px-3 py-2">Official Receipt No.</th><th className="px-3 py-2">Status</th></tr></thead>
+            <div className="mt-3 max-h-80 overflow-auto border border-[color:var(--registry-hairline)]">
+              <table className="w-full min-w-[300px] text-left text-sm"><thead className="sticky top-0 bg-[color:var(--registry-page)] text-xs text-[color:var(--registry-muted)]"><tr><th className="px-3 py-2">Official Receipt No.</th><th className="px-3 py-2">Status</th></tr></thead>
                 <tbody className="divide-y divide-[#F1E8EB]">{(showAllNumbers?selectedNumbers:selectedNumbers.slice(0,12)).map(n=>
                   <tr key={n.id}><td className="px-3 py-2 font-semibold tabular-nums">{n.printed_no}</td><td className="px-3 py-2 capitalize">{n.status.replaceAll("_"," ")}</td></tr>)}</tbody>
               </table>
             </div>
           </div>
           <div><h3 className="font-semibold">Physical custody history</h3>
-            {selectedEvents.length ? <div className="mt-3 divide-y divide-[#E6DADC] border-y border-[#E6DADC]">
+            {selectedEvents.length ? <div className="mt-3 divide-y divide-[#E6DADC] border-y border-[color:var(--registry-hairline)]">
               {selectedEvents.map(e=><div key={e.id} className="py-3">
                 <p className="text-sm font-semibold">{prettyState(e.event_kind)}</p>
-                <p className="mt-1 text-xs text-[#6F6265]">{new Date(e.event_at).toLocaleString("en-PH")} · {e.notes || "Custody event"}</p>
-              </div>)}</div> : <p className="mt-3 text-sm text-[#6F6265]">No custody events are visible to this role.</p>}
+                <p className="mt-1 text-xs text-[color:var(--registry-muted)]">{new Date(e.event_at).toLocaleString("en-PH")} · {e.notes || "Custody event"}</p>
+              </div>)}</div> : <p className="mt-3 text-sm text-[color:var(--registry-muted)]">No custody events are visible to this role.</p>}
           </div>
         </div>
       </section>}
-      </> : <div className="flex items-start gap-3 border border-[#E6DADC] bg-white p-5">
-        <ShieldCheck className="h-5 w-5 shrink-0 text-[#890022]" />
+      </> : <div className="flex items-start gap-3 border border-[color:var(--registry-hairline)] bg-white p-5">
+        <ShieldCheck className="h-5 w-5 shrink-0 text-[color:var(--registry-crimson)]" />
         <div><h2 className="font-semibold">Receipt custodian role required</h2>
-          <p className="mt-1 text-sm text-[#6F6265]">This workspace is available only to the assigned {mode === "curia" ? "Curia receipt custodian" : "COWL receipt issuer / custodian"}. A finance or treasury role alone does not permit control of printed receipt stock.</p>
+          <p className="mt-1 text-sm text-[color:var(--registry-muted)]">This workspace is available only to the assigned {mode === "curia" ? "Curia receipt custodian" : "COWL receipt issuer / custodian"}. A finance or treasury role alone does not permit control of printed receipt stock.</p>
         </div>
       </div>) : section==="reports" ? <DemoFinancialReports/> : section==="receipt-management" ? <ReceiptManagementPreview/> : <StagingFinancialOperations mode={mode} section={section} roles={roles} /> }
-      <footer className="border-t border-[#E6DADC] pt-5 text-xs leading-5 text-[#6F6265]">
-        <div className="flex flex-wrap items-center gap-2"><Database className="h-4 w-4" /> Test-project records only · Requires distinct Curia and COWL staff authorization · Manual refresh or focus refresh across devices</div>
+      <footer className="border-t border-[color:var(--registry-hairline)] pt-5 text-xs leading-5 text-[color:var(--registry-muted)]">
+        <div className="flex flex-wrap items-center gap-2"><Database className="h-4 w-4" /> Fictional TEST records · Separate COWL and Curia authorization · Refresh to see recent activity</div>
         <p className="mt-2">No financial staff privilege is inferred from receipt custody. Posting and confirmation require their specific test staff grants, approved evidence, and guarded database operations.</p>
       </footer>
     </div>

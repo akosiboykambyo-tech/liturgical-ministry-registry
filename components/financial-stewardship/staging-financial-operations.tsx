@@ -45,10 +45,10 @@ type CuriaFunds = {
 type CuriaReview = { id: string; remittance_id: string; decision: string; reviewed_at: string };
 type Notice = { ok: boolean; message: string };
 
-const box = "rounded-sm border border-[#E6DADC] bg-white p-5 sm:p-6";
-const field = "min-h-11 w-full rounded-sm border border-[#CDBFC3] bg-white px-3 py-2 text-sm text-[#291E21] outline-none focus:border-[#890022] focus:ring-1 focus:ring-[#890022]";
-const primary = "inline-flex min-h-11 items-center justify-center gap-2 rounded-sm bg-[#890022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#71001C] disabled:cursor-not-allowed disabled:opacity-40";
-const secondary = "inline-flex min-h-11 items-center justify-center gap-2 rounded-sm border border-[#CDBFC3] bg-white px-4 py-2 text-sm font-semibold text-[#49363A] hover:border-[#890022] disabled:cursor-not-allowed disabled:opacity-40";
+const box = "finance-panel";
+const field = "min-h-11 w-full rounded-sm border border-[color:var(--finance-control-border)] bg-white px-3 py-2 text-sm text-[color:var(--registry-ink)] outline-none focus:border-[color:var(--registry-button)] focus:ring-1 focus:ring-[color:var(--registry-button)]";
+const primary = "inline-flex min-h-11 items-center justify-center gap-2 rounded-sm bg-[color:var(--registry-button)] px-4 py-2 text-sm font-semibold text-white hover:bg-[color:var(--registry-oxblood)] disabled:cursor-not-allowed disabled:opacity-40";
+const secondary = "inline-flex min-h-11 items-center justify-center gap-2 rounded-sm border border-[color:var(--finance-control-border)] bg-white px-4 py-2 text-sm font-semibold text-[color:var(--registry-ink)] hover:border-[color:var(--registry-crimson)] disabled:cursor-not-allowed disabled:opacity-40";
 
 function centavos(value: string): number | null {
   const match = value.trim().match(/^(0|[1-9]\d{0,8})(?:\.(\d{1,2}))?$/);
@@ -68,8 +68,8 @@ type Line = { description: string; count: string; rate: string; amount: string }
 
 function Restricted({ title, explanation }: { title: string; explanation: string }) {
   return <div className={box + " flex items-start gap-3"}>
-    <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-[#890022]" />
-    <div><h3 className="font-semibold">{title}</h3><p className="mt-1 text-sm leading-6 text-[#6F6265]">{explanation}</p></div>
+    <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-[color:var(--registry-crimson)]" />
+    <div><h3 className="font-semibold">{title}</h3><p className="mt-1 text-sm leading-6 text-[color:var(--registry-muted)]">{explanation}</p></div>
   </div>;
 }
 function Input({ label, value, onChange, placeholder, type = "text", required = true }: {
@@ -77,14 +77,14 @@ function Input({ label, value, onChange, placeholder, type = "text", required = 
   placeholder?: string; type?: string; required?: boolean;
 }) {
   return <label className="block min-w-0">
-    <span className="mb-1 block text-xs font-semibold text-[#65565A]">{label}</span>
+    <span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">{label}</span>
     <input className={field} value={value} onChange={e => onChange(e.target.value)}
       placeholder={placeholder} type={type} required={required} autoComplete="off" />
   </label>;
 }
 function Metric({ name, value }: { name: string; value: string }) {
-  return <div className={box}><p className="text-xs font-semibold text-[#6F6265]">{name}</p>
-    <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p></div>;
+  return <div className={box+" finance-metric"}><p className="text-xs font-semibold text-[color:var(--registry-muted)]">{name}</p>
+    <p className={ebGaramond.className+" finance-metric-value"}>{value}</p></div>;
 }
 
 export default function StagingFinancialOperations({
@@ -272,21 +272,21 @@ export default function StagingFinancialOperations({
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm leading-6 text-[#5F4A4F]">
+      <p className="text-sm leading-6 text-[color:var(--registry-muted)]">
         {section === "collections" ? "Collection and receipt operations" : "Remittance and treasury operations"}
-        <span className="ml-2 text-xs text-[#6F6265]">· Shared isolated Supabase ledger</span>
+        <span className="ml-2 text-xs text-[color:var(--registry-muted)]">· Shared isolated Supabase ledger</span>
       </p>
       <button type="button" disabled={loading || busy} onClick={reload} className={secondary}>
         <RefreshCw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} /> Refresh
       </button>
     </div>
-    <div className="border-l-4 border-[#890022] bg-[#F8EDEF] px-4 py-3 text-sm leading-6 text-[#4D343A]">
+    <div className="border-l-4 border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] px-4 py-3 text-sm leading-6 text-[color:var(--registry-ink)]">
       <strong>Test environment only.</strong> No real payment account, authorized fee schedule, or actual preprinted receipt stock has been loaded. QR Ph credits require independently verified bank evidence; self-submitted screenshots never establish a collection. Actions are checked again by the database.
     </div>
     {notice && <div role="status" className={"border px-4 py-3 text-sm " + (notice.ok
-      ? "border-[#B8DCD3] bg-[#ECF8F3] text-[#145747]"
-      : "border-[#E6B6BB] bg-[#FFF1F2] text-[#922A38]")}>{notice.message}</div>}
-    {loading && <p role="status" className="text-sm text-[#6F6265]">Loading authorized test financial records…</p>}
+      ? "border-[color:var(--finance-success-border)] bg-[color:var(--finance-success-surface)] text-[color:var(--finance-success)]"
+      : "border-[color:var(--finance-error-border)] bg-[color:var(--finance-error-surface)] text-[color:var(--registry-error)]")}>{notice.message}</div>}
+    {loading && <p role="status" className="text-sm text-[color:var(--registry-muted)]">Loading authorized test financial records…</p>}
 
     {section === "collections" && <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -297,10 +297,10 @@ export default function StagingFinancialOperations({
       </div>
       {canReadCollections && <section className={box}>
         <h3 className={ebGaramond.className + " text-[26px]"}>Verified collections ledger</h3>
-        <p className="mt-1 text-xs leading-5 text-[#6F6265]">Only confirmed QR Ph or counted OTC funds enter this ledger. Receipt issuance and Curia remittance are separate events.</p>
+        <p className="mt-1 text-xs leading-5 text-[color:var(--registry-muted)]">Only confirmed QR Ph or counted OTC funds enter this ledger. Receipt issuance and Curia remittance are separate events.</p>
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-[720px] w-full text-left text-sm">
-            <thead className="bg-[#FBF9F9] text-xs text-[#6F6265]"><tr>
+            <thead className="bg-[color:var(--registry-page)] text-xs text-[color:var(--registry-muted)]"><tr>
               <th className="p-3">Collection</th><th className="p-3">Channel</th><th className="p-3">Amount</th>
               <th className="p-3">Official receipt no.</th><th className="p-3">Recorded</th>
             </tr></thead>
@@ -312,7 +312,7 @@ export default function StagingFinancialOperations({
                 <td className="p-3 font-semibold tabular-nums">{issueFor(c.id) ? serialFor(issueFor(c.id)!.receipt_number_id) : "Awaiting issue"}</td>
                 <td className="p-3">{when(c.received_at)}</td>
               </tr>)}
-              {!collections.length && <tr><td colSpan={5} className="p-5 text-center text-[#6F6265]">No verified collections in staging.</td></tr>}
+              {!collections.length && <tr><td colSpan={5} className="p-5 text-center text-[color:var(--registry-muted)]">No verified collections in staging.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -326,10 +326,10 @@ export default function StagingFinancialOperations({
             p_counted_at: new Date(cashDate).toISOString(), p_cash_physically_counted: true,
           }, "Actual counted OTC cash posted to the verified collections ledger.");
         }}>
-          <div className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-[#890022]"/><h3 className={ebGaramond.className + " text-[26px]"}>Record OTC payment</h3></div>
-          <p className="mt-2 text-xs leading-5 text-[#6F6265]">Restricted to COWL finance verifiers. Cash must already be physically counted. No automatic fee or invented payment request is created.</p>
+          <div className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-[color:var(--registry-crimson)]"/><h3 className={ebGaramond.className + " text-[26px]"}>Record OTC payment</h3></div>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Restricted to COWL finance verifiers. Cash must already be physically counted. No automatic fee or invented payment request is created.</p>
           <div className="mt-4 space-y-3">
-            <label className="block"><span className="mb-1 block text-xs font-semibold text-[#65565A]">Approved renewal payment request</span>
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Approved renewal payment request</span>
               <select required className={field} value={requestId} onChange={e => setRequestId(e.target.value)}>
                 <option value="">Select authorized quote</option>{requests.filter(r => ["quoted","awaiting_payment","part_paid"].includes(r.status)).map(r =>
                   <option value={r.id} key={r.id}>{r.payment_reference} · {money(r.total_due_centavos)} due</option>)}
@@ -338,36 +338,36 @@ export default function StagingFinancialOperations({
             <Input label="Counted amount (PHP)" value={cashAmount} onChange={setCashAmount} placeholder="0.00" />
             <Input label="Date and time cash was counted" value={cashDate} onChange={setCashDate} type="datetime-local" />
             <label className="flex items-start gap-2 text-sm leading-6">
-              <input type="checkbox" checked={cashChecked} onChange={e => setCashChecked(e.target.checked)} className="mt-1 accent-[#890022]" />
+              <input type="checkbox" checked={cashChecked} onChange={e => setCashChecked(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]" />
               <span>I personally counted and received the stated cash for this renewal.</span>
             </label>
           </div>
-          {!requests.length && <p className="mt-3 text-xs text-[#8A4D29]">No approved payment requests exist. Fee schedule and quote authorization are required before cash can be posted.</p>}
+          {!requests.length && <p className="mt-3 text-xs text-[color:var(--registry-amber)]">No approved payment requests exist. Fee schedule and quote authorization are required before cash can be posted.</p>}
           <button className={primary + " mt-4"} disabled={busy || !requestId || !cashChecked || !centavos(cashAmount)} type="submit">Post counted cash</button>
         </form>
         <div className={box}>
-          <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-[#890022]" /><h3 className={ebGaramond.className + " text-[26px]"}>QR Ph verification queue</h3></div>
-          <p className="mt-2 text-xs leading-5 text-[#6F6265]">The portal never marks a screenshot Paid. The receiving-account statement, reference, amount and beneficiary must be checked independently.</p>
-          <div className="mt-4 divide-y divide-[#EEE5E7] border-y border-[#EEE5E7]">
+          <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-[color:var(--registry-crimson)]" /><h3 className={ebGaramond.className + " text-[26px]"}>QR Ph verification queue</h3></div>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">The portal never marks a screenshot Paid. The receiving-account statement, reference, amount and beneficiary must be checked independently.</p>
+          <div className="mt-4 divide-y divide-[#EEE5E7] border-y border-[color:var(--registry-hairline)]">
             {outstandingClaims.map(c => <div key={c.id} className="py-3 text-sm">
               <p className="font-semibold">{c.submitted_external_reference}</p>
-              <p className="mt-1 text-xs text-[#6F6265]">{c.provider_name} · {money(c.claimed_amount_centavos)} · {c.status}</p>
+              <p className="mt-1 text-xs text-[color:var(--registry-muted)]">{c.provider_name} · {money(c.claimed_amount_centavos)} · {c.status}</p>
             </div>)}
-            {!outstandingClaims.length && <p className="py-5 text-sm text-[#6F6265]">No submitted QR Ph payment claims.</p>}
+            {!outstandingClaims.length && <p className="py-5 text-sm text-[color:var(--registry-muted)]">No submitted QR Ph payment claims.</p>}
           </div>
-          <p className="mt-4 text-xs leading-5 text-[#8A4D29]"><AlertTriangle className="mr-1 inline h-4 w-4" /> QR Ph posting remains locked until the receiving account and bank-statement evidence ingestion are authorized and operational.</p>
+          <p className="mt-4 text-xs leading-5 text-[color:var(--registry-amber)]"><AlertTriangle className="mr-1 inline h-4 w-4" /> QR Ph posting remains locked until the receiving account and bank-statement evidence ingestion are authorized and operational.</p>
         </div>
       </section>}
       {canIssue && <form className={box} onSubmit={submitReceipt}>
-        <div className="flex items-center gap-2"><ReceiptText className="h-5 w-5 text-[#890022]"/><h3 className={ebGaramond.className + " text-[27px]"}>Issue the exact Curia-preprinted official receipt</h3></div>
-        <p className="mt-2 text-sm leading-6 text-[#6F6265]">Only a verified collection and an unused number from COWL-acknowledged physical stock can be linked. This form records the actual printed line breakdown, not an auto-generated receipt number.</p>
+        <div className="flex items-center gap-2"><ReceiptText className="h-5 w-5 text-[color:var(--registry-crimson)]"/><h3 className={ebGaramond.className + " text-[27px]"}>Issue the exact Curia-preprinted official receipt</h3></div>
+        <p className="mt-2 text-sm leading-6 text-[color:var(--registry-muted)]">Only a verified collection and an unused number from COWL-acknowledged physical stock can be linked. This form records the actual printed line breakdown, not an auto-generated receipt number.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="block"><span className="mb-1 block text-xs font-semibold text-[#65565A]">Verified collection without receipt</span>
+          <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Verified collection without receipt</span>
             <select required value={receiptCollection} onChange={e => setReceiptCollection(e.target.value)} className={field}>
               <option value="">Select posted collection</option>
               {unissued.map(c=><option value={c.id} key={c.id}>{c.internal_reference} · {money(c.amount_centavos)}</option>)}
             </select></label>
-          <label className="block"><span className="mb-1 block text-xs font-semibold text-[#65565A]">Actual printed official receipt No.</span>
+          <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Actual printed official receipt No.</span>
             <select required value={receiptNumber} onChange={e=>setReceiptNumber(e.target.value)} className={field}>
               <option value="">Select physical unused serial</option>
               {numbers.filter(n=>n.status==="available" && booklets.some(b=>b.id===n.booklet_id && b.custody_state==="cowl_custody"))
@@ -379,21 +379,21 @@ export default function StagingFinancialOperations({
           <Input label="Ministry as written on paper" value={paperMinistry} onChange={setPaperMinistry} />
         </div>
         <h4 className="mt-5 font-semibold">Physical paper line items</h4>
-        <p className="mt-1 text-xs text-[#6F6265]">For each line, copy the description and amount. If the paper shows participants and a rate, include both and the calculation must match.</p>
+        <p className="mt-1 text-xs text-[color:var(--registry-muted)]">For each line, copy the description and amount. If the paper shows participants and a rate, include both and the calculation must match.</p>
         <div className="mt-3 space-y-3">
-          {paperLines.map((line,index)=><div key={index} className="grid gap-2 border border-[#E6DADC] bg-[#FFFCFD] p-3 sm:grid-cols-4">
+          {paperLines.map((line,index)=><div key={index} className="grid gap-2 border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-3 sm:grid-cols-4">
             <Input label="Printed description" value={line.description} onChange={v=>patchLine(index,"description",v)} />
             <Input label="Participants (optional)" value={line.count} onChange={v=>patchLine(index,"count",v)} required={false} type="number" />
             <Input label="Rate PHP (optional)" value={line.rate} onChange={v=>patchLine(index,"rate",v)} required={false} />
             <Input label="Line total PHP" value={line.amount} onChange={v=>patchLine(index,"amount",v)} />
             {paperLines.length>1 && <button type="button" onClick={()=>setPaperLines(old=>old.filter((_,i)=>i!==index))}
-              className="text-left text-xs font-semibold text-[#922A38] underline sm:col-span-4">Remove this paper line</button>}
+              className="text-left text-xs font-semibold text-[color:var(--registry-error)] underline sm:col-span-4">Remove this paper line</button>}
           </div>)}
         </div>
         <button type="button" className={secondary + " mt-3"} onClick={()=>setPaperLines(old=>old.length<50?[...old,{description:"",count:"",rate:"",amount:""}]:old)}>Add printed line</button>
         <p className="mt-4 text-sm font-semibold">Written line total: {money(paperSum)} · Verified collection: {chosen?money(chosen.amount_centavos):"Select a collection"}</p>
         <label className="mt-4 flex items-start gap-2 text-sm">
-          <input type="checkbox" checked={paperChecked} onChange={e=>setPaperChecked(e.target.checked)} className="mt-1 accent-[#890022]" />
+          <input type="checkbox" checked={paperChecked} onChange={e=>setPaperChecked(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]" />
           <span>For this simulation, I checked this specific Curia-preprinted paper receipt, its exact number, written names and all line items.</span>
         </label>
         <button type="submit" className={primary + " mt-4"} disabled={busy || !chosen || !receiptNumber || !paperChecked || paperSum<=0 || paperSum!==Number(chosen.amount_centavos)}>Record issued official receipt</button>
@@ -409,9 +409,9 @@ export default function StagingFinancialOperations({
       </div>}
       {canReadRemittances && <section className={box}>
         <h3 className={ebGaramond.className + " text-[27px]"}>COWL-to-Curia remittance ledger</h3>
-        <p className="mt-2 text-xs leading-5 text-[#6F6265]">The parish paying COWL and COWL handing money to Curia are separate transactions. A verified parish payment is not Curia acknowledgment.</p>
+        <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">The parish paying COWL and COWL handing money to Curia are separate transactions. A verified parish payment is not Curia acknowledgment.</p>
         <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
-          <thead className="bg-[#FBF9F9] text-xs text-[#6F6265]"><tr>
+          <thead className="bg-[color:var(--registry-page)] text-xs text-[color:var(--registry-muted)]"><tr>
             <th className="p-3">Remittance</th><th className="p-3">Declared amount</th>
             <th className="p-3">Transfer</th><th className="p-3">Copies verified</th><th className="p-3">Status</th>
           </tr></thead>
@@ -424,7 +424,7 @@ export default function StagingFinancialOperations({
                 <td className="p-3">{all.filter(c=>c.status==="curia_verified").length}/{all.length}</td>
                 <td className="p-3 capitalize">{r.status.replaceAll("_"," ")}</td></tr>;
             })}
-            {!remittances.length && <tr><td colSpan={5} className="p-5 text-center text-[#6F6265]">No submitted remittances.</td></tr>}
+            {!remittances.length && <tr><td colSpan={5} className="p-5 text-center text-[color:var(--registry-muted)]">No submitted remittances.</td></tr>}
           </tbody></table></div>
       </section>}
       {canRemit && <form className={box} onSubmit={e=>{
@@ -437,21 +437,21 @@ export default function StagingFinancialOperations({
           p_duplicate_copies_checked:true,
         },"COWL remittance and paper duplicate handoff recorded; independent Curia review remains outstanding.");
       }}>
-        <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-[#890022]"/><h3 className={ebGaramond.className + " text-[27px]"}>Prepare and submit COWL remittance</h3></div>
-        <p className="mt-1 text-xs text-[#6F6265]">Select only verified collections with issued preprinted receipts that have not already been remitted.</p>
+        <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-[color:var(--registry-crimson)]"/><h3 className={ebGaramond.className + " text-[27px]"}>Prepare and submit COWL remittance</h3></div>
+        <p className="mt-1 text-xs text-[color:var(--registry-muted)]">Select only verified collections with issued preprinted receipts that have not already been remitted.</p>
         <div className="mt-4 max-h-64 space-y-2 overflow-y-auto">
-          {eligible.map(c=><label key={c.id} className="flex items-start gap-3 border border-[#E6DADC] p-3 text-sm">
+          {eligible.map(c=><label key={c.id} className="flex items-start gap-3 border border-[color:var(--registry-hairline)] p-3 text-sm">
             <input type="checkbox" checked={selection.includes(c.id)}
               onChange={e=>setSelection(old=>e.target.checked?[...old,c.id]:old.filter(id=>id!==c.id))}
-              className="mt-1 accent-[#890022]" />
+              className="mt-1 accent-[color:var(--registry-crimson)]" />
             <span className="flex-1"><strong>{c.internal_reference}</strong> · {serialFor(issueFor(c.id)?.receipt_number_id||"—")}</span>
             <span className="tabular-nums">{money(c.amount_centavos)}</span>
           </label>)}
-          {!eligible.length && <p className="border border-dashed border-[#D7C5CC] p-4 text-sm text-[#6F6265]">No eligible collections with issued paper receipts.</p>}
+          {!eligible.length && <p className="border border-dashed border-[color:var(--finance-control-border)] p-4 text-sm text-[color:var(--registry-muted)]">No eligible collections with issued paper receipts.</p>}
         </div>
         <p className="mt-3 text-sm font-semibold">Selected remittance amount: {money(totalSelected)}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="block"><span className="mb-1 block text-xs font-semibold text-[#65565A]">Actual COWL-to-Curia transfer method</span>
+          <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Actual COWL-to-Curia transfer method</span>
             <select className={field} value={channel} onChange={e=>setChannel(e.target.value as typeof channel)}>
               <option value="bank_transfer">Bank transfer</option><option value="cash_handover">Physical cash handover</option>
             </select></label>
@@ -459,30 +459,30 @@ export default function StagingFinancialOperations({
           {channel==="bank_transfer" && <div className="sm:col-span-2"><Input label="COWL → Curia bank transaction reference" value={transferRef} onChange={setTransferRef} placeholder="Distinct from parish QR transaction reference" /></div>}
         </div>
         <label className="mt-4 flex items-start gap-2 text-sm leading-6">
-          <input type="checkbox" checked={copiesChecked} onChange={e=>setCopiesChecked(e.target.checked)} className="mt-1 accent-[#890022]" />
+          <input type="checkbox" checked={copiesChecked} onChange={e=>setCopiesChecked(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]" />
           <span>For this simulation, the duplicate-copy inspection record is available to Curia; COWL retains the physical duplicates.</span>
         </label>
         <button type="submit" className={primary+" mt-4"} disabled={busy || !selection.length || !copiesChecked || (channel==="bank_transfer" && transferRef.trim().length<5)}>Submit COWL remittance</button>
       </form>}
       {canTreasury && <section className={box}>
-        <div className="flex items-center gap-2"><Landmark className="h-5 w-5 text-[#890022]"/><h3 className={ebGaramond.className + " text-[27px]"}>Independent Curia treasury review</h3></div>
-        <p className="mt-2 text-xs leading-5 text-[#6F6265]">Only Curia treasury reviewers may confirm funds and paper copies. A Curia receipt custodian alone cannot acknowledge money.</p>
-        <label className="mt-4 block"><span className="mb-1 block text-xs font-semibold text-[#65565A]">Submitted remittance under review</span>
+        <div className="flex items-center gap-2"><Landmark className="h-5 w-5 text-[color:var(--registry-crimson)]"/><h3 className={ebGaramond.className + " text-[27px]"}>Independent Curia treasury review</h3></div>
+        <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Only Curia treasury reviewers may confirm funds and paper copies. A Curia receipt custodian alone cannot acknowledge money.</p>
+        <label className="mt-4 block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Submitted remittance under review</span>
           <select value={selectedRemit} onChange={e=>{setSelectedRemit(e.target.value);setCopyChecked(false);}} className={field}>
             <option value="">Select COWL submission</option>
             {pending.map(r=><option key={r.id} value={r.id}>{r.remittance_reference} · {money(r.declared_amount_centavos)}</option>)}
           </select></label>
         {selectedRemittance && <div className="mt-5 space-y-4">
-          <div className="border border-[#E6DADC] bg-[#FBF9F9] p-4 text-sm">
+          <div className="border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4 text-sm">
             <p><strong>Declared amount:</strong> {money(selectedRemittance.declared_amount_centavos)}</p>
             <p className="mt-1"><strong>Transfer:</strong> {selectedRemittance.fund_transfer_channel?.replaceAll("_"," ")}</p>
             <p className="mt-1"><strong>COWL transfer reference:</strong> {selectedRemittance.cowl_to_curia_transfer_reference||"Physical cash"}</p>
           </div>
           <div>
             <h4 className="font-semibold">Physical duplicate receipt copies</h4>
-            <p className="mt-1 text-xs text-[#6F6265]">Simulate Curia inspection of the COWL-retained duplicates, independently of COWL's attestation.</p>
+            <p className="mt-1 text-xs text-[color:var(--registry-muted)]">Simulate Curia inspection of the COWL-retained duplicates, independently of COWL's attestation.</p>
             <div className="mt-3 space-y-2">
-              {remittanceCopies.map(c=><div key={c.id} className="flex flex-wrap items-center justify-between gap-3 border border-[#E6DADC] p-3 text-sm">
+              {remittanceCopies.map(c=><div key={c.id} className="flex flex-wrap items-center justify-between gap-3 border border-[color:var(--registry-hairline)] p-3 text-sm">
                 <span>Receipt {serialFor(issues.find(i=>i.id===c.receipt_issue_id)?.receipt_number_id||"")} · <strong>{c.status.replaceAll("_"," ")}</strong></span>
                 {c.status==="submitted" && <button type="button" className={secondary} disabled={busy || !copyChecked}
                   onClick={()=>void act("fs_verify_curia_receipt_copy", {
@@ -494,11 +494,11 @@ export default function StagingFinancialOperations({
               </div>)}
             </div>
             <label className="mt-3 flex items-start gap-2 text-sm">
-              <input type="checkbox" className="mt-1 accent-[#890022]" checked={copyChecked} onChange={e=>setCopyChecked(e.target.checked)} />
+              <input type="checkbox" className="mt-1 accent-[color:var(--registry-crimson)]" checked={copyChecked} onChange={e=>setCopyChecked(e.target.checked)} />
               <span>For this simulation, I examined the exact physical duplicate before marking it verified.</span>
             </label>
           </div>
-          {!curiaFund && selectedRemittance.fund_transfer_channel==="cash_handover" && <form className="border border-[#E6DADC] bg-[#FFFCFD] p-4" onSubmit={e=>{
+          {!curiaFund && selectedRemittance.fund_transfer_channel==="cash_handover" && <form className="border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4" onSubmit={e=>{
             e.preventDefault();const amount=centavos(curiaAmount);
             if (amount===null || !curiaCashCounted) return;
             void act("fs_record_curia_received_funds", {
@@ -513,7 +513,7 @@ export default function StagingFinancialOperations({
               <Input label="Cash received time" value={curiaTime} onChange={setCuriaTime} type="datetime-local" />
             </div>
             <label className="mt-3 flex items-start gap-2 text-sm">
-              <input type="checkbox" className="mt-1 accent-[#890022]" checked={curiaCashCounted} onChange={e=>setCuriaCashCounted(e.target.checked)} />
+              <input type="checkbox" className="mt-1 accent-[color:var(--registry-crimson)]" checked={curiaCashCounted} onChange={e=>setCuriaCashCounted(e.target.checked)} />
               <span>For this simulation, I received and counted the physical cash at Curia.</span>
             </label>
             <button type="submit" disabled={busy || !curiaCashCounted || centavos(curiaAmount)===null} className={primary+" mt-3"}>Record independently received cash</button>
@@ -521,10 +521,10 @@ export default function StagingFinancialOperations({
           {!curiaFund && selectedRemittance.fund_transfer_channel==="bank_transfer" &&
             <Restricted title="Authenticated Curia bank-credit evidence required"
               explanation="Bank-transfer confirmation is disabled until Curia statement evidence can be uploaded to the private verified channel. A typed bank reference or COWL's screenshot alone is insufficient." />}
-          {curiaFund && <div className="border border-[#B8DCD3] bg-[#ECF8F3] p-3 text-sm">
+          {curiaFund && <div className="border border-[color:var(--finance-success-border)] bg-[color:var(--finance-success-surface)] p-3 text-sm">
             Curia received {money(curiaFund.amount_centavos)} via {curiaFund.channel.replaceAll("_"," ")} at {when(curiaFund.verified_receipt_at)}.
           </div>}
-          {curiaFund && <div className="space-y-3 border-t border-[#E6DADC] pt-4">
+          {curiaFund && <div className="space-y-3 border-t border-[color:var(--registry-hairline)] pt-4">
             <Input label="Curia acknowledgment reference" value={ackRef} onChange={setAckRef} placeholder="Actual Curia acknowledgment reference" />
             <button type="button" disabled={busy || ackRef.trim().length<5 || remittanceCopies.some(c=>c.status!=="curia_verified")}
               className={primary} onClick={()=>void act("fs_complete_curia_review",{
@@ -533,7 +533,7 @@ export default function StagingFinancialOperations({
               },"Curia independently confirmed the funds and every physical receipt duplicate.")}>
               <ShieldCheck className="h-4 w-4" /> Confirm Curia remittance
             </button>
-            <label className="block"><span className="mb-1 block text-xs font-semibold text-[#65565A]">Discrepancy details (minimum 10 characters)</span>
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Discrepancy details (minimum 10 characters)</span>
               <textarea className={field+" min-h-24"} value={discrepancyReason}
                 onChange={e=>setDiscrepancyReason(e.target.value)} /></label>
             <button type="button" disabled={busy || discrepancyReason.trim().length<10} className={secondary}
@@ -551,6 +551,6 @@ export default function StagingFinancialOperations({
           ? "Only an explicitly designated Curia treasury reviewer can verify funds and acknowledge a COWL remittance. Receipt custody alone does not grant that power."
           : "Only an explicitly designated COWL remittance preparer can submit funds and duplicate-copy inspection records. Receipt custody alone does not grant that power."} />}
     </>}
-    <p className="text-xs leading-5 text-[#6F6265]">Financial status always comes from the isolated Supabase database. Confirmation and receipt issuance are auditable staff operations; this page never writes directly to financial tables.</p>
+    <p className="text-xs leading-5 text-[color:var(--registry-muted)]">Financial status always comes from the isolated Supabase database. Confirmation and receipt issuance are auditable staff operations; this page never writes directly to financial tables.</p>
   </div>;
 }

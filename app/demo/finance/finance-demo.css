@@ -1,0 +1,37 @@
+/* RC2 only: COWL-DOK Digital Brand & UI Style Guide v1.0, pp. 3–8.
+   Existing registry variables are inherited; no global tokens are changed.
+   Administrative extensions: accessible form borders, quiet state surfaces, 3px corners, 1350px ledger container. */
+.finance-demo {
+  --finance-control-border: #857078;
+  --finance-soft-rose: #F8EDEF;
+  --finance-success: #145747;
+  --finance-success-border: #B8DCD3;
+  --finance-success-surface: #ECF8F3;
+  --finance-error-border: #E6B6BB;
+  --finance-error-surface: #FFF1F2;
+  --finance-radius: 3px;
+  --finance-space-1: 4px; --finance-space-2: 8px; --finance-space-3: 12px;
+  --finance-space-4: 16px; --finance-space-6: 24px; --finance-space-8: 32px;
+  --finance-space-12: 48px; --finance-space-16: 64px;
+  color: var(--registry-ink); background: var(--registry-page);
+}
+.finance-demo .finance-banner {background:var(--registry-oxblood);color:var(--registry-pale-rose);padding:8px 24px;text-align:center;font-size:12px;line-height:1.5;font-weight:600;}
+.finance-demo .finance-content {width:100%;max-width:1350px;margin-inline:auto;padding:24px;}
+.finance-demo .finance-content > * + * {margin-top:var(--finance-space-6);}
+.finance-demo .finance-page-title {font-size:clamp(34px,3vw,44px);font-weight:500;line-height:1.1;margin-top:8px;}
+.finance-demo .finance-panel {border:1px solid var(--registry-hairline);border-radius:var(--finance-radius);background:white;padding:var(--finance-space-4);}
+.finance-demo .finance-metric {border-top:3px solid var(--registry-crimson);}
+.finance-demo .finance-metric-value {font-size:32px;line-height:1.15;font-weight:500;font-variant-numeric:tabular-nums;margin-top:8px;}
+.finance-demo :where(input:not([type=checkbox]):not([type=radio]),select,textarea) {min-height:44px;}
+.finance-demo :where(input[type=checkbox],input[type=radio]) {accent-color:var(--registry-button);min-width:18px;min-height:18px;}
+.finance-demo :where(button,a,input,select,textarea,[tabindex]):focus-visible {outline:2px solid var(--registry-button);outline-offset:3px;}
+.finance-demo aside :where(button,a):focus-visible {outline-color:white;}
+.finance-demo :where(button:disabled,input:disabled,select:disabled,textarea:disabled) {cursor:not-allowed;}
+.finance-demo :where(table) {font-variant-numeric:tabular-nums;}
+.finance-demo :where(thead) {background:var(--registry-page);color:var(--registry-muted);}
+.finance-demo :where(th) {font-weight:600;text-align:left;}
+.finance-demo :where(td,th) {vertical-align:top;}
+.finance-demo :where(a):not([class*="bg-"]):not([class*="text-white"]):not(aside a):not(nav a) {text-underline-offset:3px;}
+@media(min-width:640px){.finance-demo .finance-content{padding:32px}.finance-demo .finance-panel{padding:24px}}
+@media(prefers-reduced-motion:reduce){.finance-demo *, .finance-demo *::before,.finance-demo *::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+@media print{.finance-demo .finance-banner{color:#3A0010;background:white;border:2px solid #3A0010} }

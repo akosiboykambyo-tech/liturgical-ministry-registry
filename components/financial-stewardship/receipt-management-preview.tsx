@@ -82,9 +82,9 @@ function withinPaper(fields: MapField[], dx: number, dy: number): boolean {
   });
 }
 
-const control = "min-h-11 w-full border border-[#D7C9CD] bg-white px-3 py-2 text-sm text-[#1E1114] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#970E24]";
-const label = "mb-1.5 block text-sm font-semibold text-[#514449]";
-const panel = "border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white p-4 sm:p-6";
+const control = "min-h-11 w-full border border-[color:var(--finance-control-border)] bg-white px-3 py-2 text-sm text-[color:var(--registry-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--registry-button)]";
+const label = "mb-1.5 block text-sm font-semibold text-[color:var(--registry-muted)]";
+const panel = "finance-panel finance-metric";
 
 export default function ReceiptManagementPreview() {
   const [tab, setTab] = useState<Tab>("issue");
@@ -149,7 +149,7 @@ export default function ReceiptManagementPreview() {
   }
 
   return <div className="space-y-5" id="receipt-management">
-    <section className="border-l-4 border-l-[#890022] bg-[#F8F1F3] p-4 text-sm leading-6 text-[#592C3A]" role="status">
+    <section className="border-l-4 border-l-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] p-4 text-sm leading-6 text-[color:var(--registry-ink)]" role="status">
       <strong>DEMONSTRATION — NOT VALID.</strong> This paper layout is a screen-only draft. Use Collections and Receipts for the TEST ledger. Entries below are temporary browser state:
       they do not reserve a preprinted serial, confirm payment, renew a member, produce an official receipt, or save a financial record.
       Production printing remains disabled pending Curia approval, audited ledger integration, and Epson LX-310 stock calibration.
@@ -159,13 +159,13 @@ export default function ReceiptManagementPreview() {
         ["Receipt inventory", "TEST ledger"],
         ["Receipts issued", "See TEST register"],
         ["Printer template", "Awaiting calibration"],
-      ].map(([name, value]) => <div key={name} className="border border-[#E6DADC] border-t-[3px] border-t-[#890022] bg-white px-4 py-4">
+      ].map(([name, value]) => <div key={name} className="border border-[color:var(--registry-hairline)] border-t-[3px] border-t-[color:var(--registry-crimson)] bg-white px-4 py-4">
         <p className="text-sm font-semibold">{name}</p>
-        <p className="mt-3 text-sm text-[#5F4A4F]">{value}</p>
+        <p className="mt-3 text-sm text-[color:var(--registry-muted)]">{value}</p>
       </div>)}
     </div>
 
-    <div className="flex gap-1 overflow-x-auto border-b border-[#E6DADC]" role="tablist" aria-label="Receipt Management tools">
+    <div className="flex gap-1 overflow-x-auto border-b border-[color:var(--registry-hairline)]" role="tablist" aria-label="Receipt Management tools">
       {([
         ["issue", "Paper preview"],
         ["register", "Receipt Register"],
@@ -184,8 +184,8 @@ export default function ReceiptManagementPreview() {
             setTab(ids[next]);
             document.getElementById("receipt-tab-" + ids[next])?.focus();
           }}
-          className={"min-h-12 shrink-0 border-b-[3px] px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#970E24] " +
-            (tab === id ? "border-[#890022] bg-[#F8F1F3] text-[#890022]" : "border-transparent text-[#5F4A4F] hover:bg-[#FBF9F9]")}>
+          className={"min-h-12 shrink-0 border-b-[3px] px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--registry-button)] " +
+            (tab === id ? "border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] text-[color:var(--registry-crimson)]" : "border-transparent text-[color:var(--registry-muted)] hover:bg-[color:var(--registry-page)]")}>
           {text}
         </button>)}
     </div>
@@ -194,20 +194,20 @@ export default function ReceiptManagementPreview() {
       <div className={panel + " space-y-5"}>
         <div>
           <h2 className={ebGaramond.className + " text-[30px]"}>Payment information</h2>
-          <p className="text-sm text-[#5F4A4F]">Received From is the parish; the ministry appears in Particulars only.</p>
+          <p className="text-sm text-[color:var(--registry-muted)]">Received From is the parish; the ministry appears in Particulars only.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label htmlFor="or-number" className={label}>Preprinted OR number</label>
             <input id="or-number" className={control} value={serial} onChange={e => setSerial(e.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
               inputMode="numeric" placeholder="As printed on Curia's booklet"/>
-            <p className="mt-1 text-xs text-[#5F4A4F]">For future reconciliation only. Never included in the print overlay.</p></div>
+            <p className="mt-1 text-xs text-[color:var(--registry-muted)]">For future reconciliation only. Never included in the print overlay.</p></div>
           <div><label htmlFor="or-date" className={label}>Receipt date</label>
             <input id="or-date" className={control} type="date" value={date} onChange={e => setDate(e.target.value)}/></div>
           <div className="sm:col-span-2"><span className={label}>Received From — Parish / Mission Station</span>
             <MultiSelectCombobox options={[...PARISHES].sort((a, b) => a.localeCompare(b))}
               selected={parish ? [parish] : []} onChange={items => setParish(items[items.length - 1] ?? "")}
               placeholder="Choose parish or mission station" searchPlaceholder="Search parishes..." emptyText="No matching parish"
-              className="min-h-11 rounded-none border-[#D7C9CD] text-left"/></div>
+              className="min-h-11 rounded-none border-[color:var(--finance-control-border)] text-left"/></div>
           <div className="sm:col-span-2"><label htmlFor="or-ministry" className={label}>Ministry — Particulars</label>
             <select id="or-ministry" className={control} value={ministry} onChange={e => setMinistry(e.target.value)}>
               <option value="">Choose ministry</option>{MINISTRIES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -219,18 +219,18 @@ export default function ReceiptManagementPreview() {
           <div><label htmlFor="or-rate" className={label}>Fictional rate per renewal (₱)</label>
             <input id="or-rate" inputMode="decimal" className={control} value={rate} onChange={e => setRate(e.target.value)}
               placeholder="Enter authorized rate"/></div>
-          <div><span className={label}>Calculated total</span><p className="flex min-h-11 items-center border border-[#E6DADC] bg-[#FBF9F9] px-3 font-semibold tabular-nums">{money(expected)}</p></div>
-          <label className="flex items-center gap-2 sm:col-span-2 text-sm text-[#514449]">
-            <input type="checkbox" checked={overrideAmount} onChange={e => setOverrideAmount(e.target.checked)} className="h-4 w-4 accent-[#890022]"/>
+          <div><span className={label}>Calculated total</span><p className="flex min-h-11 items-center border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] px-3 font-semibold tabular-nums">{money(expected)}</p></div>
+          <label className="flex items-center gap-2 sm:col-span-2 text-sm text-[color:var(--registry-muted)]">
+            <input type="checkbox" checked={overrideAmount} onChange={e => setOverrideAmount(e.target.checked)} className="h-4 w-4 accent-[color:var(--registry-crimson)]"/>
             Amount received differs from calculated total
           </label>
           {overrideAmount && <div className="sm:col-span-2"><label htmlFor="or-paid" className={label}>Actual amount received (₱)</label>
             <input id="or-paid" inputMode="decimal" value={receivedAmount} onChange={e => setReceivedAmount(e.target.value)}
               className={control} placeholder="Enter payment received"/></div>}
-          <div className="sm:col-span-2 border border-[#E6DADC] bg-[#FBF9F9] px-4 py-3">
-            <div className="flex items-center justify-between gap-2"><strong className="text-sm">Amount on receipt</strong><strong className="text-xl tabular-nums text-[#890022]">{money(paid)}</strong></div>
-            <p className="mt-1 text-xs text-[#5F4A4F]">{words || "Enter a count and authorized rate."}</p>
-            {paid !== null && expected !== null && paid !== expected && <p className="mt-2 text-xs font-semibold text-[#7A4E00]">The amount paid differs from the expected total. This preview does not allocate or verify the difference.</p>}
+          <div className="sm:col-span-2 border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] px-4 py-3">
+            <div className="flex items-center justify-between gap-2"><strong className="text-sm">Amount on receipt</strong><strong className="text-xl tabular-nums text-[color:var(--registry-crimson)]">{money(paid)}</strong></div>
+            <p className="mt-1 text-xs text-[color:var(--registry-muted)]">{words || "Enter a count and authorized rate."}</p>
+            {paid !== null && expected !== null && paid !== expected && <p className="mt-2 text-xs font-semibold text-[color:var(--registry-amber)]">The amount paid differs from the expected total. This preview does not allocate or verify the difference.</p>}
           </div>
           <div className="sm:col-span-2"><label htmlFor="or-notes" className={label}>Additional information (optional)</label>
             <textarea id="or-notes" rows={3} maxLength={240} className={control} value={additional} onChange={e => setAdditional(e.target.value)}
@@ -248,24 +248,24 @@ export default function ReceiptManagementPreview() {
             <input id="or-receiver" className={control} value={receivedBy} onChange={e => setReceivedBy(e.target.value)}
               placeholder="Authorized receiving staff"/></div>
         </div>
-        <div className="border-t border-[#E6DADC] pt-4 text-sm text-[#5F4A4F]">
-          <p className="font-semibold text-[#1E1114]">Generated particulars — preview</p>
+        <div className="border-t border-[color:var(--registry-hairline)] pt-4 text-sm text-[color:var(--registry-muted)]">
+          <p className="font-semibold text-[color:var(--registry-ink)]">Generated particulars — preview</p>
           <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm">{particulars}</pre>
-          <button disabled type="button" className="mt-4 inline-flex min-h-11 items-center gap-2 bg-[#890022] px-4 text-sm font-semibold text-white opacity-50">
+          <button disabled type="button" className="mt-4 inline-flex min-h-11 items-center gap-2 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white opacity-50">
             <Receipt size={18}/> Official printing disabled
           </button>
         </div>
       </div>
       <div className={panel + " h-fit"}>
         <h2 className={ebGaramond.className + " text-[30px]"}>Paper overlay preview</h2>
-        <p className="text-xs text-[#5F4A4F]">111.76 × 170.18 mm portrait · layout provisional · not to scale on-screen</p>
-        <div className="mt-4 overflow-x-auto bg-[#F7F1F2] p-3 sm:p-5">
-          <div className="relative mx-auto w-full max-w-[360px] overflow-hidden border border-[#D9CED1] bg-white shadow-sm"
+        <p className="text-xs text-[color:var(--registry-muted)]">111.76 × 170.18 mm portrait · layout provisional · not to scale on-screen</p>
+        <div className="mt-4 overflow-x-auto bg-[color:var(--finance-soft-rose)] p-3 sm:p-5">
+          <div className="relative mx-auto w-full max-w-[360px] overflow-hidden border border-[color:var(--registry-hairline)] bg-white shadow-sm"
             style={{ aspectRatio: String(PAGE_WIDTH) + " / " + String(PAGE_HEIGHT) }} aria-label="Receipt preview (screen only)">
-            <div className="absolute left-0 top-0 w-full border-b border-dashed border-[#E6DADC] p-3 text-center text-[9px] uppercase tracking-wide text-[#B9AEB1]">DEMONSTRATION — NOT VALID</div>
-            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[36%] z-10 -rotate-12 text-center text-xl font-bold text-[#890022]/35">DEMONSTRATION — NOT VALID</div>
+            <div className="absolute left-0 top-0 w-full border-b border-dashed border-[color:var(--registry-hairline)] p-3 text-center text-[9px] uppercase tracking-wide text-[color:var(--registry-muted)]">DEMONSTRATION — NOT VALID</div>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[36%] z-10 -rotate-12 text-center text-xl font-bold text-[color:color-mix(in_srgb,var(--registry-crimson)_35%,transparent)]">DEMONSTRATION — NOT VALID</div>
             {DEFAULT_MAP.map(field => values[field.id] ? <div key={field.id}
-              className="absolute overflow-hidden whitespace-pre-wrap break-words font-mono text-[7px] leading-[1.15] text-[#1E1114]"
+              className="absolute overflow-hidden whitespace-pre-wrap break-words font-mono text-[7px] leading-[1.15] text-[color:var(--registry-ink)]"
               style={{
                 left: (field.x / PAGE_WIDTH * 100) + "%",
                 top: (field.y / PAGE_HEIGHT * 100) + "%",
@@ -275,33 +275,33 @@ export default function ReceiptManagementPreview() {
               }}>{values[field.id]}</div> : null)}
           </div>
         </div>
-        <p className="mt-3 text-xs leading-5 text-[#5F4A4F]">The preprinted official receipt number is deliberately absent. This is a UI-only illustration, not a print-ready or approved template.</p>
+        <p className="mt-3 text-xs leading-5 text-[color:var(--registry-muted)]">The preprinted official receipt number is deliberately absent. This is a UI-only illustration, not a print-ready or approved template.</p>
       </div>
     </section>}
 
     {tab === "register" && <section role="tabpanel" id="receipt-panel-register" aria-labelledby="receipt-tab-register" className={panel}>
       <h2 className={ebGaramond.className + " text-[30px]"}>Receipt Register</h2>
       <DemoFinancialReports registerOnly/>
-      <p className="mt-4 text-xs text-[#5F4A4F]">Original receipts go to payers; physical duplicates remain in COWL custody and are available for Curia inspection.</p>
+      <p className="mt-4 text-xs text-[color:var(--registry-muted)]">Original receipts go to payers; physical duplicates remain in COWL custody and are available for Curia inspection.</p>
     </section>}
 
     {tab === "calibration" && <section role="tabpanel" id="receipt-panel-calibration" aria-labelledby="receipt-tab-calibration" className={panel + " space-y-5"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h2 className={ebGaramond.className + " text-[30px]"}>Print Calibration</h2>
-          <p className="text-sm text-[#5F4A4F]">Epson LX-310 · Custom 111.76 × 170.18 mm · X/Y measured from top-left.</p></div>
-        <span className="inline-flex items-center gap-2 border border-[#E6DADC] bg-[#FBF9F9] px-3 py-2 text-sm font-semibold">
+          <p className="text-sm text-[color:var(--registry-muted)]">Epson LX-310 · Custom 111.76 × 170.18 mm · X/Y measured from top-left.</p></div>
+        <span className="inline-flex items-center gap-2 border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] px-3 py-2 text-sm font-semibold">
           <Lock size={16}/>{unlocked ? "Draft unlocked" : "Locked"}
         </span>
       </div>
-      <p className="text-sm leading-6 text-[#5F4A4F]">Both existing COWL staff may prepare a calibration draft; no additional staff role is introduced. This confirmation protects against accidental changes only. Changes are not persisted or published in this preview.</p>
-      {!unlocked ? <div className="max-w-lg space-y-3 border border-[#E6DADC] bg-[#FBF9F9] p-4">
+      <p className="text-sm leading-6 text-[color:var(--registry-muted)]">Both existing COWL staff may prepare a calibration draft; no additional staff role is introduced. This confirmation protects against accidental changes only. Changes are not persisted or published in this preview.</p>
+      {!unlocked ? <div className="max-w-lg space-y-3 border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4">
         <label htmlFor="unlock-map" className={label}>Type CALIBRATE to unlock a temporary draft</label>
         <input id="unlock-map" className={control} value={unlockText} onChange={e => setUnlockText(e.target.value)} autoComplete="off"/>
         <button type="button" disabled={unlockText !== "CALIBRATE"} onClick={() => { setUnlocked(true); setUnlockText(""); }}
-          className="min-h-11 bg-[#890022] px-4 text-sm font-semibold text-white disabled:opacity-40">Unlock draft</button>
+          className="min-h-11 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white disabled:opacity-40">Unlock draft</button>
       </div> : <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={discard} className="min-h-11 border border-[#890022] px-4 text-sm font-semibold text-[#890022]">Discard draft and lock</button>
-        <button disabled type="button" className="inline-flex min-h-11 items-center gap-2 bg-[#890022] px-4 text-sm font-semibold text-white opacity-50">
+        <button type="button" onClick={discard} className="min-h-11 border border-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-[color:var(--registry-crimson)]">Discard draft and lock</button>
+        <button disabled type="button" className="inline-flex min-h-11 items-center gap-2 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white opacity-50">
           <Printer size={18}/> Publish &amp; print calibration (not activated)
         </button>
       </div>}
@@ -313,25 +313,25 @@ export default function ReceiptManagementPreview() {
           <input id="calibration-y" type="number" step="0.1" min="-3" max="3" disabled={!unlocked} className={control}
             value={dy} onChange={e => setDy(e.target.value === "" ? NaN : Number(e.target.value))}/></div>
       </div>
-      {!validMap && <p role="alert" className="border-l-4 border-[#B00020] bg-[#FBEFEF] p-3 text-sm text-[#B00020]">At least one field exceeds the proposed paper-safe bounds. Discard or correct the draft.</p>}
+      {!validMap && <p role="alert" className="border-l-4 border-[color:var(--registry-error)] bg-[color:var(--finance-error-surface)] p-3 text-sm text-[color:var(--registry-error)]">At least one field exceeds the proposed paper-safe bounds. Discard or correct the draft.</p>}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[610px] text-left text-sm">
-          <caption className="pb-2 text-left text-xs text-[#5F4A4F]">Receipt serial is intentionally excluded from all printable fields.</caption>
-          <thead className="border-y border-[#E6DADC] bg-[#FBF9F9] text-xs uppercase tracking-wide text-[#5F4A4F]"><tr>
+          <caption className="pb-2 text-left text-xs text-[color:var(--registry-muted)]">Receipt serial is intentionally excluded from all printable fields.</caption>
+          <thead className="border-y border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] text-xs uppercase tracking-wide text-[color:var(--registry-muted)]"><tr>
             {["Field", "X (mm)", "Y (mm)", "Width (mm)"].map(col => <th key={col} className="p-2">{col}</th>)}
           </tr></thead>
-          <tbody>{draftMap.map(field => <tr key={field.id} className="border-b border-[#E6DADC]">
+          <tbody>{draftMap.map(field => <tr key={field.id} className="border-b border-[color:var(--registry-hairline)]">
             <th scope="row" className="p-2 font-medium">{field.label}</th>
             {(["x", "y", "width"] as const).map(property => <td className="p-2" key={property}>
               <input type="number" step="0.1" aria-label={field.label + " " + property} disabled={!unlocked}
-                className="min-h-10 w-24 border border-[#D7C9CD] px-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#970E24]"
+                className="min-h-10 w-24 border border-[color:var(--finance-control-border)] px-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--registry-button)]"
                 value={Number.isFinite(field[property]) ? field[property] : ""} onChange={e => updateField(field.id, property, e.target.value)}/>
             </td>)}
           </tr>)}</tbody>
         </table>
       </div>
-      <div className="border border-[#E6DADC] bg-[#FBF9F9] p-4 text-sm leading-6 text-[#5F4A4F]">
-        <ShieldCheck size={20} className="mb-2 text-[#890022]"/>
+      <div className="border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4 text-sm leading-6 text-[color:var(--registry-muted)]">
+        <ShieldCheck size={20} className="mb-2 text-[color:var(--registry-crimson)]"/>
         The active template is unchanged. A future production implementation must save a server-audited version, require a physical test and second confirmation, and allow rollback. These browser draft coordinates never become an official printer template.
       </div>
     </section>}
