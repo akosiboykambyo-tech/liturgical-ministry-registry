@@ -173,8 +173,10 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const [bookletReference, setBookletReference] = useState("");
   const [firstNo, setFirstNo] = useState("");
   const [lastNo, setLastNo] = useState("");
-  const [priorIssued,setPriorIssued] = useState("0");
-  const [priorVoided,setPriorVoided] = useState("0");
+  const [priorIssued,setPriorIssued] = useState("");
+  const [priorVoided,setPriorVoided] = useState("");
+  const [priorMissing,setPriorMissing] = useState("");
+  const serialList=(value:string)=>value.split(/[\s,;]+/).filter(Boolean);
   const [checkedRegister, setCheckedRegister] = useState(false);
   const [assignee, setAssignee] = useState("");
   const [checkedHandover, setCheckedHandover] = useState(false);
@@ -198,7 +200,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
     setWorking(true);
     setFeedback(null);
     if (fn === "fs_curia_register_receipt_series" && !/^DEMO-[A-Z0-9-]+$/i.test(String(params.p_series_code))) { setWorking(false); setFeedback({ok:false,message:"Use a DEMO-prefixed series."}); return; }
-    if (fn === "fs_demo_register_opening_booklet" && !/^DEMO-[A-Z0-9-]+$/i.test(String(params.p_booklet_reference))) { setWorking(false); setFeedback({ok:false,message:"Use a DEMO-prefixed booklet reference."}); return; }
+    if (fn === "fs_demo_register_opening_serials" && !/^DEMO-[A-Z0-9-]+$/i.test(String(params.p_booklet_reference))) { setWorking(false); setFeedback({ok:false,message:"Use a DEMO-prefixed booklet reference."}); return; }
     let result;
     try { result = await client.rpc(fn, params); } catch { setWorking(false); setFeedback({ok:false,message:"Network error. Refresh before retrying to check whether the operation completed."}); return; }
     setWorking(false);
@@ -206,8 +208,8 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
       setFeedback({ ok: false, message: result.error.message });
       return;
     }
-    setFeedback({ ok: true, message: done });
-    if (fn === "fs_demo_register_opening_booklet" && typeof result.data === "string") setSelectedId(result.data);
+    setFeedback({ ok: true, message: (fn==="fs_demo_new_rehearsal"||fn==="fs_demo_create_qr_rehearsal")&&typeof result.data==="string" ? done+" Reference: "+result.data : done });
+    if (fn === "fs_demo_register_opening_serials" && typeof result.data === "string") setSelectedId(result.data);
     if (fn === "fs_curia_register_receipt_series" && typeof result.data === "string") setSeriesId(result.data);
     setCheckedRegister(false); setCheckedHandover(false); setCheckedAck(false); setCheckedException(false);
     setExceptionSerialId(""); setExceptionReason("");
@@ -340,7 +342,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           <p className={ebGaramond.className + " finance-metric-value"}>{count}</p>
         </div>)}
       </div>
-      {mode === "curia" && <section className={card}><h2 className="font-semibold">Start a fresh rehearsal</h2><p className="mt-2 text-sm text-[color:var(--registry-muted)]">Creates a new fictional 50-form booklet (10 previously issued, 2 previously voided, 38 unused) and a ₱500 unpaid quote. Earlier rehearsals remain in the audit history; no records are deleted.</p><button type="button" disabled={working} className={solid+" mt-4"} onClick={()=>void operate("fs_demo_new_rehearsal",{},"New rehearsal created. Select the new booklet and assign it to COWL.")}>Create fresh rehearsal</button></section>}
+      {mode === "curia" && <section className={card}><h2 className="font-semibold">Start a fresh rehearsal</h2><p className="mt-2 text-sm text-[color:var(--registry-muted)]">Creates a new fictional 50-form booklet (10 previously issued, 2 previously voided, 38 unused) and a ₱500 unpaid quote. Earlier rehearsals remain in the audit history; no records are deleted.</p><button type="button" disabled={working} className={solid+" mt-4"} onClick={()=>void operate("fs_demo_new_rehearsal",{},"New rehearsal created. Select the new booklet and assign it to COWL.")}>Create OTC rehearsal</button> <button type="button" disabled={working} className={outline+" mt-4"} onClick={()=>void operate("fs_demo_create_qr_rehearsal",{},"QR rehearsal created. Assign its booklet to COWL; matching and mismatched synthetic credits are available in Collections.")}>Create QR rehearsal</button><p className="mt-3 text-xs text-[color:var(--registry-muted)]">QR rehearsal includes synthetic claim and bank-credit metadata, not a real account, payment QR or uploaded evidence file.</p></section>}
       {mode === "curia" && <div className="grid gap-5 xl:grid-cols-2">
         <form className={card} onSubmit={e => { e.preventDefault(); void operate("fs_curia_register_receipt_series",
           { p_issuing_entity: issuer, p_series_code: seriesCode }, "Curia series registered in the isolated test database."); }}>
@@ -352,12 +354,12 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           </div>
           <button type="submit" disabled={working} className={solid + " mt-4"}><BookOpenCheck className="h-4 w-4" /> Register test series</button>
         </form>
-        <form className={card} onSubmit={e => { e.preventDefault(); void operate("fs_demo_register_opening_booklet",
+        <form className={card} onSubmit={e => { e.preventDefault(); void operate("fs_demo_register_opening_serials",
           { p_series_id: seriesId, p_booklet_reference: bookletReference.trim(), p_first_no: firstNo.trim(),
-            p_last_no: lastNo.trim(), p_prior_issued:Number(priorIssued),p_prior_voided:Number(priorVoided),p_checked: checkedRegister },
+            p_last_no: lastNo.trim(), p_issued:serialList(priorIssued),p_voided:serialList(priorVoided),p_missing:serialList(priorMissing),p_checked: checkedRegister },
           "Preprinted booklet recorded in the shared test database, currently held by Curia."); }}>
           <h2 className={ebGaramond.className + " text-[27px]"}>Register new or partially used demo booklet</h2>
-          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Use fictional serials only. This rehearsal assumes previously issued forms are the first contiguous serials, followed by previously voided forms. Earlier use does not create revenue. Set both counts to zero for new stock.</p>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Use fictional serials only. List each previously issued, voided or missing number, separated by commas or spaces. Leave all three fields blank for new stock. Unlisted forms remain available; earlier use does not create revenue.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block sm:col-span-2"><span className="mb-1.5 block text-xs font-semibold text-[color:var(--registry-muted)]">Registered Curia series</span>
               <select className={control} required value={seriesId} onChange={e => setSeriesId(e.target.value)}>
@@ -367,12 +369,13 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
             <div className="sm:col-span-2"><Field label="Internal booklet identifier" value={bookletReference} setValue={setBookletReference} placeholder="e.g. DEMO-CUR-001" /></div>
             <Field label="First preprinted No." value={firstNo} setValue={setFirstNo} placeholder="000301" />
             <Field label="Last preprinted No." value={lastNo} setValue={setLastNo} placeholder="000350" />
-            <Field label="Previously issued (first serials)" value={priorIssued} setValue={setPriorIssued} type="number"/>
-            <Field label="Previously voided (next serials)" value={priorVoided} setValue={setPriorVoided} type="number"/>
+            <Field label="Previously issued serials" value={priorIssued} setValue={setPriorIssued} required={false} placeholder="000301, 000303"/>
+            <Field label="Previously voided serials" value={priorVoided} setValue={setPriorVoided} required={false} placeholder="000305"/>
+            <Field label="Missing serials" value={priorMissing} setValue={setPriorMissing} required={false} placeholder="000309"/>
           </div>
           <label className="mt-4 flex items-start gap-2 text-sm leading-6"><input type="checkbox" checked={checkedRegister} onChange={e => setCheckedRegister(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]"/>
             <span>For this simulation, I checked this booklet's exact printed range and count.</span></label>
-          <button type="submit" disabled={working || !checkedRegister || !seriesId || !/^\d+$/.test(priorIssued) || !/^\d+$/.test(priorVoided)} className={solid + " mt-4"}>Register checked booklet</button>
+          <button type="submit" disabled={working || !checkedRegister || !seriesId} className={solid + " mt-4"}>Register checked booklet</button>
         </form>
       </div>}
       <section className={card}>

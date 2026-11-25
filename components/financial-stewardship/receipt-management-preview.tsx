@@ -107,6 +107,8 @@ export default function ReceiptManagementPreview() {
   const [draftMap, setDraftMap] = useState<MapField[]>(DEFAULT_MAP.map(field => ({ ...field })));
   const [dx, setDx] = useState(0);
   const [dy, setDy] = useState(0);
+  const [exportError,setExportError]=useState("");
+  const [exporting,setExporting]=useState(false);
 
   const count = /^\d{1,5}$/.test(quantity) && Number(quantity) > 0 ? Number(quantity) : null;
   const rateCentavos = parseCentavos(rate);
@@ -139,6 +141,32 @@ export default function ReceiptManagementPreview() {
     receivedBy,
   };
 
+  async function exportSpecimen(calibration=false) {
+    if(exporting||!validMap)return;
+    setExporting(true);setExportError("");
+    try {
+      const {jsPDF}=await import("jspdf");
+      const pdf=new jsPDF({unit:"mm",format:[PAGE_WIDTH,PAGE_HEIGHT],orientation:"portrait"});
+      pdf.setTextColor(137,0,34);pdf.setFontSize(10);
+      pdf.text("DEMONSTRATION - NOT VALID",PAGE_WIDTH/2,8,{align:"center"});
+      pdf.setFontSize(7);pdf.text("TEST specimen - plain paper only - no official receipt",PAGE_WIDTH/2,13,{align:"center"});
+      pdf.setDrawColor(137,0,34);pdf.rect(2,2,PAGE_WIDTH-4,PAGE_HEIGHT-4);
+      pdf.setTextColor(30,17,20);pdf.setFontSize(7);
+      for(const f of calibration?draftMap:DEFAULT_MAP){
+        const x=f.x+(calibration?dx:0),y=f.y+(calibration?dy:0);
+        const text=calibration?f.label:values[f.id]?.replace(/₱/g,"PHP ");
+        if(!text)continue;
+        const lines=pdf.splitTextToSize(text,f.width) as string[];
+        pdf.text(lines.slice(0,Math.max(1,Math.floor((f.height??3)/3))),x,y+2);
+        if(calibration){pdf.setDrawColor(130,112,120);pdf.rect(x,y,f.width,f.height??3);}
+      }
+      pdf.setTextColor(137,0,34);pdf.setFontSize(13);
+      pdf.text("NOT VALID",PAGE_WIDTH/2,PAGE_HEIGHT/2,{align:"center",angle:25});
+      pdf.save(calibration?"DEMO-calibration-specimen.pdf":"DEMO-receipt-specimen.pdf");
+    } catch(e){setExportError(e instanceof Error?e.message:"Unable to generate sample PDF.");}
+    finally{setExporting(false);}
+  }
+
   function updateField(id: string, prop: "x" | "y" | "width", raw: string) {
     const next = raw === "" ? NaN : Number(raw);
     setDraftMap(previous => previous.map(field => field.id === id ? { ...field, [prop]: next } : field));
@@ -149,9 +177,10 @@ export default function ReceiptManagementPreview() {
   }
 
   return <div className="space-y-5" id="receipt-management">
+    {exportError&&<p role="alert" className="text-sm text-[color:var(--registry-error)]">{exportError}</p>
     <section className="border-l-4 border-l-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] p-4 text-sm leading-6 text-[color:var(--registry-ink)]" role="status">
       <strong>DEMONSTRATION — NOT VALID.</strong> This paper layout is a screen-only draft. Use Collections and Receipts for the TEST ledger. Entries below are temporary browser state:
-      they do not reserve a preprinted serial, confirm payment, renew a member, produce an official receipt, or save a financial record.
+      they do not reserve a preprinted serial, confirm payment, renew a member, produce an official receipt, or save a financial record. Downloaded specimens are prominently marked as invalid.
       Production printing remains disabled pending Curia approval, audited ledger integration, and Epson LX-310 stock calibration.
     </section>
     <div className="grid gap-3 sm:grid-cols-3" aria-label="Receipt workflow summary">
@@ -251,8 +280,8 @@ export default function ReceiptManagementPreview() {
         <div className="border-t border-[color:var(--registry-hairline)] pt-4 text-sm text-[color:var(--registry-muted)]">
           <p className="font-semibold text-[color:var(--registry-ink)]">Generated particulars — preview</p>
           <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm">{particulars}</pre>
-          <button disabled type="button" className="mt-4 inline-flex min-h-11 items-center gap-2 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white opacity-50">
-            <Receipt size={18}/> Official printing disabled
+          <button type="button" disabled={exporting||!validMap||paid===null||!parish||!ministry} onClick={()=>void exportSpecimen()} className="mt-4 inline-flex min-h-11 items-center gap-2 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white disabled:opacity-40">
+            <Receipt size={18}/> Download watermarked specimen
           </button>
         </div>
       </div>
@@ -301,8 +330,8 @@ export default function ReceiptManagementPreview() {
           className="min-h-11 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white disabled:opacity-40">Unlock draft</button>
       </div> : <div className="flex flex-wrap gap-3">
         <button type="button" onClick={discard} className="min-h-11 border border-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-[color:var(--registry-crimson)]">Discard draft and lock</button>
-        <button disabled type="button" className="inline-flex min-h-11 items-center gap-2 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white opacity-50">
-          <Printer size={18}/> Publish &amp; print calibration (not activated)
+        <button type="button" disabled={!validMap||exporting} onClick={()=>void exportSpecimen(true)} className="inline-flex min-h-11 items-center gap-2 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white opacity-50">
+          <Printer size={18}/> Download calibration specimen
         </button>
       </div>}
       <div className="grid gap-4 sm:grid-cols-2">

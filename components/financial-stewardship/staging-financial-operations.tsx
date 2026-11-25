@@ -18,7 +18,9 @@ type Request = {
   id: string; payment_reference: string; total_due_centavos: number;
   status: string; quoted_participants: number;
 };
+type BankCredit = {id:string;receiving_account_id:string;provider_name:string;bank_external_reference:string;amount_centavos:number;statement_batch_reference:string|null};
 type Claim = {
+  receiving_account_id:string;
   id: string; payment_request_id: string; submitted_external_reference: string;
   claimed_amount_centavos: number; status: string; provider_name: string;
 };
@@ -108,6 +110,10 @@ export default function StagingFinancialOperations({
   const [collections, setCollections] = useState<Collection[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [credits,setCredits]=useState<BankCredit[]>([]);
+  const [qrClaim,setQrClaim]=useState("");
+  const [qrCredit,setQrCredit]=useState("");
+  const [qrChecked,setQrChecked]=useState(false);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [numbers, setNumbers] = useState<Numbered[]>([]);
   const [booklets, setBooklets] = useState<Booklet[]>([]);
@@ -128,7 +134,7 @@ export default function StagingFinancialOperations({
     if (!client || !allowed) { setLoading(false); return; }
     // A role may have been revoked or changed without a new Auth identity.
     // Discard previously rendered financial records before loading newly scoped data.
-    setCollections([]); setRequests([]); setClaims([]); setIssues([]);
+    setCollections([]); setRequests([]); setClaims([]); setCredits([]); setIssues([]);
     setNumbers([]); setBooklets([]); setRemittances([]); setItems([]);
     setCopies([]); setFunds([]); setReviews([]);
     setLoading(true);
@@ -140,8 +146,9 @@ export default function StagingFinancialOperations({
             put: v => setCollections(v as Collection[]), enabled: canReadCollections },
           { table: "fs_payment_requests", columns: "id,payment_reference,total_due_centavos,status,quoted_participants",
             put: v => setRequests(v as Request[]), enabled: canVerify },
-          { table: "fs_payment_claims", columns: "id,payment_request_id,submitted_external_reference,claimed_amount_centavos,status,provider_name",
+          { table: "fs_payment_claims", columns: "id,payment_request_id,receiving_account_id,submitted_external_reference,claimed_amount_centavos,status,provider_name",
             put: v => setClaims(v as Claim[]), enabled: canVerify },
+          {table:"fs_bank_credits",columns:"id,receiving_account_id,provider_name,bank_external_reference,amount_centavos,statement_batch_reference",put:v=>setCredits(v as BankCredit[]),enabled:canVerify},
           { table: "fs_receipt_issues", columns: "id,collection_id,receipt_number_id,issue_date,amount_centavos",
             put: v => setIssues(v as Issue[]), enabled: canReadIssued },
           { table: "fs_receipt_numbers", columns: "id,booklet_id,printed_no,status",
@@ -209,7 +216,9 @@ export default function StagingFinancialOperations({
     && issuedCollectionIds.has(c.id) && !remittedCollectionIds.has(c.id));
   const pending = remittances.filter(r => r.status === "submitted");
   const chosen = collections.find(c => c.id === receiptCollection);
-  const outstandingClaims = claims.filter(c => c.status !== "verified" && c.status !== "rejected");
+  const outstandingClaims = claims.filter(c => c.submitted_external_reference.startsWith("DEMO-") && ["submitted","under_review","needs_clarification"].includes(c.status));
+  const chosenClaim=outstandingClaims.find(c=>c.id===qrClaim);
+  const chosenCredits=credits.filter(c=>chosenClaim&&c.receiving_account_id===chosenClaim.receiving_account_id&&c.bank_external_reference.startsWith("DEMO-"));
   const issueFor = (id: string) => issues.find(i => i.collection_id === id);
   const serialFor = (id: string) => numbers.find(n => n.id === id)?.printed_no || "—";
   const selectedRemittance = remittances.find(r => r.id === selectedRemit);
@@ -226,7 +235,7 @@ export default function StagingFinancialOperations({
       const { error } = await client.rpc(name, params);
       if (error) throw new Error(error.message);
       setNotice({ ok: true, message: done });
-      setCashChecked(false); setPaperChecked(false); setCopiesChecked(false);
+      setCashChecked(false); setQrChecked(false); setQrClaim(""); setQrCredit(""); setPaperChecked(false); setCopiesChecked(false);
       setCopyChecked(false); setCuriaCashCounted(false);
       setSelection([]);
       reload();
@@ -281,7 +290,7 @@ export default function StagingFinancialOperations({
       </button>
     </div>
     <div className="border-l-4 border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] px-4 py-3 text-sm leading-6 text-[color:var(--registry-ink)]">
-      <strong>Test environment only.</strong> No real payment account, authorized fee schedule, or actual preprinted receipt stock has been loaded. QR Ph credits require independently verified bank evidence; self-submitted screenshots never establish a collection. Actions are checked again by the database.
+      <strong>Test environment only.</strong> No real payment account, authorized fee schedule, or actual preprinted receipt stock has been loaded. QR Ph rehearsal uses synthetic claim and bank-credit metadata to exercise the matching rules; no real evidence or funds are processed. Actions are checked again by the database.
     </div>
     {notice && <div role="status" className={"border px-4 py-3 text-sm " + (notice.ok
       ? "border-[color:var(--finance-success-border)] bg-[color:var(--finance-success-surface)] text-[color:var(--finance-success)]"
@@ -324,10 +333,10 @@ export default function StagingFinancialOperations({
           void act("fs_record_otc_payment", {
             p_payment_request_id: requestId, p_amount_centavos: amount,
             p_counted_at: new Date(cashDate).toISOString(), p_cash_physically_counted: true,
-          }, "Actual counted OTC cash posted to the verified collections ledger.");
+          }, "Fictional OTC collection posted to the TEST ledger.");
         }}>
           <div className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-[color:var(--registry-crimson)]"/><h3 className={ebGaramond.className + " text-[26px]"}>Record OTC payment</h3></div>
-          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Restricted to COWL finance verifiers. Cash must already be physically counted. No automatic fee or invented payment request is created.</p>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Restricted to COWL finance verifiers. Use the seeded fictional payment request and simulate counting the stated amount.</p>
           <div className="mt-4 space-y-3">
             <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Approved renewal payment request</span>
               <select required className={field} value={requestId} onChange={e => setRequestId(e.target.value)}>
@@ -339,7 +348,7 @@ export default function StagingFinancialOperations({
             <Input label="Date and time cash was counted" value={cashDate} onChange={setCashDate} type="datetime-local" />
             <label className="flex items-start gap-2 text-sm leading-6">
               <input type="checkbox" checked={cashChecked} onChange={e => setCashChecked(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]" />
-              <span>I personally counted and received the stated cash for this renewal.</span>
+              <span>For this rehearsal, I confirm the fictional cash amount.</span>
             </label>
           </div>
           {!requests.length && <p className="mt-3 text-xs text-[color:var(--registry-amber)]">No approved payment requests exist. Fee schedule and quote authorization are required before cash can be posted.</p>}
@@ -355,7 +364,13 @@ export default function StagingFinancialOperations({
             </div>)}
             {!outstandingClaims.length && <p className="py-5 text-sm text-[color:var(--registry-muted)]">No submitted QR Ph payment claims.</p>}
           </div>
-          <p className="mt-4 text-xs leading-5 text-[color:var(--registry-amber)]"><AlertTriangle className="mr-1 inline h-4 w-4" /> QR Ph posting remains locked until the receiving account and bank-statement evidence ingestion are authorized and operational.</p>
+          <form className="mt-4 space-y-3" onSubmit={e=>{e.preventDefault();if(!qrChecked||!chosenClaim||!chosenCredits.some(c=>c.id===qrCredit))return;void act("fs_verify_qr_payment",{p_claim_id:qrClaim,p_bank_credit_id:qrCredit},"Matching synthetic QR credit posted to the TEST ledger.");}}>
+            <p className="text-xs font-semibold text-[color:var(--registry-amber)]">Synthetic evidence only. Choose a matching credit or deliberately select the mismatched credit to demonstrate rejection.</p>
+            <label className="block text-sm">Fictional claim<select className={field} value={qrClaim} onChange={e=>{setQrClaim(e.target.value);setQrCredit("");setQrChecked(false)}} required><option value="">Select claim</option>{outstandingClaims.map(c=><option key={c.id} value={c.id}>{c.submitted_external_reference} · {money(c.claimed_amount_centavos)}</option>)}</select></label>
+            <label className="block text-sm">Synthetic bank credit<select className={field} value={qrCredit} onChange={e=>{setQrCredit(e.target.value);setQrChecked(false)}} required><option value="">Select credit</option>{chosenCredits.map(c=><option key={c.id} value={c.id}>{c.bank_external_reference} · {money(c.amount_centavos)}</option>)}</select></label>
+            <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={qrChecked} onChange={e=>setQrChecked(e.target.checked)}/><span>I reviewed the fictional reference and amount. No actual bank evidence is represented.</span></label>
+            <button type="submit" className={primary} disabled={busy||loading||!qrChecked||!qrClaim||!qrCredit}>Verify simulated QR credit</button>
+          </form>
         </div>
       </section>}
       {canIssue && <form className={box} onSubmit={submitReceipt}>
