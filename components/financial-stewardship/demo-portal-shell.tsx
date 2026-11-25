@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ChevronRight, Menu, X } from "@/components/phosphor-icons";
 import type { Icon as LucideIcon } from "@phosphor-icons/react";
@@ -24,9 +23,14 @@ export type PortalNavGroup = {
   items: PortalNavItem[];
 };
 
-function InstitutionalLogo({compact=false}:{compact?:boolean}) {
-  if(compact) return <span className="text-center text-xs font-semibold leading-tight" aria-hidden="true">COWL<br/>DOK</span>;
-  return <Image src="/images/Asset_1.svg" alt="Roman Catholic Diocese of Kalookan — Diocesan Commission on Worship and Liturgy" width={430} height={113} className="h-auto w-full object-contain" />;
+export function DiocesanCoat({ size = 48 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="705 0 277 230"
+      role="img" aria-label="Coat of arms of the Roman Catholic Diocese of Kalookan"
+      className="shrink-0 overflow-hidden">
+      <image href="/images/Asset_1.svg" x="0" y="0" width="1686.95" height="444.5" />
+    </svg>
+  );
 }
 
 /**
@@ -133,10 +137,10 @@ export default function PortalShell({
   }
 
   return <div className={inter.className + " min-h-screen bg-[color:var(--registry-page)] text-[color:var(--registry-ink)]"}>
-    <header className="sticky top-0 z-30 flex min-h-[72px] items-center justify-between border-b border-[color:var(--registry-hairline)] bg-white px-4 lg:hidden">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[color:var(--registry-hairline)] bg-white px-4 lg:hidden">
       <Link href={homeHref} className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-        <span className="block w-[150px] shrink-0 sm:w-[200px]"><InstitutionalLogo/></span>
-        <span className="truncate text-xs sm:text-sm">{title}</span>
+        <DiocesanCoat size={40} />
+        <span className="truncate">{title}</span>
       </Link>
       <button type="button" aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
         aria-expanded={mobileOpen} aria-controls="portal-sidebar"
@@ -159,18 +163,21 @@ export default function PortalShell({
               event.target instanceof HTMLElement &&
               event.target.matches("a,button")) setDesktopExpanded(true);
         }}
-        className={"fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[color:var(--registry-oxblood)] text-white transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:shrink-0 lg:translate-x-0 lg:transition-[width] lg:duration-300 lg:ease-in-out motion-reduce:transition-none " +
+        className={"fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[color:var(--registry-crimson)] text-white transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:shrink-0 lg:translate-x-0 lg:transition-[width] lg:duration-300 lg:ease-in-out motion-reduce:transition-none " +
           (mobileOpen ? "visible translate-x-0 " : "invisible -translate-x-full lg:visible ") +
           (desktopExpanded ? "lg:w-[260px]" : "lg:w-[76px]")}>
 
-        <div className="border-b border-white/20 px-3 py-4">
-          <Link href={homeHref} onClick={()=>setMobileOpen(false)} aria-label={title+" home"} className={"flex min-h-11 items-center justify-center "+(desktopExpanded?"":"lg:hidden")}>
-            <span className="block w-full bg-white p-2"><InstitutionalLogo/></span>
+        <div className={"flex min-h-[88px] items-center gap-3 overflow-hidden border-b border-white/20 py-4 " +
+          (desktopExpanded ? "lg:px-5" : "lg:justify-center lg:px-1") +
+          " px-5"}>
+          <Link href={homeHref} onClick={() => setMobileOpen(false)}
+            aria-label={title + " home"} title={title + " home"}
+            className="flex h-14 w-14 shrink-0 items-center justify-center lg:h-12 lg:w-12">
+            <DiocesanCoat size={desktopExpanded ? 44 : 38} />
           </Link>
-          {!desktopExpanded&&<Link href={homeHref} aria-label={title+" home"} className="hidden min-h-11 items-center justify-center lg:flex"><InstitutionalLogo compact/></Link>}
-          <div className={"mt-3 "+(desktopExpanded?"":"lg:sr-only")}>
-            <p className={ebGaramond.className+" text-2xl leading-tight"}>{title}</p>
-            <p className="mt-1 text-xs leading-5 text-[color:var(--registry-pale-rose)]">{subtitle}</p>
+          <div className={"min-w-0 whitespace-nowrap " + (desktopExpanded ? "" : "lg:sr-only")}>
+            <p className={ebGaramond.className + " text-[23px] font-medium leading-none"}>{title}</p>
+            <p className="mt-1 text-[13px] leading-4 text-white/80">{subtitle}</p>
           </div>
         </div>
 
