@@ -3,7 +3,7 @@ import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent} from "reac
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {ebGaramond} from "@/app/fonts";
-import {ClipboardList,Receipt,RefreshCw,LogOut,Users,Wallet} from "@/components/phosphor-icons";
+import {ClipboardList,PenLine,Inbox,History,RefreshCw,LogOut,Users} from "@/components/phosphor-icons";
 import PortalShell from "@/components/financial-stewardship/demo-portal-shell";
 import {getFinancialStagingClient} from "@/lib/financial-stewardship/staging-client";
 
@@ -100,7 +100,7 @@ export default function RenewalDesk({embedded=false,onOpenCollection}:{embedded?
  </div>;
  if(embedded)return content;
  return <PortalShell title="Registry Administration" subtitle="Liturgical Ministry Registry · Test" homeHref="/demo/finance/renewals" navigationLabel="Registry administration navigation"
- groups={[{name:"Member Management",items:[{id:"applications",label:"Renewal Processing Desk",icon:ClipboardList,active:activeTab==="applications",onSelect:()=>setTab("applications")},{id:"intake",label:"New Application",icon:Users,active:activeTab==="intake",onSelect:()=>setTab("intake")},{id:"review",label:"Review Queue",icon:ClipboardList,active:activeTab==="review",onSelect:()=>setTab("review")},{id:"history",label:"Application History",icon:Receipt,active:activeTab==="history",onSelect:()=>setTab("history")},{id:"roster",label:"Sample Ministry Roster",icon:Users,active:activeTab==="roster",onSelect:()=>setTab("roster")}]}]}
+ groups={[{name:"Member Management",items:[{id:"applications",label:"Renewal Processing Desk",icon:ClipboardList,active:activeTab==="applications",onSelect:()=>setTab("applications")},{id:"intake",label:"New Application",icon:PenLine,active:activeTab==="intake",onSelect:()=>setTab("intake")},{id:"review",label:"Review Queue",icon:Inbox,active:activeTab==="review",onSelect:()=>setTab("review")},{id:"history",label:"Application History",icon:History,active:activeTab==="history",onSelect:()=>setTab("history")},{id:"roster",label:"Sample Ministry Roster",icon:Users,active:activeTab==="roster",onSelect:()=>setTab("roster")}]}]}
  footer={<div className="space-y-2"><p className="truncate text-xs text-white/85">{email}</p><Link className="block text-sm text-white underline" href="/demo/finance">Switch workspace</Link><button onClick={()=>void signOut()} className="inline-flex min-h-11 items-center gap-2 text-sm text-white"><LogOut className="h-4 w-4"/>Sign out</button></div>}
  compactFooter={<button aria-label="Sign out" onClick={()=>void signOut()} className="grid h-11 w-11 place-items-center text-white"><LogOut className="h-5 w-5"/></button>}>{content}</PortalShell>;
 }
