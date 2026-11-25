@@ -252,6 +252,7 @@ export default function StagingFinancialOperations({
   const payable=requestDetails.filter(r=>r.batch&&r.parish&&r.ministry&&["quoted","awaiting_payment","part_paid"].includes(r.status)&&r.remaining>0);
   const filteredPayable=payable.filter(r=>(!parishFilter||r.batch?.parish_id===parishFilter)&&(!ministryFilter||r.batch?.ministry_id===ministryFilter)&&(!requestSearch||[r.payment_reference,r.batch?.renewal_reference,r.parish,r.ministry].join(" ").toLowerCase().includes(requestSearch.trim().toLowerCase())));
   const selectedRequest=filteredPayable.find(r=>r.id===requestId);
+  const fullPaymentOnly=Boolean(rc3Enabled&&selectedRequest?.payment_reference.startsWith("RC3-DEMO-"));
   const resetCashSelection=()=>{setRequestId("");setCashAmount("");setCashChecked(false);};
   const outstandingClaims = claims.filter(c => demoRef(c.submitted_external_reference) && ["submitted","under_review","needs_clarification"].includes(c.status));
   const displayedClaims=initialTab==="qr"&&initialReference?outstandingClaims.filter(c=>requests.some(r=>r.id===c.payment_request_id&&r.payment_reference===initialReference)):outstandingClaims;
@@ -370,7 +371,7 @@ export default function StagingFinancialOperations({
       </section>}
       {activeTab==="otc" && canVerify && <form className={box} onSubmit={e => { e.preventDefault();
           const amount = centavos(cashAmount);
-          if (amount === null || amount <= 0 || !cashChecked || !selectedRequest || amount>selectedRequest.remaining || loading || loadFailed) return;
+          if (amount === null || amount <= 0 || !cashChecked || !selectedRequest || amount>selectedRequest.remaining || (fullPaymentOnly&&amount!==selectedRequest.remaining) || loading || loadFailed) return;
           void act("fs_record_otc_payment", {
             p_payment_request_id: requestId, p_amount_centavos: amount,
             p_counted_at: new Date(cashDate).toISOString(), p_cash_physically_counted: true,
@@ -387,6 +388,7 @@ export default function StagingFinancialOperations({
             <fieldset><legend className="mb-2 block text-xs font-semibold text-[color:var(--registry-muted)]">Approved renewal payment request</legend><div className="max-h-[350px] space-y-2 overflow-y-auto p-1">{filteredPayable.map(r=><label key={r.id} className={"flex cursor-pointer items-start gap-3 border p-3 "+(requestId===r.id?"border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)]":"border-[color:var(--registry-hairline)]")}><input className="mt-1" name="payment-obligation" type="radio" checked={requestId===r.id} disabled={loading||loadFailed||busy} onChange={()=>{setRequestId(r.id);setCashAmount((r.remaining/100).toFixed(2));setCashChecked(false);setCashDate(nowForInput())}}/><span className="min-w-0 flex-1"><strong className="block text-sm">{r.parish?.replace(/^RC3 DEMO - /,"")}</strong><span className="block text-sm">{r.ministry?.replace(/^RC3 DEMO - /,"")} · {r.batch?.service_year} · {r.quoted_participants} ministers</span><span className="block break-all text-xs text-[color:var(--registry-muted)]">{r.payment_reference}</span></span><span className="text-right text-sm font-semibold tabular-nums">{money(r.remaining)}<span className="block text-xs font-normal">Due</span></span></label>)}</div></fieldset>
             {!loading&&!loadFailed&&!filteredPayable.length&&<p className="text-sm text-[color:var(--registry-muted)]">No unpaid approved requests match these filters.</p>}
             {selectedRequest&&<div className="border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4"><h4 className="font-semibold">{selectedRequest.parish?.replace(/^RC3 DEMO - /,"")}</h4><p className="mt-1 text-sm">{selectedRequest.ministry} · {selectedRequest.batch?.service_year} · {selectedRequest.quoted_participants} participants</p><p className="mt-1 text-xs text-[color:var(--registry-muted)]">{selectedRequest.batch?.renewal_reference}</p><dl className="mt-3 grid gap-3 sm:grid-cols-3">{[["Approved amount",selectedRequest.total_due_centavos],["Already paid",selectedRequest.paid],["Remaining balance",selectedRequest.remaining]].map(([label,value])=><div key={label}><dt className="text-xs text-[color:var(--registry-muted)]">{label}</dt><dd className="mt-1 font-semibold tabular-nums">{money(Number(value))}</dd></div>)}</dl></div>}
+            {fullPaymentOnly&&<p className="text-sm font-semibold">Full settlement required. Partial payments are not accepted.</p>}
             <Input label="Counted amount (PHP)" value={cashAmount} onChange={v=>{setCashAmount(v);setCashChecked(false)}} placeholder="0.00" />
             <Input label="Date and time cash was counted" value={cashDate} onChange={setCashDate} type="datetime-local" />
             <label className="flex items-start gap-2 text-sm leading-6">
@@ -395,7 +397,7 @@ export default function StagingFinancialOperations({
             </label>
           </div>
           {!requests.length && <p className="mt-3 text-xs text-[color:var(--registry-amber)]">No approved payment requests exist. Fee schedule and quote authorization are required before cash can be posted.</p>}
-          <button className={primary + " mt-4"} disabled={busy || loading || loadFailed || !selectedRequest || !cashChecked || !centavos(cashAmount) || (centavos(cashAmount)??0)>(selectedRequest?.remaining??0)} type="submit">Record OTC payment</button>
+          <button className={primary + " mt-4"} disabled={busy || loading || loadFailed || !selectedRequest || !cashChecked || !centavos(cashAmount) || (centavos(cashAmount)??0)>(selectedRequest?.remaining??0) || (fullPaymentOnly&&centavos(cashAmount)!==selectedRequest?.remaining)} type="submit">Record OTC payment</button>
         </form>}
         {activeTab==="qr" && canVerify && <div className={box}>
           <div className="flex items-center gap-2"><QrCode className="h-5 w-5 text-[color:var(--registry-crimson)]" /><h3 className={ebGaramond.className + " text-[26px]"}>QR Ph verification queue</h3></div>
