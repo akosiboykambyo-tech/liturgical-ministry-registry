@@ -10,12 +10,15 @@ type Role =
   | "curia_treasury_reviewer" | "curia_receipt_custodian";
 type Mode = "cowl" | "curia";
 type Section = "collections" | "remittances";
+type CollectionTab = "otc" | "qr" | "issue" | "ledger";
+type Batch = {id:string;parish_id:string;ministry_id:string;service_year:number;renewal_reference:string};
+type NamedRecord = {id:string;canonical_name:string};
 type Collection = {
   id: string; internal_reference: string; payment_request_id: string;
   collection_channel: string; amount_centavos: number; status: string; received_at: string;
 };
 type Request = {
-  id: string; payment_reference: string; total_due_centavos: number;
+  id: string; payment_reference: string; total_due_centavos: number; batch_id:string;
   status: string; quoted_participants: number;
 };
 type BankCredit = {id:string;receiving_account_id:string;provider_name:string;bank_external_reference:string;amount_centavos:number;statement_batch_reference:string|null};
@@ -29,7 +32,7 @@ type Issue = {
   amount_centavos: number;
 };
 type Numbered = { id: string; booklet_id: string; printed_no: string; status: string };
-type Booklet = { id: string; booklet_reference: string; custody_state: string };
+type Booklet = { id: string; booklet_reference: string; custody_state: string; assigned_to:string|null };
 type Remittance = {
   id: string; remittance_reference: string; declared_amount_centavos: number;
   status: string; fund_transfer_channel: string | null; submitted_at: string | null;
@@ -107,6 +110,15 @@ export default function StagingFinancialOperations({
   // cannot infer hidden finance totals or view a remittance from that role alone.
   const allowed = section === "collections" ? canReadCollections : canReadRemittances;
 
+  const [collectionTab,setCollectionTab]=useState<CollectionTab>("otc");
+  const [batches,setBatches]=useState<Batch[]>([]);
+  const [parishes,setParishes]=useState<NamedRecord[]>([]);
+  const [ministries,setMinistries]=useState<NamedRecord[]>([]);
+  const [parishFilter,setParishFilter]=useState("");
+  const [ministryFilter,setMinistryFilter]=useState("");
+  const [requestSearch,setRequestSearch]=useState("");
+  const [currentUserId,setCurrentUserId]=useState("");
+  const [loadFailed,setLoadFailed]=useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
@@ -137,15 +149,22 @@ export default function StagingFinancialOperations({
     setCollections([]); setRequests([]); setClaims([]); setCredits([]); setIssues([]);
     setNumbers([]); setBooklets([]); setRemittances([]); setItems([]);
     setCopies([]); setFunds([]); setReviews([]);
+    setBatches([]);setParishes([]);setMinistries([]);setCurrentUserId("");setLoadFailed(false);
     setLoading(true);
     async function load() {
       if (!client) return;
       try {
+        const {data:auth,error:authError}=await client.auth.getUser();
+        if(authError||!auth.user)throw new Error("Sign in again to load financial records.");
+        if(active)setCurrentUserId(auth.user.id);
         const reads: { table: string; columns: string; put: (v: never[]) => void; enabled: boolean }[] = [
           { table: "fs_collections", columns: "id,internal_reference,payment_request_id,collection_channel,amount_centavos,status,received_at",
             put: v => setCollections(v as Collection[]), enabled: canReadCollections },
-          { table: "fs_payment_requests", columns: "id,payment_reference,total_due_centavos,status,quoted_participants",
+          { table: "fs_payment_requests", columns: "id,payment_reference,total_due_centavos,status,quoted_participants,batch_id",
             put: v => setRequests(v as Request[]), enabled: canVerify },
+          {table:"fs_renewal_batches",columns:"id,parish_id,ministry_id,service_year,renewal_reference",put:v=>setBatches(v as Batch[]),enabled:canVerify},
+          {table:"fs_parishes",columns:"id,canonical_name",put:v=>setParishes(v as NamedRecord[]),enabled:canVerify},
+          {table:"fs_ministries",columns:"id,canonical_name",put:v=>setMinistries(v as NamedRecord[]),enabled:canVerify},
           { table: "fs_payment_claims", columns: "id,payment_request_id,receiving_account_id,submitted_external_reference,claimed_amount_centavos,status,provider_name",
             put: v => setClaims(v as Claim[]), enabled: canVerify },
           {table:"fs_bank_credits",columns:"id,receiving_account_id,provider_name,bank_external_reference,amount_centavos,statement_batch_reference",put:v=>setCredits(v as BankCredit[]),enabled:canVerify},
@@ -153,7 +172,7 @@ export default function StagingFinancialOperations({
             put: v => setIssues(v as Issue[]), enabled: canReadIssued },
           { table: "fs_receipt_numbers", columns: "id,booklet_id,printed_no,status",
             put: v => setNumbers(v as Numbered[]), enabled: canReadStock },
-          { table: "fs_receipt_booklets", columns: "id,booklet_reference,custody_state",
+          { table: "fs_receipt_booklets", columns: "id,booklet_reference,custody_state,assigned_to",
             put: v => setBooklets(v as Booklet[]), enabled: canReadStock },
           { table: "fs_remittances", columns: "id,remittance_reference,declared_amount_centavos,status,fund_transfer_channel,submitted_at,cowl_to_curia_transfer_reference",
             put: v => setRemittances(v as Remittance[]), enabled: canReadRemittances },
@@ -170,11 +189,12 @@ export default function StagingFinancialOperations({
           if (!spec.enabled) continue;
           const { data, error } = await client.from(spec.table).select(spec.columns).limit(1000);
           if (error) throw new Error(error.message);
+          if ((data?.length??0)>=1000) throw new Error("The demo ledger exceeds the supported display limit. No transaction should be posted from an incomplete list.");
           if (active) spec.put((data || []) as never[]);
         }
         if (active) setNotice(current => current?.ok ? current : null);
       } catch (err) {
-        if (active) setNotice({ ok: false, message: err instanceof Error ? err.message : "Unable to read isolated finance ledger." });
+        if (active) {setLoadFailed(true);setNotice({ ok: false, message: err instanceof Error ? err.message : "Unable to read isolated finance ledger." });}
       } finally {
         if (active) setLoading(false);
       }
@@ -216,6 +236,21 @@ export default function StagingFinancialOperations({
     && issuedCollectionIds.has(c.id) && !remittedCollectionIds.has(c.id));
   const pending = remittances.filter(r => r.status === "submitted");
   const chosen = collections.find(c => c.id === receiptCollection);
+  const tabs: {id:CollectionTab;label:string;icon:typeof HandCoins}[] = [
+    ...(canVerify?[{id:"otc" as const,label:"OTC Payments",icon:HandCoins},{id:"qr" as const,label:"QR Ph Verification",icon:CreditCard}]:[]),
+    ...(canIssue?[{id:"issue" as const,label:"Receipt Issuance",icon:ReceiptText}]:[]),
+    {id:"ledger",label:"Collections Ledger",icon:ClipboardList},
+  ];
+  const activeTab=tabs.some(t=>t.id===collectionTab)?collectionTab:tabs[0].id;
+  const requestDetails=requests.filter(r=>r.payment_reference.startsWith("DEMO-")).map(r=>{
+    const batch=batches.find(b=>b.id===r.batch_id);
+    const paid=collections.filter(c=>c.payment_request_id===r.id&&c.status==="posted").reduce((sum,c)=>sum+Number(c.amount_centavos),0);
+    return {...r,batch,parish:parishes.find(p=>p.id===batch?.parish_id)?.canonical_name, ministry:ministries.find(m=>m.id===batch?.ministry_id)?.canonical_name,paid,remaining:Number(r.total_due_centavos)-paid};
+  });
+  const payable=requestDetails.filter(r=>r.batch&&r.parish&&r.ministry&&["quoted","awaiting_payment","part_paid"].includes(r.status)&&r.remaining>0);
+  const filteredPayable=payable.filter(r=>(!parishFilter||r.batch?.parish_id===parishFilter)&&(!ministryFilter||r.batch?.ministry_id===ministryFilter)&&(!requestSearch||[r.payment_reference,r.batch?.renewal_reference,r.parish,r.ministry].join(" ").toLowerCase().includes(requestSearch.trim().toLowerCase())));
+  const selectedRequest=filteredPayable.find(r=>r.id===requestId);
+  const resetCashSelection=()=>{setRequestId("");setCashAmount("");setCashChecked(false);};
   const outstandingClaims = claims.filter(c => c.submitted_external_reference.startsWith("DEMO-") && ["submitted","under_review","needs_clarification"].includes(c.status));
   const chosenClaim=outstandingClaims.find(c=>c.id===qrClaim);
   const chosenCredits=credits.filter(c=>chosenClaim&&c.receiving_account_id===chosenClaim.receiving_account_id&&c.bank_external_reference.startsWith("DEMO-"));
@@ -229,15 +264,22 @@ export default function StagingFinancialOperations({
   const paperSum = paperLines.reduce((n, line) => n + (centavos(line.amount) || 0), 0);
 
   async function act(name: string, params: Record<string, unknown>, done: string) {
-    if (!client || busy) return;
+    if (!client || busy || loading || loadFailed) return;
     setBusy(true); setNotice(null);
     try {
-      const { error } = await client.rpc(name, params);
+      const { data, error } = await client.rpc(name, params);
       if (error) throw new Error(error.message);
       setNotice({ ok: true, message: done });
       setCashChecked(false); setQrChecked(false); setQrClaim(""); setQrCredit(""); setPaperChecked(false); setCopiesChecked(false);
       setCopyChecked(false); setCuriaCashCounted(false);
       setSelection([]);
+      if(name==="fs_record_otc_payment"||name==="fs_verify_qr_payment") {
+        resetCashSelection();
+        if(canIssue&&typeof data==="string"){
+          setReceiptCollection(data);setReceiptNumber("");setPaperChecked(false);setPaperDate(localDay());
+          setPaperPayer("");setPaperMinistry("");setPaperCode("");setPaperLines([{description:"",count:"",rate:"",amount:""}]);setCollectionTab("issue");
+        }
+      }
       reload();
     } catch (err) {
       setNotice({ ok: false, message: err instanceof Error ? err.message : "The operation was rejected." });
@@ -297,7 +339,10 @@ export default function StagingFinancialOperations({
         <Metric name="Collections awaiting paper receipt" value={String(unissued.length)} />
         <Metric name="Unverified QR Ph claims" value={canVerify ? String(outstandingClaims.length) : "Restricted"} />
       </div>
-      {canReadCollections && <section className={box}>
+      <nav aria-label="Collections and Receipts sections" className="flex flex-wrap gap-1 border-b border-[color:var(--registry-hairline)]" >
+        {tabs.map(t=><button key={t.id} type="button" aria-pressed={activeTab===t.id} onClick={()=>setCollectionTab(t.id)} className={"inline-flex min-h-11 items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold sm:px-4 "+(activeTab===t.id?"border-[color:var(--registry-crimson)] text-[color:var(--registry-crimson)]":"border-transparent text-[color:var(--registry-muted)] hover:text-[color:var(--registry-ink)]")}><t.icon aria-hidden="true" className="h-5 w-5"/>{t.label}</button>)}
+      </nav>
+      {activeTab==="ledger" && canReadCollections && <section className={box}>
         <h3 className={ebGaramond.className + " text-[26px]"}>Verified collections ledger</h3>
         <p className="mt-1 text-xs leading-5 text-[color:var(--registry-muted)]">Only confirmed QR Ph or counted OTC funds enter this ledger. Receipt issuance and Curia remittance are separate events.</p>
         <div className="mt-4 overflow-x-auto">
@@ -319,25 +364,30 @@ export default function StagingFinancialOperations({
           </table>
         </div>
       </section>}
-      {canVerify && <section className="grid gap-5 xl:grid-cols-2">
-        <form className={box} onSubmit={e => { e.preventDefault();
+      {activeTab==="otc" && canVerify && <form className={box} onSubmit={e => { e.preventDefault();
           const amount = centavos(cashAmount);
-          if (amount === null || amount <= 0 || !cashChecked) return;
+          if (amount === null || amount <= 0 || !cashChecked || !selectedRequest || amount>selectedRequest.remaining || loading || loadFailed) return;
           void act("fs_record_otc_payment", {
             p_payment_request_id: requestId, p_amount_centavos: amount,
             p_counted_at: new Date(cashDate).toISOString(), p_cash_physically_counted: true,
           }, "Fictional OTC collection posted to the TEST ledger.");
         }}>
           <div className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-[color:var(--registry-crimson)]"/><h3 className={ebGaramond.className + " text-[26px]"}>Record OTC payment</h3></div>
-          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Restricted to COWL finance verifiers. Use the seeded fictional payment request and simulate counting the stated amount.</p>
+          <p className="mt-2 text-sm text-[color:var(--registry-muted)]">Find an approved renewal obligation by parish, ministry or reference, then record the amount received.</p>
           <div className="mt-4 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Parish</span><select className={field} value={parishFilter} onChange={e=>{setParishFilter(e.target.value);resetCashSelection()}}><option value="">All parishes</option>{parishes.filter(p=>payable.some(r=>r.batch?.parish_id===p.id)).map(p=><option key={p.id} value={p.id}>{p.canonical_name}</option>)}</select></label>
+              <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Ministry</span><select className={field} value={ministryFilter} onChange={e=>{setMinistryFilter(e.target.value);resetCashSelection()}}><option value="">All ministries</option>{ministries.filter(m=>payable.some(r=>r.batch?.ministry_id===m.id)).map(m=><option key={m.id} value={m.id}>{m.canonical_name}</option>)}</select></label>
+            </div>
+            <Input label="Search obligation" value={requestSearch} onChange={v=>{setRequestSearch(v);resetCashSelection()}} required={false} placeholder="Parish, ministry or reference"/>
             <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Approved renewal payment request</span>
-              <select required className={field} value={requestId} onChange={e => setRequestId(e.target.value)}>
-                <option value="">Select authorized quote</option>{requests.filter(r => ["quoted","awaiting_payment","part_paid"].includes(r.status)).map(r =>
-                  <option value={r.id} key={r.id}>{r.payment_reference} · {money(r.total_due_centavos)} due</option>)}
+              <select required className={field} value={requestId} disabled={loading||loadFailed} onChange={e=>{const found=filteredPayable.find(r=>r.id===e.target.value);setRequestId(e.target.value);setCashAmount(found?(found.remaining/100).toFixed(2):"");setCashChecked(false);setCashDate(nowForInput())}}>
+                <option value="">Select authorized quote</option>{filteredPayable.map(r=><option value={r.id} key={r.id}>{r.payment_reference} · {r.parish} · {r.batch?.service_year} · {money(r.remaining)} due</option>)}
               </select>
             </label>
-            <Input label="Counted amount (PHP)" value={cashAmount} onChange={setCashAmount} placeholder="0.00" />
+            {!loading&&!loadFailed&&!filteredPayable.length&&<p className="text-sm text-[color:var(--registry-muted)]">No unpaid approved requests match these filters.</p>}
+            {selectedRequest&&<div className="border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4"><h4 className="font-semibold">{selectedRequest.parish}</h4><p className="mt-1 text-sm">{selectedRequest.ministry} · {selectedRequest.batch?.service_year} · {selectedRequest.quoted_participants} participants</p><p className="mt-1 text-xs text-[color:var(--registry-muted)]">{selectedRequest.batch?.renewal_reference}</p><dl className="mt-3 grid gap-3 sm:grid-cols-3">{[["Approved amount",selectedRequest.total_due_centavos],["Already paid",selectedRequest.paid],["Remaining balance",selectedRequest.remaining]].map(([label,value])=><div key={label}><dt className="text-xs text-[color:var(--registry-muted)]">{label}</dt><dd className="mt-1 font-semibold tabular-nums">{money(Number(value))}</dd></div>)}</dl></div>}
+            <Input label="Counted amount (PHP)" value={cashAmount} onChange={v=>{setCashAmount(v);setCashChecked(false)}} placeholder="0.00" />
             <Input label="Date and time cash was counted" value={cashDate} onChange={setCashDate} type="datetime-local" />
             <label className="flex items-start gap-2 text-sm leading-6">
               <input type="checkbox" checked={cashChecked} onChange={e => setCashChecked(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]" />
@@ -345,9 +395,9 @@ export default function StagingFinancialOperations({
             </label>
           </div>
           {!requests.length && <p className="mt-3 text-xs text-[color:var(--registry-amber)]">No approved payment requests exist. Fee schedule and quote authorization are required before cash can be posted.</p>}
-          <button className={primary + " mt-4"} disabled={busy || !requestId || !cashChecked || !centavos(cashAmount)} type="submit">Post counted cash</button>
-        </form>
-        <div className={box}>
+          <button className={primary + " mt-4"} disabled={busy || loading || loadFailed || !selectedRequest || !cashChecked || !centavos(cashAmount) || (centavos(cashAmount)??0)>(selectedRequest?.remaining??0)} type="submit">Record OTC payment</button>
+        </form>}
+        {activeTab==="qr" && canVerify && <div className={box}>
           <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-[color:var(--registry-crimson)]" /><h3 className={ebGaramond.className + " text-[26px]"}>QR Ph verification queue</h3></div>
           <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">The portal never marks a screenshot Paid. The receiving-account statement, reference, amount and beneficiary must be checked independently.</p>
           <div className="mt-4 divide-y divide-[#EEE5E7] border-y border-[color:var(--registry-hairline)]">
@@ -362,11 +412,10 @@ export default function StagingFinancialOperations({
             <label className="block text-sm">Fictional claim<select className={field} value={qrClaim} onChange={e=>{setQrClaim(e.target.value);setQrCredit("");setQrChecked(false)}} required><option value="">Select claim</option>{outstandingClaims.map(c=><option key={c.id} value={c.id}>{c.submitted_external_reference} · {money(c.claimed_amount_centavos)}</option>)}</select></label>
             <label className="block text-sm">Synthetic bank credit<select className={field} value={qrCredit} onChange={e=>{setQrCredit(e.target.value);setQrChecked(false)}} required><option value="">Select credit</option>{chosenCredits.map(c=><option key={c.id} value={c.id}>{c.bank_external_reference} · {money(c.amount_centavos)}</option>)}</select></label>
             <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={qrChecked} onChange={e=>setQrChecked(e.target.checked)}/><span>I reviewed the fictional reference and amount. No actual bank evidence is represented.</span></label>
-            <button type="submit" className={primary} disabled={busy||loading||!qrChecked||!qrClaim||!qrCredit}>Verify simulated QR credit</button>
+            <button type="submit" className={primary} disabled={busy||loading||loadFailed||!qrChecked||!qrClaim||!qrCredit}>Verify simulated QR credit</button>
           </form>
-        </div>
-      </section>}
-      {canIssue && <form className={box} onSubmit={submitReceipt}>
+        </div>}
+      {activeTab==="issue" && canIssue && <form className={box} onSubmit={submitReceipt}>
         <div className="flex items-center gap-2"><ReceiptText className="h-5 w-5 text-[color:var(--registry-crimson)]"/><h3 className={ebGaramond.className + " text-[27px]"}>Issue the exact Curia-preprinted official receipt</h3></div>
         <p className="mt-2 text-sm leading-6 text-[color:var(--registry-muted)]">Only a verified collection and an unused number from COWL-acknowledged physical stock can be linked. This form records the actual printed line breakdown, not an auto-generated receipt number.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -378,7 +427,7 @@ export default function StagingFinancialOperations({
           <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Actual printed official receipt No.</span>
             <select required value={receiptNumber} onChange={e=>setReceiptNumber(e.target.value)} className={field}>
               <option value="">Select physical unused serial</option>
-              {numbers.filter(n=>n.status==="available" && booklets.some(b=>b.id===n.booklet_id && b.custody_state==="cowl_custody"))
+              {numbers.filter(n=>n.status==="available" && booklets.some(b=>b.id===n.booklet_id && b.custody_state==="cowl_custody" && b.assigned_to===currentUserId))
                 .map(n=><option value={n.id} key={n.id}>{n.printed_no} · {booklets.find(b=>b.id===n.booklet_id)?.booklet_reference}</option>)}
             </select></label>
           <Input label="Paper issue date" value={paperDate} onChange={setPaperDate} type="date" />
@@ -404,7 +453,7 @@ export default function StagingFinancialOperations({
           <input type="checkbox" checked={paperChecked} onChange={e=>setPaperChecked(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]" />
           <span>For this simulation, I checked this specific Curia-preprinted paper receipt, its exact number, written names and all line items.</span>
         </label>
-        <button type="submit" className={primary + " mt-4"} disabled={busy || !chosen || !receiptNumber || !paperChecked || paperSum<=0 || paperSum!==Number(chosen.amount_centavos)}>Record issued official receipt</button>
+        <button type="submit" className={primary + " mt-4"} disabled={busy || loading || loadFailed || !chosen || !receiptNumber || !paperChecked || paperSum<=0 || paperSum!==Number(chosen.amount_centavos)}>Record issued official receipt</button>
       </form>}
     </>}
 
