@@ -325,9 +325,6 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           </button>
         )}
       </header>
-      <div role="note" className="border-l-4 border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] px-4 py-3 text-sm leading-6 text-[color:var(--registry-ink)]">
-        <strong>Demonstration only.</strong> These workspaces use the same database, but enforce distinct COWL and Curia staff privileges. All records and attestations are fictional. No actual paper, money or official receipt is transferred.
-      </div>
       <ErrorMessage value={feedback} />
       {section === "custody" ? (custodyAllowed ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -380,7 +377,6 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
       </div>}
       <section className={card}>
         <h2 className={ebGaramond.className + " text-[29px]"}>Shared booklet inventory</h2>
-        <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">These are actual database records in the isolated test project, not the browser-local Phase 2/3 sample inventory.</p>
         {booklets.length === 0 ? <div className="mt-4 border border-dashed border-[color:var(--finance-control-border)] p-6 text-sm text-[color:var(--registry-muted)]">
           No test receipt booklets are registered. Only an authorized Curia custodian may create the first series and booklet.
         </div> : <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -492,10 +488,6 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           <p className="mt-1 text-sm text-[color:var(--registry-muted)]">This workspace is available only to the assigned {mode === "curia" ? "Curia receipt custodian" : "COWL receipt issuer / custodian"}. A finance or treasury role alone does not permit control of printed receipt stock.</p>
         </div>
       </div>) : section==="reports" ? <DemoFinancialReports/> : section==="receipt-management" ? <ReceiptManagementPreview/> : <StagingFinancialOperations mode={mode} section={section} roles={roles} /> }
-      <footer className="border-t border-[color:var(--registry-hairline)] pt-5 text-xs leading-5 text-[color:var(--registry-muted)]">
-        <div className="flex flex-wrap items-center gap-2"><Database className="h-4 w-4" /> Fictional TEST records · Separate COWL and Curia authorization · Refresh to see recent activity</div>
-        <p className="mt-2">No financial staff privilege is inferred from receipt custody. Posting and confirmation require their specific test staff grants, approved evidence, and guarded database operations.</p>
-      </footer>
     </div>
   </PortalShell>;
 }

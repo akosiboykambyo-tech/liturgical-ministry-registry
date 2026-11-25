@@ -280,17 +280,10 @@ export default function StagingFinancialOperations({
       : "Receipt custody does not automatically authorize Curia treasury reconciliation. An explicitly approved Curia treasury reviewer role is required."} />;
 
   return <div className="space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm leading-6 text-[color:var(--registry-muted)]">
-        {section === "collections" ? "Collection and receipt operations" : "Remittance and treasury operations"}
-        <span className="ml-2 text-xs text-[color:var(--registry-muted)]">· Shared isolated Supabase ledger</span>
-      </p>
+    <div className="flex flex-wrap items-center justify-end gap-3">
       <button type="button" disabled={loading || busy} onClick={reload} className={secondary}>
         <RefreshCw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} /> Refresh
       </button>
-    </div>
-    <div className="border-l-4 border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] px-4 py-3 text-sm leading-6 text-[color:var(--registry-ink)]">
-      <strong>Test environment only.</strong> No real payment account, authorized fee schedule, or actual preprinted receipt stock has been loaded. QR Ph rehearsal uses synthetic claim and bank-credit metadata to exercise the matching rules; no real evidence or funds are processed. Actions are checked again by the database.
     </div>
     {notice && <div role="status" className={"border px-4 py-3 text-sm " + (notice.ok
       ? "border-[color:var(--finance-success-border)] bg-[color:var(--finance-success-surface)] text-[color:var(--finance-success)]"
@@ -566,6 +559,5 @@ export default function StagingFinancialOperations({
           ? "Only an explicitly designated Curia treasury reviewer can verify funds and acknowledge a COWL remittance. Receipt custody alone does not grant that power."
           : "Only an explicitly designated COWL remittance preparer can submit funds and duplicate-copy inspection records. Receipt custody alone does not grant that power."} />}
     </>}
-    <p className="text-xs leading-5 text-[color:var(--registry-muted)]">Financial status always comes from the isolated Supabase database. Confirmation and receipt issuance are auditable staff operations; this page never writes directly to financial tables.</p>
   </div>;
 }

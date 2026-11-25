@@ -178,11 +178,7 @@ export default function ReceiptManagementPreview() {
 
   return <div className="space-y-5" id="receipt-management">
     {exportError&&<p role="alert" className="text-sm text-[color:var(--registry-error)]">{exportError}</p>}
-    <section className="border-l-4 border-l-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] p-4 text-sm leading-6 text-[color:var(--registry-ink)]" role="status">
-      <strong>DEMONSTRATION — NOT VALID.</strong> This paper layout is a screen-only draft. Use Collections and Receipts for the TEST ledger. Entries below are temporary browser state:
-      they do not reserve a preprinted serial, confirm payment, renew a member, produce an official receipt, or save a financial record. Downloaded specimens are prominently marked as invalid.
-      Production printing remains disabled pending Curia approval, audited ledger integration, and Epson LX-310 stock calibration.
-    </section>
+    <p className="text-sm leading-6 text-[color:var(--registry-muted)]">Prepare a temporary paper specimen here. To record receipt issuance, use Collections and Receipts.</p>
     <div className="grid gap-3 sm:grid-cols-3" aria-label="Receipt workflow summary">
       {[
         ["Receipt inventory", "TEST ledger"],
