@@ -7,6 +7,7 @@ export const FINANCIAL_STAGING_URL = "https://rtptybxugjhvpfjvcvgw.supabase.co";
 export const WORKSPACES = {
   cowl: { label: "COWL Financial Stewardship", path: "/demo/finance/cowl" },
   curia: { label: "Curia Portal", path: "/demo/finance/curia" },
+  renewals: {label:"Renewal Processing Desk",path:"/demo/finance/renewals"},
 } as const;
 
 export type FinancialWorkspace = keyof typeof WORKSPACES;
@@ -45,5 +46,11 @@ export async function getStagingWorkspaces(client: SupabaseClient, userId: strin
     .filter(grant => !grant.revoked_at && Number.isFinite(Date.parse(grant.granted_at)) && Date.parse(grant.granted_at) <= now
       && (!grant.expires_at || Date.parse(grant.expires_at) > now))
     .map(grant => grant.role_code as string);
-  return workspacesForRoles(roles);
+  const workspaces=workspacesForRoles(roles);
+  if(process.env.NEXT_PUBLIC_RENEWAL_DEMO==="enabled") {
+    const {data:access,error:accessError}=await client.rpc("rc3_demo_access");
+    if(accessError)throw new Error("Renewal access could not be verified.");
+    if(access?.admin===true||access?.finance===true)workspaces.push("renewals");
+  }
+  return workspaces;
 }
