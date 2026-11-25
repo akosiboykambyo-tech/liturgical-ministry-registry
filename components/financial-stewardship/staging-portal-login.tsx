@@ -174,7 +174,7 @@ export function StagingPortalLogin() {
           {submitting ? <><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin"/> Signing in…</> : "Sign in"}
         </button>
       </form>
-      {process.env.NEXT_PUBLIC_RENEWAL_DEMO==="enabled"&&<Link href="/demo/finance/policy" className="mt-5 block text-center text-sm font-semibold text-[#0B5C5A] underline underline-offset-4">Explore parish and staff OTP rehearsal</Link>}
+      {process.env.NEXT_PUBLIC_RENEWAL_DEMO==="enabled"&&<Link href="/demo/finance/policy" className="mt-5 block text-center text-sm font-semibold text-[#0B5C5A] underline underline-offset-4">Parish Portal — mobile sign-in rehearsal</Link>}
     </>}
   </StagingAuthShell>;
 }
