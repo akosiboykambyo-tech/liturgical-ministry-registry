@@ -177,7 +177,7 @@ export default function ReceiptManagementPreview() {
   }
 
   return <div className="space-y-5" id="receipt-management">
-    {exportError&&<p role="alert" className="text-sm text-[color:var(--registry-error)]">{exportError}</p>
+    {exportError&&<p role="alert" className="text-sm text-[color:var(--registry-error)]">{exportError}</p>}
     <section className="border-l-4 border-l-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)] p-4 text-sm leading-6 text-[color:var(--registry-ink)]" role="status">
       <strong>DEMONSTRATION — NOT VALID.</strong> This paper layout is a screen-only draft. Use Collections and Receipts for the TEST ledger. Entries below are temporary browser state:
       they do not reserve a preprinted serial, confirm payment, renew a member, produce an official receipt, or save a financial record. Downloaded specimens are prominently marked as invalid.
@@ -330,7 +330,7 @@ export default function ReceiptManagementPreview() {
           className="min-h-11 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white disabled:opacity-40">Unlock draft</button>
       </div> : <div className="flex flex-wrap gap-3">
         <button type="button" onClick={discard} className="min-h-11 border border-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-[color:var(--registry-crimson)]">Discard draft and lock</button>
-        <button type="button" disabled={!validMap||exporting} onClick={()=>void exportSpecimen(true)} className="inline-flex min-h-11 items-center gap-2 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white opacity-50">
+        <button type="button" disabled={!validMap||exporting} onClick={()=>void exportSpecimen(true)} className="inline-flex min-h-11 items-center gap-2 bg-[color:var(--registry-crimson)] px-4 text-sm font-semibold text-white disabled:opacity-40">
           <Printer size={18}/> Download calibration specimen
         </button>
       </div>}
