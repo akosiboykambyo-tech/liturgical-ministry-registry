@@ -93,8 +93,8 @@ function Metric({ name, value }: { name: string; value: string }) {
 }
 
 export default function StagingFinancialOperations({
-  mode, section, roles,
-}: { mode: Mode; section: Section; roles: string[] }) {
+  mode, section, roles, initialReference="", initialTab="otc",
+}: { mode: Mode; section: Section; roles: string[]; initialReference?:string;initialTab?:"otc"|"qr" }) {
   const client = useMemo(() => getFinancialStagingClient(), []);
   const has = (role: Role) => roles.includes(role);
   const canVerify = mode === "cowl" && has("cowl_finance_verifier");
@@ -110,13 +110,13 @@ export default function StagingFinancialOperations({
   // cannot infer hidden finance totals or view a remittance from that role alone.
   const allowed = section === "collections" ? canReadCollections : canReadRemittances;
 
-  const [collectionTab,setCollectionTab]=useState<CollectionTab>("otc");
+  const [collectionTab,setCollectionTab]=useState<CollectionTab>(initialTab);
   const [batches,setBatches]=useState<Batch[]>([]);
   const [parishes,setParishes]=useState<NamedRecord[]>([]);
   const [ministries,setMinistries]=useState<NamedRecord[]>([]);
   const [parishFilter,setParishFilter]=useState("");
   const [ministryFilter,setMinistryFilter]=useState("");
-  const [requestSearch,setRequestSearch]=useState("");
+  const [requestSearch,setRequestSearch]=useState(initialReference);
   const [currentUserId,setCurrentUserId]=useState("");
   const [loadFailed,setLoadFailed]=useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -242,7 +242,9 @@ export default function StagingFinancialOperations({
     {id:"ledger",label:"Collections Ledger",icon:ClipboardList},
   ];
   const activeTab=tabs.some(t=>t.id===collectionTab)?collectionTab:tabs[0].id;
-  const requestDetails=requests.filter(r=>r.payment_reference.startsWith("DEMO-")).map(r=>{
+  const rc3Enabled=process.env.NEXT_PUBLIC_RENEWAL_DEMO==="enabled";
+  const demoRef=(reference:string)=>reference.startsWith("DEMO-")||(rc3Enabled&&reference.startsWith("RC3-DEMO-"));
+  const requestDetails=requests.filter(r=>demoRef(r.payment_reference)).map(r=>{
     const batch=batches.find(b=>b.id===r.batch_id);
     const paid=collections.filter(c=>c.payment_request_id===r.id&&c.status==="posted").reduce((sum,c)=>sum+Number(c.amount_centavos),0);
     return {...r,batch,parish:parishes.find(p=>p.id===batch?.parish_id)?.canonical_name, ministry:ministries.find(m=>m.id===batch?.ministry_id)?.canonical_name,paid,remaining:Number(r.total_due_centavos)-paid};
@@ -251,9 +253,10 @@ export default function StagingFinancialOperations({
   const filteredPayable=payable.filter(r=>(!parishFilter||r.batch?.parish_id===parishFilter)&&(!ministryFilter||r.batch?.ministry_id===ministryFilter)&&(!requestSearch||[r.payment_reference,r.batch?.renewal_reference,r.parish,r.ministry].join(" ").toLowerCase().includes(requestSearch.trim().toLowerCase())));
   const selectedRequest=filteredPayable.find(r=>r.id===requestId);
   const resetCashSelection=()=>{setRequestId("");setCashAmount("");setCashChecked(false);};
-  const outstandingClaims = claims.filter(c => c.submitted_external_reference.startsWith("DEMO-") && ["submitted","under_review","needs_clarification"].includes(c.status));
-  const chosenClaim=outstandingClaims.find(c=>c.id===qrClaim);
-  const chosenCredits=credits.filter(c=>chosenClaim&&c.receiving_account_id===chosenClaim.receiving_account_id&&c.bank_external_reference.startsWith("DEMO-"));
+  const outstandingClaims = claims.filter(c => demoRef(c.submitted_external_reference) && ["submitted","under_review","needs_clarification"].includes(c.status));
+  const displayedClaims=initialTab==="qr"&&initialReference?outstandingClaims.filter(c=>requests.some(r=>r.id===c.payment_request_id&&r.payment_reference===initialReference)):outstandingClaims;
+  const chosenClaim=displayedClaims.find(c=>c.id===qrClaim);
+  const chosenCredits=credits.filter(c=>chosenClaim&&c.receiving_account_id===chosenClaim.receiving_account_id&&demoRef(c.bank_external_reference));
   const issueFor = (id: string) => issues.find(i => i.collection_id === id);
   const serialFor = (id: string) => numbers.find(n => n.id === id)?.printed_no || "—";
   const selectedRemittance = remittances.find(r => r.id === selectedRemit);
@@ -267,7 +270,8 @@ export default function StagingFinancialOperations({
     if (!client || busy || loading || loadFailed) return;
     setBusy(true); setNotice(null);
     try {
-      const { data, error } = await client.rpc(name, params);
+      const rpcName=rc3Enabled&&name==="fs_record_otc_payment"&&selectedRequest?.payment_reference.startsWith("RC3-DEMO-")?"rc3_demo_post_otc":rc3Enabled&&name==="fs_verify_qr_payment"&&chosenClaim?.submitted_external_reference.startsWith("RC3-DEMO-")?"rc3_demo_post_qr":name;
+      const { data, error } = await client.rpc(rpcName, params);
       if (error) throw new Error(error.message);
       setNotice({ ok: true, message: done });
       setCashChecked(false); setQrChecked(false); setQrClaim(""); setQrCredit(""); setPaperChecked(false); setCopiesChecked(false);
@@ -380,13 +384,9 @@ export default function StagingFinancialOperations({
               <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Ministry</span><select className={field} value={ministryFilter} onChange={e=>{setMinistryFilter(e.target.value);resetCashSelection()}}><option value="">All ministries</option>{ministries.filter(m=>payable.some(r=>r.batch?.ministry_id===m.id)).map(m=><option key={m.id} value={m.id}>{m.canonical_name}</option>)}</select></label>
             </div>
             <Input label="Search obligation" value={requestSearch} onChange={v=>{setRequestSearch(v);resetCashSelection()}} required={false} placeholder="Parish, ministry or reference"/>
-            <label className="block"><span className="mb-1 block text-xs font-semibold text-[color:var(--registry-muted)]">Approved renewal payment request</span>
-              <select required className={field} value={requestId} disabled={loading||loadFailed} onChange={e=>{const found=filteredPayable.find(r=>r.id===e.target.value);setRequestId(e.target.value);setCashAmount(found?(found.remaining/100).toFixed(2):"");setCashChecked(false);setCashDate(nowForInput())}}>
-                <option value="">Select authorized quote</option>{filteredPayable.map(r=><option value={r.id} key={r.id}>{r.payment_reference} · {r.parish} · {r.batch?.service_year} · {money(r.remaining)} due</option>)}
-              </select>
-            </label>
+            <fieldset><legend className="mb-2 block text-xs font-semibold text-[color:var(--registry-muted)]">Approved renewal payment request</legend><div className="max-h-[350px] space-y-2 overflow-y-auto p-1">{filteredPayable.map(r=><label key={r.id} className={"flex cursor-pointer items-start gap-3 border p-3 "+(requestId===r.id?"border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)]":"border-[color:var(--registry-hairline)]")}><input className="mt-1" name="payment-obligation" type="radio" checked={requestId===r.id} disabled={loading||loadFailed||busy} onChange={()=>{setRequestId(r.id);setCashAmount((r.remaining/100).toFixed(2));setCashChecked(false);setCashDate(nowForInput())}}/><span className="min-w-0 flex-1"><strong className="block text-sm">{r.parish?.replace(/^RC3 DEMO - /,"")}</strong><span className="block text-sm">{r.ministry?.replace(/^RC3 DEMO - /,"")} · {r.batch?.service_year} · {r.quoted_participants} ministers</span><span className="block break-all text-xs text-[color:var(--registry-muted)]">{r.payment_reference}</span></span><span className="text-right text-sm font-semibold tabular-nums">{money(r.remaining)}<span className="block text-xs font-normal">Due</span></span></label>)}</div></fieldset>
             {!loading&&!loadFailed&&!filteredPayable.length&&<p className="text-sm text-[color:var(--registry-muted)]">No unpaid approved requests match these filters.</p>}
-            {selectedRequest&&<div className="border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4"><h4 className="font-semibold">{selectedRequest.parish}</h4><p className="mt-1 text-sm">{selectedRequest.ministry} · {selectedRequest.batch?.service_year} · {selectedRequest.quoted_participants} participants</p><p className="mt-1 text-xs text-[color:var(--registry-muted)]">{selectedRequest.batch?.renewal_reference}</p><dl className="mt-3 grid gap-3 sm:grid-cols-3">{[["Approved amount",selectedRequest.total_due_centavos],["Already paid",selectedRequest.paid],["Remaining balance",selectedRequest.remaining]].map(([label,value])=><div key={label}><dt className="text-xs text-[color:var(--registry-muted)]">{label}</dt><dd className="mt-1 font-semibold tabular-nums">{money(Number(value))}</dd></div>)}</dl></div>}
+            {selectedRequest&&<div className="border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4"><h4 className="font-semibold">{selectedRequest.parish?.replace(/^RC3 DEMO - /,"")}</h4><p className="mt-1 text-sm">{selectedRequest.ministry} · {selectedRequest.batch?.service_year} · {selectedRequest.quoted_participants} participants</p><p className="mt-1 text-xs text-[color:var(--registry-muted)]">{selectedRequest.batch?.renewal_reference}</p><dl className="mt-3 grid gap-3 sm:grid-cols-3">{[["Approved amount",selectedRequest.total_due_centavos],["Already paid",selectedRequest.paid],["Remaining balance",selectedRequest.remaining]].map(([label,value])=><div key={label}><dt className="text-xs text-[color:var(--registry-muted)]">{label}</dt><dd className="mt-1 font-semibold tabular-nums">{money(Number(value))}</dd></div>)}</dl></div>}
             <Input label="Counted amount (PHP)" value={cashAmount} onChange={v=>{setCashAmount(v);setCashChecked(false)}} placeholder="0.00" />
             <Input label="Date and time cash was counted" value={cashDate} onChange={setCashDate} type="datetime-local" />
             <label className="flex items-start gap-2 text-sm leading-6">
@@ -401,15 +401,15 @@ export default function StagingFinancialOperations({
           <div className="flex items-center gap-2"><QrCode className="h-5 w-5 text-[color:var(--registry-crimson)]" /><h3 className={ebGaramond.className + " text-[26px]"}>QR Ph verification queue</h3></div>
           <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">The portal never marks a screenshot Paid. The receiving-account statement, reference, amount and beneficiary must be checked independently.</p>
           <div className="mt-4 divide-y divide-[#EEE5E7] border-y border-[color:var(--registry-hairline)]">
-            {outstandingClaims.map(c => <div key={c.id} className="py-3 text-sm">
+            {displayedClaims.map(c => <div key={c.id} className="py-3 text-sm">
               <p className="font-semibold">{c.submitted_external_reference}</p>
               <p className="mt-1 text-xs text-[color:var(--registry-muted)]">{c.provider_name} · {money(c.claimed_amount_centavos)} · {c.status}</p>
             </div>)}
-            {!outstandingClaims.length && <p className="py-5 text-sm text-[color:var(--registry-muted)]">No submitted QR Ph payment claims.</p>}
+            {!displayedClaims.length && <p className="py-5 text-sm text-[color:var(--registry-muted)]">No submitted QR Ph payment claims.</p>}
           </div>
           <form className="mt-4 space-y-3" onSubmit={e=>{e.preventDefault();if(!qrChecked||!chosenClaim||!chosenCredits.some(c=>c.id===qrCredit))return;void act("fs_verify_qr_payment",{p_claim_id:qrClaim,p_bank_credit_id:qrCredit},"Matching synthetic QR credit posted to the TEST ledger.");}}>
             <p className="text-xs font-semibold text-[color:var(--registry-amber)]">Synthetic evidence only. Choose a matching credit or deliberately select the mismatched credit to demonstrate rejection.</p>
-            <label className="block text-sm">Fictional claim<select className={field} value={qrClaim} onChange={e=>{setQrClaim(e.target.value);setQrCredit("");setQrChecked(false)}} required><option value="">Select claim</option>{outstandingClaims.map(c=><option key={c.id} value={c.id}>{c.submitted_external_reference} · {money(c.claimed_amount_centavos)}</option>)}</select></label>
+            <label className="block text-sm">Fictional claim<select className={field} value={qrClaim} onChange={e=>{setQrClaim(e.target.value);setQrCredit("");setQrChecked(false)}} required><option value="">Select claim</option>{displayedClaims.map(c=><option key={c.id} value={c.id}>{c.submitted_external_reference} · {money(c.claimed_amount_centavos)}</option>)}</select></label>
             <label className="block text-sm">Synthetic bank credit<select className={field} value={qrCredit} onChange={e=>{setQrCredit(e.target.value);setQrChecked(false)}} required><option value="">Select credit</option>{chosenCredits.map(c=><option key={c.id} value={c.id}>{c.bank_external_reference} · {money(c.amount_centavos)}</option>)}</select></label>
             <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={qrChecked} onChange={e=>setQrChecked(e.target.checked)}/><span>I reviewed the fictional reference and amount. No actual bank evidence is represented.</span></label>
             <button type="submit" className={primary} disabled={busy||loading||loadFailed||!qrChecked||!qrClaim||!qrCredit}>Verify simulated QR credit</button>

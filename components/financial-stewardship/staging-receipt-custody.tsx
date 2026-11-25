@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowsLeftRight as ArrowLeftRight, ClipboardCheck as Boo
 import { ebGaramond } from "@/app/fonts";
 import PortalShell, { type PortalNavGroup } from "@/components/financial-stewardship/demo-portal-shell";
 import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";
+import RenewalDesk from "@/components/financial-stewardship/rc3-renewal-desk";
 import StagingFinancialOperations from "@/components/financial-stewardship/staging-financial-operations";
 import DemoFinancialReports from "@/components/financial-stewardship/demo-financial-reports";
 import ReceiptManagementPreview from "@/components/financial-stewardship/receipt-management-preview";
@@ -65,7 +66,9 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const router = useRouter();
   const requiredRole = mode === "curia"
     ? "curia_receipt_custodian" : "cowl_receipt_issuer";
-  const [section, setSection] = useState<"custody" | "collections" | "remittances" | "reports" | "receipt-management">("custody");
+  const [section, setSection] = useState<"custody" | "collections" | "remittances" | "reports" | "receipt-management" | "obligations">("custody");
+  const [collectionHandoff,setCollectionHandoff]=useState<{reference:string;method:"otc"|"qr"}|null>(null);
+  const renewalEnabled=process.env.NEXT_PUBLIC_RENEWAL_DEMO==="enabled";
   const [authLoading, setAuthLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -271,10 +274,11 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
 
   const groups: PortalNavGroup[] = [
     { name: "Financial Stewardship", items: [
+      ...(renewalEnabled&&mode==="cowl"&&roles.includes("cowl_finance_verifier")?[{id:"obligations",label:"Payment Obligations",icon:BookOpenCheck,active:section==="obligations",onSelect:()=>{setSection("obligations");setFeedback(null)}}]:[]),
       { id: "stock", label: "Official Receipt Inventory", icon: BookOpenCheck, active: section === "custody",
         onSelect: () => { setSection("custody"); setFeedback(null); void refresh(); } },
       { id: "collections", label: "Collections and Receipts", icon: Database, active: section === "collections",
-        onSelect: () => { setSection("collections"); setFeedback(null); } },
+        onSelect: () => { setCollectionHandoff(null); setSection("collections"); setFeedback(null); } },
       { id: "remittances", label: "Remittances & Curia", icon: ArrowLeftRight, active: section === "remittances",
         onSelect: () => { setSection("remittances"); setFeedback(null); } },
       ...(mode === "cowl" && roles.includes("cowl_receipt_issuer") ? [{id:"receipt-management",label:"Receipt Management",icon:BookOpenCheck,active:section==="receipt-management",onSelect:()=>setSection("receipt-management")}] : []),
@@ -290,7 +294,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
   const label = mode === "curia" ? "Curia Portal" : "COWL Portal";
   // The existing sidebar is the only section navigation.
   // Match the primary page title exactly to its active sidebar item.
-  const sectionTitle = section === "custody"
+  const sectionTitle = section === "obligations" ? "Payment Obligations" : section === "custody"
     ? "Official Receipt Inventory"
     : section === "collections"
       ? "Collections and Receipts"
@@ -312,7 +316,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
             {sectionTitle}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed sm:text-base text-[color:var(--registry-muted)]">
-            {section === "custody"
+            {section === "obligations" ? "Authorize document-approved renewal obligations and track settlement." : section === "custody"
               ? "Track registered receipt series, physical booklet custody, and individual printed serials."
               : section === "collections"
                 ? "Verify QR Ph and OTC collections, and record official receipt issuance."
@@ -487,7 +491,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
         <div><h2 className="font-semibold">Receipt custodian role required</h2>
           <p className="mt-1 text-sm text-[color:var(--registry-muted)]">This workspace is available only to the assigned {mode === "curia" ? "Curia receipt custodian" : "COWL receipt issuer / custodian"}. A finance or treasury role alone does not permit control of printed receipt stock.</p>
         </div>
-      </div>) : section==="reports" ? <DemoFinancialReports/> : section==="receipt-management" ? <ReceiptManagementPreview/> : <StagingFinancialOperations mode={mode} section={section} roles={roles} /> }
+      </div>) : section==="reports" ? <DemoFinancialReports/> : section==="receipt-management" ? <ReceiptManagementPreview/> : section==="obligations" ? (renewalEnabled&&mode==="cowl"&&roles.includes("cowl_finance_verifier")?<RenewalDesk embedded onOpenCollection={(reference,method)=>{setCollectionHandoff({reference,method});setSection("collections")}}/>:null) : <StagingFinancialOperations key={section+":"+ (collectionHandoff?.reference??"")+":"+(collectionHandoff?.method??"")} mode={mode} section={section} roles={roles} initialReference={collectionHandoff?.reference} initialTab={collectionHandoff?.method} /> }
     </div>
   </PortalShell>;
 }
