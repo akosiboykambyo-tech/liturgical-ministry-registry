@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node --test tests/financial-access-model.test.cjs tests/admin-invitation-onboarding.test.cjs tests/auth-ui-release-baseline.test.cjs tests/rc0-finance-route-handler.test.cjs tests/rc1-staff-entry-routing.test.cjs tests/pr79-registry-no-bypass.test.cjs tests/pr79-effective-date-and-certificates.test.cjs tests/pr79-certificate-studio-preservation.test.cjs tests/rc1-settings-privacy.test.cjs tests/rc1-verification-rate-limit-contract.test.cjs tests/rc1-signed-session-qa-boundary.test.cjs tests/rc1-private-storage-qa.test.cjs tests/rc3-portal-handoff.test.cjs tests/rc31-policy-rehearsal.test.cjs tests/rc31-online-queue.test.cjs tests/rc31-parish-entry.test.cjs",
+    "prebuild": "node --test tests/financial-access-model.test.cjs tests/admin-invitation-onboarding.test.cjs tests/auth-ui-release-baseline.test.cjs tests/rc0-finance-route-handler.test.cjs tests/rc1-staff-entry-routing.test.cjs tests/pr79-registry-no-bypass.test.cjs tests/pr79-effective-date-and-certificates.test.cjs tests/pr79-certificate-studio-preservation.test.cjs tests/rc1-settings-privacy.test.cjs tests/rc1-verification-rate-limit-contract.test.cjs tests/rc1-signed-session-qa-boundary.test.cjs tests/rc1-private-storage-qa.test.cjs tests/rc3-portal-handoff.test.cjs tests/rc31-policy-rehearsal.test.cjs tests/rc31-online-queue.test.cjs tests/rc31-parish-entry.test.cjs tests/rc32-phase16-reconciliation.test.cjs",
     "test:auth-onboarding": "node --test tests/admin-invitation-onboarding.test.cjs",
     "build": "next build",
     "test:finance-access": "node --test tests/financial-access-model.test.cjs",
