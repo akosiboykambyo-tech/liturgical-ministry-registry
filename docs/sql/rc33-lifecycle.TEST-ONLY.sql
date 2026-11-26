@@ -42,7 +42,7 @@ begin
   if b.status<>'returned' or b.ministry<>p_ministry or b.kind<>p_kind or b.channel<>p_channel then raise exception 'Only the returned ministry may be corrected';end if;
  elsif p_kind='original' and exists(select 1 from rc33_demo.batches where cycle_id=c.id and ministry=p_ministry and kind='original') then
   raise exception 'Original ministry already submitted; view existing record';
- elsif p_kind='supplemental' and not exists(select 1 from rc33_demo.batches b left join rc3_demo.applications a on a.id=b.aggregate_id where b.cycle_id=c.id and b.ministry=p_ministry and b.kind='original' and (b.status='closed_no_charge' or (b.status='reviewed' and a.status in ('awaiting_payment','renewed')))) then
+ elsif p_kind='supplemental' and not exists(select 1 from rc33_demo.batches orig left join rc3_demo.applications a on a.id=orig.aggregate_id where orig.cycle_id=c.id and orig.ministry=p_ministry and orig.kind='original' and (orig.status='closed_no_charge' or (orig.status='reviewed' and a.status in ('awaiting_payment','renewed')))) then
   raise exception 'Original must be authorized or closed before supplements';
  end if;
  select * into d from rc33_demo.drafts where cycle_id=c.id and ministry=p_ministry and kind=p_kind and state='draft' for update;
