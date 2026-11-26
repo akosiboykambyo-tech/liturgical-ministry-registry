@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AlertTriangle, ClipboardCheck as BookOpenCheck, CheckCircle2, ClipboardList, QrCode, Wallet as HandCoins, Bank as Landmark, Lock as LockKeyhole, Receipt as ReceiptText, RefreshCw, ShieldCheck } from "@/components/phosphor-icons";
 import { ebGaramond } from "@/app/fonts";
 import { getFinancialStagingClient } from "@/lib/financial-stewardship/staging-client";
@@ -140,9 +140,10 @@ export default function StagingFinancialOperations({
   const [tick, setTick] = useState(0);
 
   const reload = useCallback(() => setTick(n => n + 1), []);
+  const busyRef=useRef(false);busyRef.current=busy;
 
   useEffect(() => {
-    let active = true;
+    let active = true,reading=false;
     if (!client || !allowed) { setLoading(false); return; }
     // A role may have been revoked or changed without a new Auth identity.
     // Discard previously rendered financial records before loading newly scoped data.
@@ -152,7 +153,8 @@ export default function StagingFinancialOperations({
     setBatches([]);setParishes([]);setMinistries([]);setCurrentUserId("");setLoadFailed(false);
     setLoading(true);
     async function load() {
-      if (!client) return;
+      if (!client||!active||reading||busyRef.current) return;
+      reading=true;
       try {
         const {data:auth,error:authError}=await client.auth.getUser();
         if(authError||!auth.user)throw new Error("Sign in again to load financial records.");
@@ -185,22 +187,16 @@ export default function StagingFinancialOperations({
           { table: "fs_curia_reviews", columns: "id,remittance_id,decision,reviewed_at",
             put: v => setReviews(v as CuriaReview[]), enabled: canReadRemittances },
         ];
-        for (const spec of reads) {
-          if (!spec.enabled) continue;
-          const { data, error } = await client.from(spec.table).select(spec.columns).limit(1000);
-          if (error) throw new Error(error.message);
-          if ((data?.length??0)>=1000) throw new Error("The demo ledger exceeds the supported display limit. No transaction should be posted from an incomplete list.");
-          if (active) spec.put((data || []) as never[]);
-        }
-        if (active) setNotice(current => current?.ok ? current : null);
+        const results=await Promise.all(reads.filter(spec=>spec.enabled).map(async spec=>{const {data,error}=await client.from(spec.table).select(spec.columns).limit(1000);if(error)throw new Error(error.message);if((data?.length??0)>=1000)throw new Error("The ledger exceeds the supported display limit.");return {spec,rows:(data||[]) as never[]};}));
+        if(active&&!busyRef.current){for(const {spec,rows} of results)spec.put(rows);setLoadFailed(false);setNotice(current=>current?.ok?current:null);}
       } catch (err) {
-        if (active) {setLoadFailed(true);setNotice({ ok: false, message: err instanceof Error ? err.message : "Unable to read isolated finance ledger." });}
+        if (active) {setLoadFailed(true);setCollections([]);setRequests([]);setClaims([]);setCredits([]);setIssues([]);setNumbers([]);setBooklets([]);setRemittances([]);setItems([]);setCopies([]);setFunds([]);setReviews([]);setBatches([]);setParishes([]);setMinistries([]);setCurrentUserId("");setNotice({ ok: false, message: err instanceof Error ? err.message : "Unable to read isolated finance ledger." });}
       } finally {
-        if (active) setLoading(false);
+        reading=false;if (active) setLoading(false);
       }
     }
-    void load();
-    return () => { active = false; };
+    void load();const poll=()=>{if(document.visibilityState==="visible")void load();};const timer=window.setInterval(poll,15000);window.addEventListener("focus",poll);
+    return () => { active = false; window.clearInterval(timer);window.removeEventListener("focus",poll); };
   // Roles are a stable state array from the parent after verified login.
   }, [client, section, roles.join("|"), tick]);
 

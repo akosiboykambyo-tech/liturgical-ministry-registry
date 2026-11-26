@@ -5,11 +5,11 @@ import {ArrowRight,ShieldCheck} from "@/components/phosphor-icons";
 import {findActiveSampleCoordinator,sampleCoordinators,type SampleCoordinator} from "@/lib/financial-stewardship/sample-parish-coordinators";
 const field="min-h-14 w-full border border-[#CDBFC3] bg-white px-4 text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#890022]";
 const button="flex min-h-14 w-full items-center justify-center gap-2 bg-[#890022] px-4 text-base font-semibold text-white disabled:opacity-40";
-export default function SampleParishSignIn({onVerified,records=sampleCoordinators}:{onVerified:(c:SampleCoordinator)=>void;records?:SampleCoordinator[]}){
+export default function SampleParishSignIn({onVerified,records=sampleCoordinators}:{onVerified:(c:SampleCoordinator,code:string)=>void;records?:SampleCoordinator[]}){
  const [phone,setPhone]=useState(""),[challenge,setChallenge]=useState(false),[code,setCode]=useState(""),[error,setError]=useState("");
  const [issuedTo,setIssuedTo]=useState("");
  function requestCode(){const c=findActiveSampleCoordinator(phone,records);if(!c){setError("This sample mobile number is not authorized for parish access.");return;}setIssuedTo(c.id);setChallenge(true);setCode("");setError("");}
- function verify(){const c=findActiveSampleCoordinator(phone,records);if(!c||c.id!==issuedTo||code!=="246810"){setError("Unable to verify the sample code. Check the code and try again.");return;}onVerified(c);}
+ function verify(){const c=findActiveSampleCoordinator(phone,records);if(!c||c.id!==issuedTo||code!=="246810"){setError("Unable to verify the sample code. Check the code and try again.");return;}onVerified(c,code);}
  return <><h1 className={ebGaramond.className+" text-[44px] leading-none sm:text-5xl"}>Parish Portal</h1><p className="mt-3 text-sm text-[#706167]">Sign in using your registered mobile number.</p>
  <form className="mt-7 space-y-4" onSubmit={e=>{e.preventDefault();challenge?verify():requestCode()}}>
  <label className="block space-y-2"><span className="block text-sm font-semibold">Mobile number</span><input className={field} type="tel" inputMode="tel" autoComplete="off" placeholder="09XX XXX XXXX" value={phone} maxLength={20} readOnly={challenge} required onChange={e=>{setPhone(e.target.value);setError("")}}/></label>
