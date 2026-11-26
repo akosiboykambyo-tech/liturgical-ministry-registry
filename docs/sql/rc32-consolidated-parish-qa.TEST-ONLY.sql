@@ -2,7 +2,9 @@
 select set_config('rc32.qa.admin',(select user_id::text from registry_private.registration_administrators where active and revoked_at is null order by user_id limit 1),true);
 select set_config('rc32.qa.finance',(select user_id::text from public.fs_staff_grants where role_code='cowl_finance_verifier' and revoked_at is null and granted_at<=now() and (expires_at is null or expires_at>now()) limit 1),true);
 set local role authenticated;
-do $$ declare s jsonb; snap jsonb; payload jsonb; b uuid; a uuid; req uuid; x jsonb; l jsonb; rev int; rejected uuid; c uuid;
+do $$
+#variable_conflict use_column
+declare s jsonb; snap jsonb; payload jsonb; b uuid; a uuid; req uuid; x jsonb; l jsonb; rev int; rejected uuid; c uuid;
 begin
  perform set_config('request.jwt.claim.sub',current_setting('rc32.qa.admin'),true);
  s:=public.rc32_demo_open_draft('RC32 Sample Parish A',2031,'online_rehearsal');b:=(s->>'id')::uuid;rev:=(s->>'revision')::int;
