@@ -1,6 +1,6 @@
 import {notFound} from "next/navigation";
-import ParishSubmission from "@/components/financial-stewardship/rc31-parish-submission";
+import Phase16Portal from "@/components/parish-renewal/phase16-portal";
 export default function Page(){
  if(process.env.NEXT_PUBLIC_RENEWAL_DEMO!=="enabled")notFound();
- return <ParishSubmission/>;
+ return <Phase16Portal/>;
 }
