@@ -14,14 +14,14 @@ export const CSV_HEADER="First Name,Last Name,Ministry";
 const norm=(v:string)=>v.normalize("NFC").trim().replace(/\s+/g," ").toLowerCase();
 const nameKey=(r:{first:string;last:string})=>JSON.stringify([norm(r.first),norm(r.last)]);
 const assignmentKey=(r:{first:string;last:string;ministry:Ministry})=>JSON.stringify([nameKey(r),r.ministry]);
-const validName=(s:string)=>s.length>0&&s.length<=100&&!/^[=+@-]/.test(s)&&!/[\u0000-\u001f\u007f]/.test(s);
+const validName=(s:string)=>s.length>0&&s.length<=100&&!/^[=+@-]/.test(s.trim())&&!/[\u0000-\u001f\u007f]/.test(s);
 function ministryFor(s:string):Ministry|undefined{return MINISTRIES.find(m=>norm(m)===norm(s)||norm(shortMinistry(m))===norm(s));}
 function parseRows(text:string):string[][]{
  const input=text.replace(/^\uFEFF/,"");
  if(new TextEncoder().encode(input).byteLength>1024*1024)throw Error("CSV exceeds 1 MB.");
  const rows:string[][]=[];let row:string[]=[],field="",quoted=false,closed=false;
  const cell=()=>{row.push(field);field="";closed=false;};
- const line=()=>{cell();if(row.some(v=>v.trim()))rows.push(row);row=[];if(rows.length>3001)throw Error("Maximum 3,000 data rows.");};
+ const line=()=>{cell();if(row.some(v=>v.trim())||row.length>1)rows.push(row);row=[];if(rows.length>3001)throw Error("Maximum 3,000 data rows.");};
  for(let i=0;i<input.length;i++){const c=input[i];
   if(quoted){if(c==='"'&&input[i+1]==='"'){field+='"';i++;}else if(c==='"'){quoted=false;closed=true;}else field+=c;continue;}
   if(c==='"'){if(field||closed)throw Error("Unexpected quote in CSV.");quoted=true;}

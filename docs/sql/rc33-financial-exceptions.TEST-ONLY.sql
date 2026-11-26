@@ -45,7 +45,7 @@ begin
  if p_parish is null or p_parish not in ('RC33 Sample Parish A','RC33 Sample Parish B') or p_year is null or p_year not between 2026 and 2031 or not exists(select 1 from rc32_demo.ministries where name=p_ministry) or p_count is null or p_count not between 1 and 150 or p_amount is distinct from p_count::bigint*5000 or not coalesce(p_cash_counted,false) then raise exception 'Exact provisional fictional advance amount and counted cash required';end if;
  insert into rc33_demo.cycles(parish,service_year) values(p_parish,p_year) on conflict(parish,service_year) do nothing;
  select id into strict c from rc33_demo.cycles where parish=p_parish and service_year=p_year for update;
- if exists(select 1 from rc33_demo.advances where cycle_id=c and ministry=p_ministry) or exists(select 1 from rc33_demo.batches where cycle_id=c and ministry=p_ministry) then raise exception 'An advance or application already exists; do not collect twice';end if;
+ if exists(select 1 from rc33_demo.advances where cycle_id=c and ministry=p_ministry) or exists(select 1 from rc33_demo.batches where cycle_id=c and ministry=p_ministry and (kind<>'original' or aggregate_id is not null or status='closed_no_charge' or preferred_method<>'OTC')) then raise exception 'An advance or incompatible authorized application already exists; do not collect twice';end if;
  perform pg_advisory_xact_lock(hashtextextended('rc3-demo-fees-and-batches',0));
  insert into public.fs_parishes(canonical_name) values('RC3 DEMO - '||p_parish) on conflict(canonical_name) do nothing;
  select id into strict par from public.fs_parishes where canonical_name='RC3 DEMO - '||p_parish and active;

@@ -32,7 +32,7 @@ begin
  return new;
 end $$;
 create trigger rc33_document_after_submit after insert on rc33_demo.events for each row execute function rc33_demo.document_event();
-create function rc33_demo.open_draft(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_replace uuid default null) returns jsonb language plpgsql security definer set search_path='' as $$
+create function rc33_demo.open_draft(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_replace uuid default null,p_takeover boolean default false) returns jsonb language plpgsql security definer set search_path='' as $$
 declare c rc33_demo.cycles%rowtype;d rc33_demo.drafts%rowtype;b rc33_demo.batches%rowtype;items jsonb;
 begin
  perform rc32_demo.require_admin();select * into strict c from rc33_demo.cycles where id=p_cycle for update;
@@ -48,7 +48,10 @@ begin
  select * into d from rc33_demo.drafts where cycle_id=c.id and ministry=p_ministry and kind=p_kind and state='draft' for update;
  if found then
   if d.replace_batch is distinct from p_replace then raise exception 'Another draft is active for this ministry';end if;
-  return to_jsonb(d)-'created_by';
+  if d.channel=p_channel then return to_jsonb(d)-'created_by';end if;
+  if p_channel<>'walk_in' or d.channel<>'online_rehearsal' or p_replace is not null or not coalesce(p_takeover,false) then raise exception 'A draft from the other intake channel is active; explicit staff takeover required';end if;
+  update rc33_demo.drafts set state='superseded',revision=revision+1,updated_at=now() where id=d.id;
+  insert into rc33_demo.events(cycle_id,actor,action,details) values(c.id,auth.uid(),'online_draft_superseded_by_walk_in',jsonb_build_object('draft',to_jsonb(d),'ministry',p_ministry));
  end if;
  if p_replace is not null then
   select coalesce(jsonb_agg(jsonb_build_object('assignment_id',i.assignment_id,'first_name',i.first_name,'last_name',i.last_name,'proposal',i.proposal,'proposed_first',i.proposed_first,'proposed_last',i.proposed_last)),'[]') into items from rc33_demo.items i where i.batch_id=b.id;
@@ -103,9 +106,9 @@ begin
  select * into strict d from rc33_demo.documents where batch_id=p_batch order by revision desc limit 1;
  return jsonb_build_object('filename',d.filename,'base64',encode(d.contents,'base64'),'retain_until',d.retain_until);
 end $$;
-create function public.rc33_demo_open_draft(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_replace uuid default null) returns jsonb language sql security invoker set search_path='' as $$select rc33_demo.open_draft(p_cycle,p_ministry,p_kind,p_channel,p_replace)$$;
-revoke all on function rc33_demo.open_draft(uuid,text,text,text,uuid),public.rc33_demo_open_draft(uuid,text,text,text,uuid) from public,anon,authenticated;
-grant execute on function rc33_demo.open_draft(uuid,text,text,text,uuid),public.rc33_demo_open_draft(uuid,text,text,text,uuid) to authenticated;
+create function public.rc33_demo_open_draft(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_replace uuid default null,p_takeover boolean default false) returns jsonb language sql security invoker set search_path='' as $$select rc33_demo.open_draft(p_cycle,p_ministry,p_kind,p_channel,p_replace,p_takeover)$$;
+revoke all on function rc33_demo.open_draft(uuid,text,text,text,uuid,boolean),public.rc33_demo_open_draft(uuid,text,text,text,uuid,boolean) from public,anon,authenticated;
+grant execute on function rc33_demo.open_draft(uuid,text,text,text,uuid,boolean),public.rc33_demo_open_draft(uuid,text,text,text,uuid,boolean) to authenticated;
 create function public.rc33_demo_save_draft(p_id uuid,p_revision integer,p_payload jsonb) returns jsonb language sql security invoker set search_path='' as $$select rc33_demo.save_draft(p_id,p_revision,p_payload)$$;
 revoke all on function rc33_demo.save_draft(uuid,integer,jsonb),public.rc33_demo_save_draft(uuid,integer,jsonb) from public,anon,authenticated;
 grant execute on function rc33_demo.save_draft(uuid,integer,jsonb),public.rc33_demo_save_draft(uuid,integer,jsonb) to authenticated;
