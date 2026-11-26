@@ -25,7 +25,8 @@ create table rc33_demo.batches(
  ministry text not null references rc32_demo.ministries(name),kind text not null check(kind in ('original','supplemental')),
  parent_id uuid references rc33_demo.batches(id),channel text not null check(channel in ('walk_in','online_rehearsal')),
  preferred_method text not null check(preferred_method in ('OTC','QR')),
- status text not null default 'submitted' check(status in ('submitted','reviewed','closed_no_charge')),
+ status text not null default 'submitted' check(status in ('submitted','returned','reviewed','closed_no_charge')),
+ revision integer not null default 1,return_note text,
  letter_name text,letter_reviewed_by uuid,letter_reviewed_at timestamptz,zero_declaration boolean not null,
  submitted_by uuid not null,submitted_at timestamptz not null default now(),
  reviewed_by uuid,reviewed_at timestamptz,aggregate_id uuid references rc3_demo.applications(id),
@@ -74,8 +75,8 @@ begin
  insert into rc33_demo.cycles(parish,service_year) values(p_parish,p_year) on conflict(parish,service_year) do nothing;
  select id into strict v_id from rc33_demo.cycles where parish=p_parish and service_year=p_year;return v_id;
 end $$;
-create function rc33_demo.submit_batch(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_method text,p_items jsonb,p_letter text,p_confirmed boolean,p_zero boolean) returns uuid language plpgsql security definer set search_path='' as $$
-declare c rc33_demo.cycles%rowtype; b uuid; parent rc33_demo.batches%rowtype; r jsonb; a record; aid uuid; k text; f text;l text; n integer; existing_count integer; chosen_count integer:=0;
+create function rc33_demo.write_batch(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_method text,p_items jsonb,p_letter text,p_confirmed boolean,p_zero boolean,p_replace uuid) returns uuid language plpgsql security definer set search_path='' as $$
+declare c rc33_demo.cycles%rowtype; b uuid; old rc33_demo.batches%rowtype; parent rc33_demo.batches%rowtype; r jsonb; a record; aid uuid; k text; f text;l text; n integer; existing_count integer; chosen_count integer:=0;
 begin
  perform rc32_demo.require_admin();
  select * into strict c from rc33_demo.cycles where id=p_cycle for update;
@@ -96,8 +97,17 @@ begin
  else
   if p_zero or length(trim(coalesce(p_letter,''))) not between 1 and 150 or p_letter!~*'\.pdf$' then raise exception 'Recommendation PDF covering these names required';end if;
  end if;
+ if p_replace is null then
  insert into rc33_demo.batches(cycle_id,ministry,kind,parent_id,channel,preferred_method,letter_name,zero_declaration,submitted_by)
  values(c.id,p_ministry,p_kind,parent.id,p_channel,p_method,case when n>0 then trim(p_letter) end,p_zero,auth.uid()) returning id into b;
+ else
+ select * into strict old from rc33_demo.batches where id=p_replace and cycle_id=c.id for update;
+ if old.status<>'returned' or old.ministry<>p_ministry or old.kind<>p_kind or old.channel<>p_channel or old.aggregate_id is not null then raise exception 'Only the returned ungrouped ministry batch may be corrected';end if;
+ b:=old.id;
+ insert into rc33_demo.events(cycle_id,batch_id,actor,action,details) values(c.id,b,auth.uid(),'prior_revision_archived',jsonb_build_object('batch',to_jsonb(old),'items',(select jsonb_agg(to_jsonb(i)) from rc33_demo.items i where i.batch_id=b)));
+ delete from rc33_demo.items where batch_id=b;
+ update rc33_demo.batches set revision=revision+1,status='submitted',return_note=null,preferred_method=p_method,letter_name=case when n>0 then trim(p_letter) end,zero_declaration=p_zero,letter_reviewed_by=null,letter_reviewed_at=null,reviewed_by=null,reviewed_at=null,submitted_at=now() where id=b;
+ end if;
  for r in select value from jsonb_array_elements(p_items) loop
   k:=r->>'proposal';aid:=nullif(r->>'assignment_id','')::uuid;
   if aid is not null then
@@ -121,6 +131,7 @@ begin
  insert into rc33_demo.events(cycle_id,batch_id,actor,action,details) values(c.id,b,auth.uid(),'batch_submitted',jsonb_build_object('kind',p_kind,'channel',p_channel,'method',p_method,'recommended',n));
  return b;
 end $$;
+create function rc33_demo.submit_batch(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_method text,p_items jsonb,p_letter text,p_confirmed boolean,p_zero boolean) returns uuid language sql security definer set search_path='' as $$select rc33_demo.write_batch(p_cycle,p_ministry,p_kind,p_channel,p_method,p_items,p_letter,p_confirmed,p_zero,null)$$;
 create function rc33_demo.review_letter(p_batch uuid) returns void language plpgsql security definer set search_path='' as $$
 declare b rc33_demo.batches%rowtype;
 begin
