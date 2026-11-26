@@ -53,3 +53,34 @@ export function practiceCycle(parish:string,year:number):Cycle{
  const batch:Batch={id:cycle+"-walkin",cycle_id:cycle,reference:"LOCAL-PRACTICE-WALKIN",ministry,kind:"original",channel:"walk_in",parent_id:null,revision:1,status:"reviewed",return_note:null,preferred_method:"OTC",letter_name:"SAMPLE-MLC-recommendation.pdf",letter_reviewed:true,zero_declaration:false,aggregate_id:cycle+"-payment",financial_status:"renewed",due_centavos:15000,paid_centavos:15000,payment_reference:"LOCAL-PRACTICE-OTC-001",approved_count:3,batch_amount_centavos:15000,qr_prepared:false,items};
  return {...emptyCycle(),cycle,roster,batches:[batch]};
 }
+
+/** Shared parish roster only prepares independent ministry drafts. No submission or billing occurs here. */
+export function parishRosterTargets(c:Cycle):Draft[]{
+ return MINISTRIES.flatMap(ministry=>{
+  const orig=c.batches.find(b=>b.ministry===ministry&&b.kind==="original");
+  const supplements=c.batches.filter(b=>b.ministry===ministry&&b.kind==="supplemental");
+  // Corrections retain their existing reference and are opened from submission history.
+  if(orig?.status==="returned"||supplements.some(b=>b.status==="returned"))return [];
+  const kind:Kind=orig?"supplemental":"original";
+  if(orig&&!canSupplement(orig))return [];
+  const saved=c.drafts.find(d=>d.ministry===ministry&&d.kind===kind&&d.state==="draft");
+  if(saved)return saved.channel==="online_rehearsal"&&!saved.replace_batch?[saved]:[];
+  const items:Proposal[]=kind==="original"?c.roster.filter(r=>r.ministry===ministry).map(r=>({assignment_id:r.id,proposal:"renew"})):[];
+  return [{id:"UNSAVED-"+ministry,cycle_id:c.cycle??"",ministry,kind,channel:"online_rehearsal",revision:0,payload:makePayload(items),replace_batch:null,state:"draft"}];
+ });
+}
+export function parishRosterStatus(c:Cycle,ministry:Ministry){
+ const orig=c.batches.find(b=>b.ministry===ministry&&b.kind==="original");
+ const supplements=c.batches.filter(b=>b.ministry===ministry&&b.kind==="supplemental");
+ const drafts=c.drafts.filter(d=>d.ministry===ministry&&d.state==="draft");
+ const advance=c.advances.find(a=>a.ministry===ministry&&!a.allocated_application);
+ const returned=[orig,...supplements].some(b=>b?.status==="returned");
+ const complete=!!orig&&(orig.financial_status==="renewed"||orig.status==="closed_no_charge");
+ const label=orig?(orig.financial_status==="renewed"?"Submitted · "+orig.preferred_method+" settled":parishStatusLabel(orig)):drafts.length?(drafts.some(d=>d.channel==="walk_in")?"Walk-in draft":"Online draft"):"Not started";
+ return {label,complete,attention:returned||!!advance||drafts.length>0,supplements:supplements.length,extra:drafts.some(d=>d.kind==="supplemental")?"Additional candidates in draft":null,advance,returned};
+}
+export function parishDraftReady(d:Draft,c:Cycle){
+ const recommended=d.payload.items.some(i=>i.proposal!=="no");
+ const eligible=editableRoster(c,d).filter(r=>r.ministry===d.ministry);
+ return !!d.payload.roster_confirmed&&(d.kind==="supplemental"?recommended:eligible.every(r=>d.payload.items.some(i=>i.assignment_id===r.id)));
+}
