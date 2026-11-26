@@ -37,7 +37,7 @@ create unique index rc33_one_original on rc33_demo.batches(cycle_id,ministry) wh
 create table rc33_demo.items(
  id uuid primary key default gen_random_uuid(),batch_id uuid not null references rc33_demo.batches(id),
  cycle_id uuid not null references rc33_demo.cycles(id),ministry text not null references rc32_demo.ministries(name),
- assignment_id uuid references rc3_demo.assignments(id),first_name text not null,last_name text not null,name_key text not null,
+ assignment_id uuid references rc3_demo.assignments(id),first_name text not null,last_name text not null,name_key text not null,proposed_first text,proposed_last text,
  proposal text not null check(proposal in ('renew','hold','no','new_member','ministry_assignment','identity_review')),
  decision text not null check(decision in ('pending','approved','rejected','excluded')),reviewed_by uuid,reviewed_at timestamptz,note text,reservation_released_at timestamptz,
  unique(batch_id,assignment_id)
@@ -76,7 +76,7 @@ begin
  select id into strict v_id from rc33_demo.cycles where parish=p_parish and service_year=p_year;return v_id;
 end $$;
 create function rc33_demo.write_batch(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_method text,p_items jsonb,p_letter text,p_confirmed boolean,p_zero boolean,p_replace uuid) returns uuid language plpgsql security definer set search_path='' as $$
-declare c rc33_demo.cycles%rowtype; b uuid; old rc33_demo.batches%rowtype; parent rc33_demo.batches%rowtype; r jsonb; a record; aid uuid; k text; f text;l text; n integer; existing_count integer; chosen_count integer:=0;
+declare c rc33_demo.cycles%rowtype; b uuid; old rc33_demo.batches%rowtype; parent rc33_demo.batches%rowtype; r jsonb; a record; aid uuid; k text; f text;l text;pf text;pl text; n integer; existing_count integer; chosen_count integer:=0;
 begin
  perform rc32_demo.require_admin();
  select * into strict c from rc33_demo.cycles where id=p_cycle for update;
@@ -120,9 +120,13 @@ begin
    if length(f) not between 1 and 100 or length(l) not between 1 and 100 or f~'^[=+@-]' or l~'^[=+@-]' or f~'[[:cntrl:]]' or l~'[[:cntrl:]]' then raise exception 'Invalid fictional name';end if;
    if exists(select 1 from rc33_demo.roster rr join rc3_demo.assignments z on z.id=rr.assignment_id where z.parish=c.parish and z.ministry=p_ministry and rc33_demo.name_key(rr.first_name,rr.last_name)=rc33_demo.name_key(f,l)) then raise exception 'Existing assignment must be referenced by ID';end if;
   end if;
+  pf:=nullif(trim(coalesce(r->>'proposed_first','')),'');pl:=nullif(trim(coalesce(r->>'proposed_last','')),'');
+  if pf is not null or pl is not null then
+   if aid is null or k<>'identity_review' or pf is null or pl is null or length(pf)>100 or length(pl)>100 or pf~'^[=+@-]' or pl~'^[=+@-]' or pf~'[[:cntrl:]]' or pl~'[[:cntrl:]]' then raise exception 'Invalid proposed identity correction';end if;
+  end if;
   if p_kind='supplemental' and k='no' then raise exception 'Supplemental batch contains additions only';end if;
-  insert into rc33_demo.items(batch_id,cycle_id,ministry,assignment_id,first_name,last_name,name_key,proposal,decision)
-  values(b,c.id,p_ministry,aid,f,l,rc33_demo.name_key(f,l),k,case when k='no' then 'excluded' else 'pending' end);
+  insert into rc33_demo.items(batch_id,cycle_id,ministry,assignment_id,first_name,last_name,name_key,proposal,decision,proposed_first,proposed_last)
+  values(b,c.id,p_ministry,aid,f,l,rc33_demo.name_key(f,l),k,case when k='no' then 'excluded' else 'pending' end,pf,pl);
  end loop;
  if p_kind='original' then
   select count(*) into existing_count from rc33_demo.roster rr join rc3_demo.assignments z on z.id=rr.assignment_id where z.parish=c.parish and z.ministry=p_ministry;

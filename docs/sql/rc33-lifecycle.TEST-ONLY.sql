@@ -21,7 +21,7 @@ begin
  select * into strict b from rc33_demo.batches where id=p_batch;
  if b.letter_name is null then return;end if;
  select * into strict c from rc33_demo.cycles where id=b.cycle_id;
- select coalesce(array_agg(first_name||' '||last_name||' - '||proposal order by last_name,first_name),array[]::text[]) into names from rc33_demo.items where batch_id=b.id and proposal<>'no';
+ select coalesce(array_agg(first_name||' '||last_name||' - '||proposal||case when proposed_first is not null then ' | requested: '||proposed_first||' '||proposed_last else '' end order by last_name,first_name),array[]::text[]) into names from rc33_demo.items where batch_id=b.id and proposal<>'no';
  insert into rc33_demo.documents(batch_id,revision,filename,received,retain_until,contents)
  values(b.id,b.revision,b.letter_name,d,(d+interval '12 months')::date,rc32_demo.sample_pdf(array['COWL-DOK | Liturgical Ministry Registry','DEMONSTRATION ONLY - NOT AN OFFICIAL DOCUMENT',c.parish,b.ministry,'Service year: '||c.service_year::text,'Reference: '||b.reference,'Revision: '||b.revision::text,'Recommended fictional assignments:']||names||array['Generated fictional evidence only. No priest signature or actual uploaded file.']));
 end $$;
@@ -51,7 +51,7 @@ begin
   return to_jsonb(d)-'created_by';
  end if;
  if p_replace is not null then
-  select coalesce(jsonb_agg(jsonb_build_object('assignment_id',i.assignment_id,'first_name',i.first_name,'last_name',i.last_name,'proposal',i.proposal)),'[]') into items from rc33_demo.items i where i.batch_id=b.id;
+  select coalesce(jsonb_agg(jsonb_build_object('assignment_id',i.assignment_id,'first_name',i.first_name,'last_name',i.last_name,'proposal',i.proposal,'proposed_first',i.proposed_first,'proposed_last',i.proposed_last)),'[]') into items from rc33_demo.items i where i.batch_id=b.id;
  elsif p_kind='original' then
   select coalesce(jsonb_agg(jsonb_build_object('assignment_id',z.id,'proposal','renew')),'[]') into items from rc33_demo.roster r join rc3_demo.assignments z on z.id=r.assignment_id where z.parish=c.parish and z.ministry=p_ministry;
  else items:='[]';
