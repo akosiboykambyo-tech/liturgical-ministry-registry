@@ -85,7 +85,7 @@ export function parishDraftReady(d:Draft,c:Cycle){
  return !!d.payload.roster_confirmed&&(d.kind==="supplemental"?recommended:eligible.every(r=>d.payload.items.some(i=>i.assignment_id===r.id)));
 }
 
-export function parishReadyDrafts(drafts:Draft[],cycle:Cycle){return drafts.filter(d=>parishDraftReady(d,cycle)&&isReady(d.payload,d.kind));}
+export function parishReadyDrafts(drafts:Draft[],cycle:Cycle){return drafts.filter(d=>parishDraftReady(d,cycle)&&isReady(d.payload,d.kind)&&!(d.kind==="original"&&d.payload.method!=="OTC"&&cycle.advances.some(a=>a.ministry===d.ministry&&!a.allocated_application)));}
 export function parishPaymentGroups(c:Cycle){const grouped=new Map<string,Batch[]>();for(const b of c.batches){if(b.aggregate_id)grouped.set(b.aggregate_id,[...(grouped.get(b.aggregate_id)??[]),b]);}return Array.from(grouped.values());}
 export function localSubmittedBatch(d:Draft,c:Cycle):Batch{
  const items=d.payload.items.map((i,j)=>{const r=c.roster.find(r=>r.id===i.assignment_id);return {...i,id:d.id+"-"+j,first_name:r?.first??i.first_name??"",last_name:r?.last??i.last_name??"",decision:i.proposal==="no"?"excluded" as const:"pending" as const};});
