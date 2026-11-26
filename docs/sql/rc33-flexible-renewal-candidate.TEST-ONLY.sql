@@ -178,7 +178,7 @@ begin
  end loop;
  if not exists(select 1 from rc3_demo.application_members where application_id=a) then raise exception 'No approved assignments';end if;
  update rc33_demo.batches set aggregate_id=a where id=any(p_batches);
- insert into rc3_demo.events(cycle_id,actor,action,details) values(c.id,auth.uid(),'reviewed_batches_grouped',jsonb_build_object('application',a,'batches',p_batches,'method',p_method));
+ insert into rc33_demo.events(cycle_id,actor,action,details) values(c.id,auth.uid(),'reviewed_batches_grouped',jsonb_build_object('application',a,'batches',p_batches,'method',p_method));
  insert into rc3_demo.events(application_id,action,actor_id) values(a,'rc33_independent_review_completed',auth.uid());
  return a;
 end $$;
