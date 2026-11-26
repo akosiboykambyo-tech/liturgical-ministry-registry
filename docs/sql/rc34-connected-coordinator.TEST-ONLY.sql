@@ -355,7 +355,7 @@ begin
  return jsonb_build_object('token',t,'parish',c.parish);
 end $$;
 create function rc34_parish_api.call(p_token text,p_action text,p_args jsonb default '{}'::jsonb) returns jsonb language plpgsql security definer set search_path='' as $$
-declare c rc34_parish_api.coordinators%rowtype;campaign rc33_demo.renewal_campaign%rowtype;cy uuid;d rc33_demo.drafts%rowtype;bid uuid;v jsonb;s jsonb;id uuid;
+declare c rc34_parish_api.coordinators%rowtype;campaign rc33_demo.renewal_campaign%rowtype;cy uuid;d rc33_demo.drafts%rowtype;bid uuid;v jsonb;s jsonb;v_application uuid;
 begin
  if p_token is null or p_token!~'^[0-9a-f]{64}$' or p_action is null or p_args is null or jsonb_typeof(p_args)<>'object' or octet_length(p_args::text)>160000 then raise exception 'Invalid coordinator session or request' using errcode='42501';end if;
  select co.* into c from rc34_parish_api.sessions se join rc34_parish_api.coordinators co on co.id=se.coordinator_id where se.token_hash=sha256(convert_to(p_token,'UTF8')) and se.revoked_at is null and se.expires_at>now() and co.active for share of co,se;
@@ -391,10 +391,10 @@ begin
   if (p_args->>'p_cycle')::uuid is distinct from cy then raise exception 'Outside authorized parish' using errcode='42501';end if;
   return rc33_demo.core_submit_parish_drafts(c.id,cy,p_args->'p_drafts');
  elsif p_action='request_qr' then
-  id:=(p_args->>'p_application_id')::uuid;
-  if not exists(select 1 from rc3_demo.applications a join rc33_demo.batches b on b.aggregate_id=a.id where a.id=call.id and b.cycle_id=cy and a.status='awaiting_payment' and a.preferred_payment_method='QR') or exists(select 1 from rc33_demo.batches b where b.aggregate_id=call.id and b.cycle_id<>cy) then raise exception 'No payable QR obligation in this parish' using errcode='42501';end if;
-  insert into rc33_demo.qr_intentions(application_id,coordinator_id) values(id,c.id) on conflict(application_id) do nothing;
-  if found then insert into rc33_demo.events(cycle_id,actor,action,details) values(cy,c.id,'qr_evidence_requested',jsonb_build_object('application',id));end if;
+  v_application:=(p_args->>'p_application_id')::uuid;
+  if not exists(select 1 from rc3_demo.applications a join rc33_demo.batches b on b.aggregate_id=a.id where a.id=v_application and b.cycle_id=cy and a.status='awaiting_payment' and a.preferred_payment_method='QR') or exists(select 1 from rc33_demo.batches b where b.aggregate_id=v_application and b.cycle_id<>cy) then raise exception 'No payable QR obligation in this parish' using errcode='42501';end if;
+  insert into rc33_demo.qr_intentions(application_id,coordinator_id) values(v_application,c.id) on conflict(application_id) do nothing;
+  if found then insert into rc33_demo.events(cycle_id,actor,action,details) values(cy,c.id,'qr_evidence_requested',jsonb_build_object('application',v_application));end if;
   return '{}'::jsonb;
  end if;
  raise exception 'Unsupported coordinator action' using errcode='42501';
