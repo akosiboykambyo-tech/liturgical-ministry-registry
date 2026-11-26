@@ -6,6 +6,7 @@ import {ebGaramond} from "@/app/fonts";
 import {ClipboardList,PenLine,Inbox,History,RefreshCw,LogOut,Users} from "@/components/phosphor-icons";
 import PortalShell from "@/components/financial-stewardship/demo-portal-shell";
 import Phase16Review from "@/components/parish-renewal/phase16-review";
+import type {Submission as Phase16Submission} from "@/lib/parish-renewal/phase16-model";
 import {getFinancialStagingClient} from "@/lib/financial-stewardship/staging-client";
 
 type Assignment={id:string;minister_label:string;parish:string;ministry:string;renewal_date:string|null;expiration_date:string|null};
@@ -25,6 +26,7 @@ export default function RenewalDesk({embedded=false,onOpenCollection}:{embedded?
  const [tab,setTab]=useState<"applications"|"intake"|"roster"|"review"|"history">("applications");
  const [sourceFilter,setSourceFilter]=useState("all"),[queueFilter,setQueueFilter]=useState("all"),[query,setQuery]=useState("");
  const [year,setYear]=useState("2027"),[parish,setParish]=useState(""),[ministry,setMinistry]=useState(""),[selected,setSelected]=useState<string[]>([]);
+ const [phaseSubmissions,setPhaseSubmissions]=useState<Phase16Submission[]>([]);
  const [appId,setAppId]=useState(""),[reviewed,setReviewed]=useState(false),[returnNote,setReturnNote]=useState("");
  const load=useCallback(async()=>{
    if(!client){setError("TEST connection unavailable.");setLoading(false);return;}
@@ -58,6 +60,8 @@ export default function RenewalDesk({embedded=false,onOpenCollection}:{embedded?
  const roles=data?.roles;
  const canAdmin=Boolean(!embedded&&roles?.admin),canFinance=Boolean(embedded&&roles?.finance);
  const apps=data?.applications??[],assignments=data?.assignments??[];
+ const legacyApps=apps.filter(a=>!a.reference.startsWith("RN-DEMO-RC32-"));
+ const countStatus=(...statuses:string[])=>canAdmin?legacyApps.filter(a=>statuses.includes(a.status)).length+phaseSubmissions.filter(a=>statuses.includes(a.financial_status??a.status)).length:apps.filter(a=>statuses.includes(a.status)).length;
  const chosen=apps.find(a=>a.id===appId);
  const legacyAssignments=assignments.filter(a=>!a.parish.startsWith("RC32 "));
  const matching=legacyAssignments.filter(a=>a.parish===parish&&a.ministry===ministry);
@@ -86,10 +90,11 @@ export default function RenewalDesk({embedded=false,onOpenCollection}:{embedded?
   <button type="submit" className={primary} disabled={busy||!selected.length}>Submit walk-in application</button>
  </form>}
  {(activeTab==="applications"||activeTab==="review")&&<>
- <div className="grid gap-3 sm:grid-cols-3">{(canAdmin&&activeTab==="review"?[["For review",apps.filter(a=>a.status==="submitted").length],["For correction",apps.filter(a=>a.status==="returned").length],["Documents approved",apps.filter(a=>a.status==="documents_approved").length]]:[["For review",apps.filter(a=>a.status==="submitted").length],["Awaiting payment",apps.filter(a=>a.status==="awaiting_payment"||a.status==="documents_approved").length],["Renewed",apps.filter(a=>a.status==="renewed").length]]).map(([name,value])=><div className="finance-panel finance-metric" key={name}><p className="text-sm text-[color:var(--registry-muted)]">{name}</p><p className={ebGaramond.className+" finance-metric-value"}>{value}</p></div>)}</div>
- <section className="finance-panel"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className={ebGaramond.className+" text-2xl"}>{canAdmin?(activeTab==="review"?"Legacy TEST review records":"Legacy TEST applications"):"Payment obligations"}</h2>{canAdmin&&<button className={primary} onClick={()=>setTab("intake")}>Walk-in application</button>}</div>
+ <div className="grid gap-3 sm:grid-cols-3">{(canAdmin&&activeTab==="review"?[["For review",countStatus("submitted")],["For correction",countStatus("returned")],["Documents approved",countStatus("documents_approved")]]:[["For review",countStatus("submitted")],["Awaiting payment",countStatus("awaiting_payment","documents_approved")],["Renewed",countStatus("renewed")]]).map(([name,value])=><div className="finance-panel finance-metric" key={name}><p className="text-sm text-[color:var(--registry-muted)]">{name}</p><p className={ebGaramond.className+" finance-metric-value"}>{value}</p></div>)}</div>
+ <section className="finance-panel"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className={ebGaramond.className+" text-2xl"}>{activeTab==="review"?"Review queue":canAdmin?"Application queue":"Payment obligations"}</h2>{canAdmin&&<button className={primary} onClick={()=>setTab("intake")}>Walk-in application</button>}</div>
  {canAdmin&&<div className="mt-4 grid gap-3 sm:grid-cols-3"><label><span className={label}>Search parish or reference</span><input className={field} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Parish, ministry or reference"/></label><label><span className={label}>Submission source</span><select className={field} value={sourceFilter} onChange={e=>setSourceFilter(e.target.value)}><option value="all">All sources</option><option value="online_rehearsal">Online</option><option value="walk_in">Walk-in</option></select></label><label><span className={label}>Status</span><select className={field} value={queueFilter} onChange={e=>setQueueFilter(e.target.value)}><option value="all">All statuses</option><option value="submitted">For review</option><option value="returned">For correction</option>{activeTab!=="review"&&<><option value="documents_approved">Documents approved</option><option value="awaiting_payment">Awaiting payment</option><option value="renewed">Renewed</option></>}</select></label></div>}
- {canAdmin&&<div className="mt-4"><Phase16Review view={activeTab==="review"?"queue":"all"} source={sourceFilter} status={queueFilter} query={query}/></div>}
+ {canAdmin&&<div className="mt-4"><Phase16Review view={activeTab==="review"?"queue":"all"} source={sourceFilter} status={queueFilter} query={query} onSnapshot={setPhaseSubmissions}/></div>}
+ {canAdmin&&<h3 className="mt-4 font-semibold">Legacy RC3.1 test records</h3>}
  <div className="mt-4 space-y-2">{visibleApps.map(a=><button key={a.id} type="button" aria-pressed={a.id===appId} onClick={()=>chooseApp(a)} className={"flex w-full flex-wrap justify-between gap-3 border p-4 text-left "+(a.id===appId?"border-[color:var(--registry-crimson)] bg-[color:var(--finance-soft-rose)]":"border-[color:var(--registry-hairline)]")}><span className="min-w-0"><strong>{a.parish}</strong><span className="mt-1 block text-sm">{a.ministry} · {a.service_year} · {a.members} ministers</span><span className="mt-1 block break-all text-xs text-[color:var(--registry-muted)]">{a.reference} · {a.channel==="walk_in"?"Walk-in":"Online"}</span></span><span className="text-sm"><strong>{statuses[a.status]??a.status}</strong><span className="mt-1 block tabular-nums">{money(a.due_centavos)}</span></span></button>)}{!visibleApps.length&&<p className="py-4 text-sm text-[color:var(--registry-muted)]">{canAdmin?"No applications match this view. Online submissions appear here automatically.":"No document-approved applications are ready for finance."}</p>}</div></section>
  {visibleChosen&&chosen&&<section className="finance-panel space-y-4"><h2 className={ebGaramond.className+" text-3xl"}>{chosen.parish}</h2><p className="text-sm">{chosen.ministry} · {chosen.service_year} · {chosen.members} ministers</p><p className="font-semibold">{statuses[chosen.status]}</p>
  {chosen.review_note&&<p className="text-sm">{chosen.review_note}</p>}
