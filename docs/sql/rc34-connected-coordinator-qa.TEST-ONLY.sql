@@ -64,10 +64,24 @@ begin
  perform public.rc3_demo_prepare_qr(q);
 end $$;
 reset role;
+set local role authenticated;
+do $$
+declare q uuid:=current_setting('rc34.qa.qr')::uuid;req uuid;cl uuid;good uuid;bad uuid;
+begin
+ perform set_config('request.jwt.claim.sub',current_setting('rc34.qa.finance'),true);
+ select (x->>'payment_request_id')::uuid into strict req from jsonb_array_elements(public.rc3_demo_snapshot()->'applications') x where x->>'id'=q::text;
+ select p.id into strict cl from public.fs_payment_claims p where p.payment_request_id=req;
+ select b.id into strict good from public.fs_bank_credits b join public.fs_payment_claims p on p.receiving_account_id=b.receiving_account_id where p.id=cl and b.bank_external_reference=p.submitted_external_reference;
+ select b.id into strict bad from public.fs_bank_credits b join public.fs_payment_claims p on p.receiving_account_id=b.receiving_account_id where p.id=cl and b.bank_external_reference=p.submitted_external_reference||'-MISMATCH';
+ begin perform public.rc3_demo_post_qr(cl,bad);raise exception 'MISMATCH_ACCEPTED';exception when others then if sqlerrm='MISMATCH_ACCEPTED' then raise;end if;end;
+ perform public.rc3_demo_post_qr(cl,good);
+end $$;
+reset role;
 set local role anon;
 do $$
 declare t text:=current_setting('rc34.qa.token');
 begin
+ if (select count(*) from jsonb_array_elements(public.rc34_demo_parish_call(t,'snapshot','{}')->'batches') x where x->>'financial_status'='renewed')<>2 then raise exception 'QR_SETTLEMENT_NOT_SYNCED';end if;
  if not exists(select 1 from jsonb_array_elements(public.rc34_demo_parish_call(t,'snapshot','{}')->'batches') x where (x->>'qr_prepared')::boolean) then raise exception 'QR_PREPARATION_NOT_SYNCED';end if;
  perform public.rc34_demo_parish_call(t,'logout','{}');
  begin perform public.rc34_demo_parish_call(t,'snapshot','{}');raise exception 'REVOKED_SESSION_ACCEPTED';exception when insufficient_privilege then null;end;
