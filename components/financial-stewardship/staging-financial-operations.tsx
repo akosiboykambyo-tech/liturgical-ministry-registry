@@ -188,7 +188,7 @@ export default function StagingFinancialOperations({
             put: v => setReviews(v as CuriaReview[]), enabled: canReadRemittances },
         ];
         const results=await Promise.all(reads.filter(spec=>spec.enabled).map(async spec=>{const {data,error}=await client.from(spec.table).select(spec.columns).limit(1000);if(error)throw new Error(error.message);if((data?.length??0)>=1000)throw new Error("The ledger exceeds the supported display limit.");return {spec,rows:(data||[]) as never[]};}));
-        if(active&&(!background||!busyRef.current)){for(const {spec,rows} of results)spec.put(rows);setLoadFailed(false);setNotice(current=>current?.ok?current:null);}
+        if(active&&(!background||!busyRef.current)){for(const {spec,rows} of results)spec.put(rows);setLoadFailed(false);if(!background)setNotice(current=>current?.ok?current:null);}
       } catch (err) {
         if (active) {setLoadFailed(true);setCollections([]);setRequests([]);setClaims([]);setCredits([]);setIssues([]);setNumbers([]);setBooklets([]);setRemittances([]);setItems([]);setCopies([]);setFunds([]);setReviews([]);setBatches([]);setParishes([]);setMinistries([]);setCurrentUserId("");setNotice({ ok: false, message: err instanceof Error ? err.message : "Unable to read isolated finance ledger." });}
       } finally {

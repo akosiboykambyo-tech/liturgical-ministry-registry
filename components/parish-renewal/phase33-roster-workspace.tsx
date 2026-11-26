@@ -1,5 +1,5 @@
 "use client";
-import {useState,useMemo,useRef} from "react";
+import {useState,useMemo,useRef,useEffect} from "react";
 import {ebGaramond} from "@/app/fonts";
 import {ArrowRight,CheckCircle2} from "@/components/phosphor-icons";
 import {MINISTRIES,shortMinistry,type Ministry} from "@/lib/constants";
@@ -26,6 +26,8 @@ export default function ParishRosterWorkspace({cycle,busy,intakeOpen,connected,o
  const savingRef=useRef(false);
  const [newMin,setNewMin]=useState<Ministry|"">(""),[first,setFirst]=useState(""),[last,setLast]=useState("");
  const locked=busy||saving||uncertain||(!intakeOpen&&step<4);
+ // Refresh only clean drafts; keep the current wizard step and all unsaved edits.
+ useEffect(()=>{if(step===4||busy||saving||uncertain||changed.length||stage)return;const fresh=parishRosterTargets(cycle);if(JSON.stringify(fresh)===JSON.stringify(drafts))return;setDrafts(fresh);const ready=parishReadyDrafts(fresh,cycle);setSelected(old=>old.filter(m=>ready.some(d=>d.ministry===m)));setDeclared(false);},[cycle,step,busy,saving,uncertain,changed.length,stage,drafts]);
  const totals=cycleTotals(cycle);
  const matches=useMemo(()=>stage?matchRenewalRows(stage.rows,cycle.roster):[],[stage,cycle.roster]);
  const classified=matches.map(m=>{const d=drafts.find(d=>d.ministry===m.incoming.ministry);const prior=lockedClaim(cycle,m.incoming.ministry,m.incoming.first,m.incoming.last,m.kind==="exact"?m.candidates[0]?.id:undefined,d?.replace_batch);return {match:m,draft:d,prior};});
