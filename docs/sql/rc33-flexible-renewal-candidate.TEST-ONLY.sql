@@ -39,13 +39,13 @@ create table rc33_demo.items(
  cycle_id uuid not null references rc33_demo.cycles(id),ministry text not null references rc32_demo.ministries(name),
  assignment_id uuid references rc3_demo.assignments(id),first_name text not null,last_name text not null,name_key text not null,
  proposal text not null check(proposal in ('renew','hold','no','new_member','ministry_assignment','identity_review')),
- decision text not null check(decision in ('pending','approved','rejected','excluded')),reviewed_by uuid,reviewed_at timestamptz,note text,
+ decision text not null check(decision in ('pending','approved','rejected','excluded')),reviewed_by uuid,reviewed_at timestamptz,note text,reservation_released_at timestamptz,
  unique(batch_id,assignment_id)
 );
 -- A non-excluded assignment or name is reserved at submission, not merely at payment.
 -- Rejected proposals remain reserved until a future authorized reconsideration workflow.
-create unique index rc33_claim_assignment on rc33_demo.items(cycle_id,assignment_id) where assignment_id is not null and proposal<>'no';
-create unique index rc33_claim_name on rc33_demo.items(cycle_id,ministry,name_key) where proposal<>'no';
+create unique index rc33_claim_assignment on rc33_demo.items(cycle_id,assignment_id) where assignment_id is not null and proposal<>'no' and reservation_released_at is null;
+create unique index rc33_claim_name on rc33_demo.items(cycle_id,ministry,name_key) where proposal<>'no' and reservation_released_at is null;
 create table rc33_demo.events(
  id bigint generated always as identity primary key,cycle_id uuid not null references rc33_demo.cycles(id),
  batch_id uuid references rc33_demo.batches(id),actor uuid not null,action text not null,details jsonb not null default '{}',at timestamptz not null default now()
@@ -163,11 +163,14 @@ end $$;
 -- Explicit grouping happens only AFTER individual review. Existing RC3 authorized-payment/receipt
 -- procedures handle the resulting bridge. No browser writes to the ledger or partial settlements.
 create function rc33_demo.group_reviewed(p_cycle uuid,p_batches uuid[],p_method text) returns uuid language plpgsql security definer set search_path='' as $$
-declare c rc33_demo.cycles%rowtype;b rc33_demo.batches%rowtype;i rc33_demo.items%rowtype;a uuid;target uuid;v_count int;v_ministry text;v_channel text;v_ref text;
+declare c rc33_demo.cycles%rowtype;b rc33_demo.batches%rowtype;i rc33_demo.items%rowtype;a uuid;target uuid;v_count int;v_ministry text;v_channel text;v_ref text;existing_group uuid;
 begin
  perform rc32_demo.require_admin();
  select * into strict c from rc33_demo.cycles where id=p_cycle for update;
  if coalesce(cardinality(p_batches),0) not between 1 and 6 or (select count(distinct x) from unnest(p_batches) x)<>cardinality(p_batches) or p_method is null or p_method not in ('QR','OTC') then raise exception 'Select distinct reviewed batches and one settlement method';end if;
+ -- Retry a group request only if exactly the original set was already grouped.
+ select aggregate_id into existing_group from rc33_demo.batches where id=p_batches[1] and cycle_id=c.id;
+ if existing_group is not null and (select count(*) from rc33_demo.batches where aggregate_id=existing_group)=cardinality(p_batches) and (select count(*) from rc33_demo.batches where id=any(p_batches) and aggregate_id=existing_group and cycle_id=c.id and preferred_method=p_method)=cardinality(p_batches) then return existing_group;end if;
  v_count:=0;
  for b in select * from rc33_demo.batches where id=any(p_batches) order by id for update loop
   if b.cycle_id<>c.id or b.status<>'reviewed' or b.aggregate_id is not null or b.reviewed_by is null or b.preferred_method<>p_method then raise exception 'Batch outside cycle, already grouped, not reviewed or different payment method';end if;
