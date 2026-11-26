@@ -132,31 +132,31 @@ begin
  return b;
 end $$;
 create function rc33_demo.submit_batch(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_method text,p_items jsonb,p_letter text,p_confirmed boolean,p_zero boolean) returns uuid language sql security definer set search_path='' as $$select rc33_demo.write_batch(p_cycle,p_ministry,p_kind,p_channel,p_method,p_items,p_letter,p_confirmed,p_zero,null)$$;
-create function rc33_demo.review_letter(p_batch uuid) returns void language plpgsql security definer set search_path='' as $$
+create function rc33_demo.review_letter(p_batch uuid,p_revision integer) returns void language plpgsql security definer set search_path='' as $$
 declare b rc33_demo.batches%rowtype;
 begin
  perform rc32_demo.require_admin();
  select * into strict b from rc33_demo.batches where id=p_batch for update;
- if b.status<>'submitted' or b.letter_reviewed_by is not null then raise exception 'Recommendation already decided or batch locked';end if;
+ if b.status<>'submitted' or b.revision is distinct from p_revision or b.letter_reviewed_by is not null then raise exception 'Recommendation already decided or batch locked';end if;
  update rc33_demo.batches set letter_reviewed_by=auth.uid(),letter_reviewed_at=now() where id=b.id;
  insert into rc33_demo.events(cycle_id,batch_id,actor,action) values(b.cycle_id,b.id,auth.uid(),'recommendation_reviewed');
 end $$;
-create function rc33_demo.review_item(p_batch uuid,p_item uuid,p_decision text,p_note text) returns void language plpgsql security definer set search_path='' as $$
+create function rc33_demo.review_item(p_batch uuid,p_item uuid,p_decision text,p_note text,p_revision integer) returns void language plpgsql security definer set search_path='' as $$
 declare b rc33_demo.batches%rowtype;
 begin
  perform rc32_demo.require_admin();
  select * into strict b from rc33_demo.batches where id=p_batch for update;
- if b.status<>'submitted' or b.letter_reviewed_by is null or p_decision is null or p_decision not in ('approved','rejected') or (p_decision='rejected' and length(trim(coalesce(p_note,'')))<5) or length(coalesce(p_note,''))>300 then raise exception 'Reviewed recommendation and explicit individual decision required';end if;
+ if b.status<>'submitted' or b.revision is distinct from p_revision or b.letter_reviewed_by is null or p_decision is null or p_decision not in ('approved','rejected') or (p_decision='rejected' and length(trim(coalesce(p_note,'')))<5) or length(coalesce(p_note,''))>300 then raise exception 'Reviewed recommendation and explicit individual decision required';end if;
  update rc33_demo.items set decision=p_decision,reviewed_by=auth.uid(),reviewed_at=now(),note=trim(coalesce(p_note,'')) where id=p_item and batch_id=b.id and decision='pending';
  if not found then raise exception 'Assignment already decided or outside batch';end if;
  insert into rc33_demo.events(cycle_id,batch_id,actor,action,details) values(b.cycle_id,b.id,auth.uid(),'assignment_reviewed',jsonb_build_object('item',p_item,'decision',p_decision,'note',p_note));
 end $$;
-create function rc33_demo.complete_review(p_batch uuid) returns void language plpgsql security definer set search_path='' as $$
+create function rc33_demo.complete_review(p_batch uuid,p_revision integer) returns void language plpgsql security definer set search_path='' as $$
 declare b rc33_demo.batches%rowtype;
 begin
  perform rc32_demo.require_admin();
  select * into strict b from rc33_demo.batches where id=p_batch for update;
- if b.status<>'submitted' or b.letter_reviewed_by is null or exists(select 1 from rc33_demo.items where batch_id=b.id and decision='pending') then raise exception 'All individual decisions and recommendation review required';end if;
+ if b.status<>'submitted' or b.revision is distinct from p_revision or b.letter_reviewed_by is null or exists(select 1 from rc33_demo.items where batch_id=b.id and decision='pending') then raise exception 'All individual decisions and recommendation review required';end if;
  update rc33_demo.batches set status=case when exists(select 1 from rc33_demo.items where batch_id=b.id and decision='approved') then 'reviewed' else 'closed_no_charge' end,reviewed_by=auth.uid(),reviewed_at=now() where id=b.id;
  insert into rc33_demo.events(cycle_id,batch_id,actor,action) values(b.cycle_id,b.id,auth.uid(),'review_completed');
 end $$;
@@ -174,7 +174,8 @@ begin
   v_count:=v_count+1;v_ministry:=b.ministry;v_channel:=b.channel;
  end loop;
  if v_count<>cardinality(p_batches) then raise exception 'Missing batch';end if;
- if v_count>1 then v_ministry:='Consolidated Parish Renewal';end if;
+ if v_count>1 and (exists(select 1 from rc33_demo.batches where id=any(p_batches) and kind='supplemental') or (select count(distinct ministry) from rc33_demo.batches where id=any(p_batches))<>v_count) then raise exception 'Supplemental batches require separate obligations';end if;
+ if v_count>1 then v_ministry:='Consolidated Parish Renewal';if exists(select 1 from rc33_demo.batches where id=any(p_batches) and channel='online_rehearsal') then v_channel:='online_rehearsal';end if;end if;
  v_ref:='RN-DEMO-RC33-'||upper(replace(gen_random_uuid()::text,'-',''));
  insert into rc3_demo.applications(reference,parish,ministry,service_year,channel,status,submitted_by,reviewed_by,reviewed_at,review_note,preferred_payment_method)
  values(v_ref,c.parish,v_ministry,c.service_year,v_channel,'documents_approved',auth.uid(),auth.uid(),now(),'RC3.3: explicitly reviewed assignment group',p_method) returning id into a;
@@ -201,18 +202,18 @@ begin
  return jsonb_build_object('roles',jsonb_build_object('admin',admin,'finance',finance),
  'cycle',(select id from rc33_demo.cycles where parish=p_parish and service_year=p_year),
  'roster',case when admin then coalesce((select jsonb_agg(jsonb_build_object('id',z.id,'first',r.first_name,'last',r.last_name,'ministry',z.ministry,'renewal_date',z.renewal_date)) from rc33_demo.roster r join rc3_demo.assignments z on z.id=r.assignment_id where z.parish=p_parish),'[]') else '[]'::jsonb end,
- 'batches',coalesce((select jsonb_agg((to_jsonb(b)-'submitted_by'-'reviewed_by'-'letter_reviewed_by')||jsonb_build_object('letter_reviewed',b.letter_reviewed_by is not null,'financial_status',a.status,'due_centavos',a.due_centavos,'paid_centavos',a.paid_centavos,'payment_reference',p.payment_reference,'approved_count',(select count(*) from rc33_demo.items where batch_id=b.id and decision='approved'),'items',case when admin then (select coalesce(jsonb_agg(to_jsonb(i)-'reviewed_by'),'[]') from rc33_demo.items i where i.batch_id=b.id) else '[]'::jsonb end) order by b.submitted_at) from rc33_demo.batches b join rc33_demo.cycles c on c.id=b.cycle_id left join rc3_demo.applications a on a.id=b.aggregate_id left join rc3_demo.financial_links f on f.application_id=a.id left join public.fs_payment_requests p on p.id=f.payment_request_id where c.parish=p_parish and c.service_year=p_year and (admin or b.status='reviewed')),'[]'));
+ 'batches',coalesce((select jsonb_agg((to_jsonb(b)-'submitted_by'-'reviewed_by'-'letter_reviewed_by')||jsonb_build_object('letter_reviewed',b.letter_reviewed_by is not null,'financial_status',a.status,'due_centavos',a.due_centavos,'paid_centavos',a.paid_centavos,'payment_reference',p.payment_reference,'approved_count',(select count(*) from rc33_demo.items where batch_id=b.id and decision='approved'),'batch_amount_centavos',(select count(*)*5000 from rc33_demo.items where batch_id=b.id and decision='approved'),'qr_prepared',exists(select 1 from public.fs_payment_claims pc where pc.payment_request_id=p.id),'items',case when admin then (select coalesce(jsonb_agg(to_jsonb(i)-'reviewed_by'),'[]') from rc33_demo.items i where i.batch_id=b.id) else '[]'::jsonb end) order by b.submitted_at) from rc33_demo.batches b join rc33_demo.cycles c on c.id=b.cycle_id left join rc3_demo.applications a on a.id=b.aggregate_id left join rc3_demo.financial_links f on f.application_id=a.id left join public.fs_payment_requests p on p.id=f.payment_request_id where c.parish=p_parish and c.service_year=p_year and (admin or b.status='reviewed')),'[]'));
 end $$;
 create function public.rc33_demo_open_cycle(p_parish text,p_year integer) returns uuid language sql security invoker set search_path='' as $$select rc33_demo.open_cycle(p_parish,p_year)$$;
 revoke all on function public.rc33_demo_open_cycle(text,integer) from public,anon,authenticated;
 create function public.rc33_demo_submit_batch(p_cycle uuid,p_ministry text,p_kind text,p_channel text,p_method text,p_items jsonb,p_letter text,p_confirmed boolean,p_zero boolean) returns uuid language sql security invoker set search_path='' as $$select rc33_demo.submit_batch(p_cycle,p_ministry,p_kind,p_channel,p_method,p_items,p_letter,p_confirmed,p_zero)$$;
 revoke all on function public.rc33_demo_submit_batch(uuid,text,text,text,text,jsonb,text,boolean,boolean) from public,anon,authenticated;
-create function public.rc33_demo_review_letter(p_batch uuid) returns void language sql security invoker set search_path='' as $$select rc33_demo.review_letter(p_batch)$$;
-revoke all on function public.rc33_demo_review_letter(uuid) from public,anon,authenticated;
-create function public.rc33_demo_review_item(p_batch uuid,p_item uuid,p_decision text,p_note text) returns void language sql security invoker set search_path='' as $$select rc33_demo.review_item(p_batch,p_item,p_decision,p_note)$$;
-revoke all on function public.rc33_demo_review_item(uuid,uuid,text,text) from public,anon,authenticated;
-create function public.rc33_demo_complete_review(p_batch uuid) returns void language sql security invoker set search_path='' as $$select rc33_demo.complete_review(p_batch)$$;
-revoke all on function public.rc33_demo_complete_review(uuid) from public,anon,authenticated;
+create function public.rc33_demo_review_letter(p_batch uuid,p_revision integer) returns void language sql security invoker set search_path='' as $$select rc33_demo.review_letter(p_batch,p_revision)$$;
+revoke all on function public.rc33_demo_review_letter(uuid,integer) from public,anon,authenticated;
+create function public.rc33_demo_review_item(p_batch uuid,p_item uuid,p_decision text,p_note text,p_revision integer) returns void language sql security invoker set search_path='' as $$select rc33_demo.review_item(p_batch,p_item,p_decision,p_note,p_revision)$$;
+revoke all on function public.rc33_demo_review_item(uuid,uuid,text,text,integer) from public,anon,authenticated;
+create function public.rc33_demo_complete_review(p_batch uuid,p_revision integer) returns void language sql security invoker set search_path='' as $$select rc33_demo.complete_review(p_batch,p_revision)$$;
+revoke all on function public.rc33_demo_complete_review(uuid,integer) from public,anon,authenticated;
 create function public.rc33_demo_group_reviewed(p_cycle uuid,p_batches uuid[],p_method text) returns uuid language sql security invoker set search_path='' as $$select rc33_demo.group_reviewed(p_cycle,p_batches,p_method)$$;
 revoke all on function public.rc33_demo_group_reviewed(uuid,uuid[],text) from public,anon,authenticated;
 create function public.rc33_demo_snapshot(p_parish text,p_year integer) returns jsonb language sql security invoker set search_path='' as $$select rc33_demo.snapshot(p_parish,p_year)$$;
@@ -221,8 +222,8 @@ revoke all on all functions in schema rc33_demo from public,anon,authenticated;
 grant usage on schema rc33_demo to authenticated;
 grant execute on function rc33_demo.open_cycle(text,integer),public.rc33_demo_open_cycle(text,integer) to authenticated;
 grant execute on function rc33_demo.submit_batch(uuid,text,text,text,text,jsonb,text,boolean,boolean),public.rc33_demo_submit_batch(uuid,text,text,text,text,jsonb,text,boolean,boolean) to authenticated;
-grant execute on function rc33_demo.review_letter(uuid),public.rc33_demo_review_letter(uuid) to authenticated;
-grant execute on function rc33_demo.review_item(uuid,uuid,text,text),public.rc33_demo_review_item(uuid,uuid,text,text) to authenticated;
-grant execute on function rc33_demo.complete_review(uuid),public.rc33_demo_complete_review(uuid) to authenticated;
+grant execute on function rc33_demo.review_letter(uuid,integer),public.rc33_demo_review_letter(uuid,integer) to authenticated;
+grant execute on function rc33_demo.review_item(uuid,uuid,text,text,integer),public.rc33_demo_review_item(uuid,uuid,text,text,integer) to authenticated;
+grant execute on function rc33_demo.complete_review(uuid,integer),public.rc33_demo_complete_review(uuid,integer) to authenticated;
 grant execute on function rc33_demo.group_reviewed(uuid,uuid[],text),public.rc33_demo_group_reviewed(uuid,uuid[],text) to authenticated;
 grant execute on function rc33_demo.snapshot(text,integer),public.rc33_demo_snapshot(text,integer) to authenticated;

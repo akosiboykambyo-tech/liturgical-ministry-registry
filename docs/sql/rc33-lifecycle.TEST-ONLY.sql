@@ -119,3 +119,14 @@ create function public.rc33_demo_read_letter(p_batch uuid) returns jsonb languag
 revoke all on function rc33_demo.read_letter(uuid),public.rc33_demo_read_letter(uuid) from public,anon,authenticated;
 grant execute on function rc33_demo.read_letter(uuid),public.rc33_demo_read_letter(uuid) to authenticated;
 revoke all on function rc33_demo.make_document(uuid),rc33_demo.document_event() from public,anon,authenticated;
+
+create function rc33_demo.cycle_detail(p_parish text,p_year integer) returns jsonb language plpgsql stable security definer set search_path='' as $$
+declare s jsonb;c uuid;admin boolean;
+begin
+ s:=rc33_demo.snapshot(p_parish,p_year);c:=(s->>'cycle')::uuid;admin:=coalesce((s->'roles'->>'admin')::boolean,false);
+ return s||jsonb_build_object('drafts',case when admin then coalesce((select jsonb_agg(to_jsonb(d)-'created_by' order by updated_at desc) from rc33_demo.drafts d where d.cycle_id=c and d.state='draft' and not(d.kind='original' and d.replace_batch is null and exists(select 1 from rc33_demo.batches b where b.cycle_id=c and b.ministry=d.ministry and b.kind='original'))),'[]') else '[]'::jsonb end,
+ 'history',case when admin then coalesce((select jsonb_agg(jsonb_build_object('id',e.id,'batch_id',e.batch_id,'action',e.action,'at',e.at) order by e.id desc) from rc33_demo.events e where cycle_id=c),'[]') else '[]'::jsonb end);
+end $$;
+create function public.rc33_demo_cycle_detail(p_parish text,p_year integer) returns jsonb language sql stable security invoker set search_path='' as $$select rc33_demo.cycle_detail(p_parish,p_year)$$;
+revoke all on function rc33_demo.cycle_detail(text,integer),public.rc33_demo_cycle_detail(text,integer) from public,anon,authenticated;
+grant execute on function rc33_demo.cycle_detail(text,integer),public.rc33_demo_cycle_detail(text,integer) to authenticated;
