@@ -5,7 +5,7 @@ do $$
 declare c uuid;d jsonb;w jsonb;m text:='Ministry of Lectors and Commentators';p jsonb;bid uuid;
 begin
  perform set_config('request.jwt.claim.sub',current_setting('rc33.qa.admin'),true);
- c:=public.rc33_demo_open_cycle('RC33 Sample Parish A',2031);
+ c:=public.rc33_demo_open_cycle('RC33 Sample Parish A',2027);
  d:=public.rc33_demo_open_draft(c,m,'original','online_rehearsal');
  begin perform public.rc33_demo_open_draft(c,m,'original','walk_in');raise exception 'UNCONFIRMED_TAKEOVER';exception when others then if sqlerrm='UNCONFIRMED_TAKEOVER' then raise;end if;end;
  w:=public.rc33_demo_open_draft(c,m,'original','walk_in',null,true);
@@ -15,5 +15,5 @@ begin
  p:=w->'payload'||jsonb_build_object('method','OTC','letter','sample.pdf','confirmed',true,'zero',false);
  w:=public.rc33_demo_save_draft((w->>'id')::uuid,(w->>'revision')::integer,p);
  bid:=public.rc33_demo_submit_draft((w->>'id')::uuid,(w->>'revision')::integer);
- if not exists(select 1 from jsonb_array_elements(public.rc33_demo_cycle_detail('RC33 Sample Parish A',2031)->'batches') x where x->>'id'=bid::text and x->>'channel'='walk_in') then raise exception 'WALK_IN_NOT_SHARED';end if;
+ if not exists(select 1 from jsonb_array_elements(public.rc33_demo_cycle_detail('RC33 Sample Parish A',2027)->'batches') x where x->>'id'=bid::text and x->>'channel'='walk_in') then raise exception 'WALK_IN_NOT_SHARED';end if;
 end $$;

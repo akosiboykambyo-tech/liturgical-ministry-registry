@@ -50,7 +50,7 @@ export function StagingAuthShell({ children }: { children: React.ReactNode }) {
               <p className={ebGaramond.className + " text-[19px] leading-tight text-[#1E1114]"}>Liturgical Ministry Registry</p>
             </div>
             {children}
-            <p className="mt-7 text-center text-xs text-[#706167]">Fictional financial data only. No actual funds, receipts or production records.</p>
+            
           </div>
         </div>
       </section>
@@ -142,7 +142,7 @@ export function StagingPortalLogin() {
       <button onClick={() => void signOut()} className="mt-6 text-sm font-semibold text-[#0B5C5A] underline">Sign out / use another account</button>
     </> : <>
       <h1 className={ebGaramond.className + " text-[44px] font-medium leading-none text-[#1E1114] sm:text-[48px]"}>Sign in</h1>
-      <p className="mt-3 text-sm text-[#706167]">DEMONSTRATION ONLY — sign in with a designated TEST account.</p>
+      <p className="mt-3 text-sm text-[#706167]">Sign in with your designated TEST account.</p>
       {error && <div role="alert" className="mt-6 flex items-start gap-3 border border-[#B42330] bg-[#FFF0F0] px-4 py-3 text-sm leading-6 text-[#92202A]">
         <AlertCircle aria-hidden="true" className="mt-1 h-4 w-4 shrink-0" />{error}</div>}
       <form className="mt-8 space-y-5" onSubmit={signIn}>
@@ -174,7 +174,7 @@ export function StagingPortalLogin() {
           {submitting ? <><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin"/> Signing in…</> : "Sign in"}
         </button>
       </form>
-      {process.env.NEXT_PUBLIC_RENEWAL_DEMO==="enabled"&&<Link href="/demo/finance/parish" className="mt-5 block text-center text-sm font-semibold text-[#0B5C5A] underline underline-offset-4">Parish Portal — mobile sign-in rehearsal</Link>}
+      {process.env.NEXT_PUBLIC_RENEWAL_DEMO==="enabled"&&<Link href="/demo/finance/parish" className="mt-5 block text-center text-sm font-semibold text-[#0B5C5A] underline underline-offset-4">Parish Portal</Link>}
     </>}
   </StagingAuthShell>;
 }

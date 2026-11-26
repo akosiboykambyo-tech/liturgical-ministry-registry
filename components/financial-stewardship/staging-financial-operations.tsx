@@ -375,7 +375,7 @@ export default function StagingFinancialOperations({
           void act("fs_record_otc_payment", {
             p_payment_request_id: requestId, p_amount_centavos: amount,
             p_counted_at: new Date(cashDate).toISOString(), p_cash_physically_counted: true,
-          }, "Fictional OTC collection posted to the TEST ledger.");
+          }, "OTC collection posted.");
         }}>
           <div className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-[color:var(--registry-crimson)]"/><h3 className={ebGaramond.className + " text-[26px]"}>Record OTC payment</h3></div>
           <p className="mt-2 text-sm text-[color:var(--registry-muted)]">Find an approved renewal obligation by parish, ministry or reference, then record the amount received.</p>
@@ -393,7 +393,7 @@ export default function StagingFinancialOperations({
             <Input label="Date and time cash was counted" value={cashDate} onChange={setCashDate} type="datetime-local" />
             <label className="flex items-start gap-2 text-sm leading-6">
               <input type="checkbox" checked={cashChecked} onChange={e => setCashChecked(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]" />
-              <span>For this rehearsal, I confirm the fictional cash amount.</span>
+              <span>I confirm the cash amount.</span>
             </label>
           </div>
           {!requests.length && <p className="mt-3 text-xs text-[color:var(--registry-amber)]">No approved payment requests exist. Fee schedule and quote authorization are required before cash can be posted.</p>}
@@ -409,11 +409,11 @@ export default function StagingFinancialOperations({
             </div>)}
             {!displayedClaims.length && <p className="py-5 text-sm text-[color:var(--registry-muted)]">No submitted QR Ph payment claims.</p>}
           </div>
-          <form className="mt-4 space-y-3" onSubmit={e=>{e.preventDefault();if(!qrChecked||!chosenClaim||!chosenCredits.some(c=>c.id===qrCredit))return;void act("fs_verify_qr_payment",{p_claim_id:qrClaim,p_bank_credit_id:qrCredit},"Matching synthetic QR credit posted to the TEST ledger.");}}>
-            <p className="text-xs font-semibold text-[color:var(--registry-amber)]">Synthetic evidence only. Choose a matching credit or deliberately select the mismatched credit to demonstrate rejection.</p>
-            <label className="block text-sm">Fictional claim<select className={field} value={qrClaim} onChange={e=>{setQrClaim(e.target.value);setQrCredit("");setQrChecked(false)}} required><option value="">Select claim</option>{displayedClaims.map(c=><option key={c.id} value={c.id}>{c.submitted_external_reference} · {money(c.claimed_amount_centavos)}</option>)}</select></label>
-            <label className="block text-sm">Synthetic bank credit<select className={field} value={qrCredit} onChange={e=>{setQrCredit(e.target.value);setQrChecked(false)}} required><option value="">Select credit</option>{chosenCredits.map(c=><option key={c.id} value={c.id}>{c.bank_external_reference} · {money(c.amount_centavos)}</option>)}</select></label>
-            <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={qrChecked} onChange={e=>setQrChecked(e.target.checked)}/><span>I reviewed the fictional reference and amount. No actual bank evidence is represented.</span></label>
+          <form className="mt-4 space-y-3" onSubmit={e=>{e.preventDefault();if(!qrChecked||!chosenClaim||!chosenCredits.some(c=>c.id===qrCredit))return;void act("fs_verify_qr_payment",{p_claim_id:qrClaim,p_bank_credit_id:qrCredit},"Matching QR credit posted.");}}>
+            <p className="text-xs font-semibold text-[color:var(--registry-amber)]">Select the corresponding bank credit.</p>
+            <label className="block text-sm">Payment claim<select className={field} value={qrClaim} onChange={e=>{setQrClaim(e.target.value);setQrCredit("");setQrChecked(false)}} required><option value="">Select claim</option>{displayedClaims.map(c=><option key={c.id} value={c.id}>{c.submitted_external_reference} · {money(c.claimed_amount_centavos)}</option>)}</select></label>
+            <label className="block text-sm">Bank credit<select className={field} value={qrCredit} onChange={e=>{setQrCredit(e.target.value);setQrChecked(false)}} required><option value="">Select credit</option>{chosenCredits.map(c=><option key={c.id} value={c.id}>{c.bank_external_reference} · {money(c.amount_centavos)}</option>)}</select></label>
+            <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={qrChecked} onChange={e=>setQrChecked(e.target.checked)}/><span>I reviewed the reference and amount.</span></label>
             <button type="submit" className={primary} disabled={busy||loading||loadFailed||!qrChecked||!qrClaim||!qrCredit}>Verify simulated QR credit</button>
           </form>
         </div>}
@@ -453,7 +453,7 @@ export default function StagingFinancialOperations({
         <p className="mt-4 text-sm font-semibold">Written line total: {money(paperSum)} · Verified collection: {chosen?money(chosen.amount_centavos):"Select a collection"}</p>
         <label className="mt-4 flex items-start gap-2 text-sm">
           <input type="checkbox" checked={paperChecked} onChange={e=>setPaperChecked(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]" />
-          <span>For this simulation, I checked this specific Curia-preprinted paper receipt, its exact number, written names and all line items.</span>
+          <span>I checked this specific Curia-preprinted paper receipt, its exact number, written names and all line items.</span>
         </label>
         <button type="submit" className={primary + " mt-4"} disabled={busy || loading || loadFailed || !chosen || !receiptNumber || !paperChecked || paperSum<=0 || paperSum!==Number(chosen.amount_centavos)}>Record issued official receipt</button>
       </form>}
@@ -519,7 +519,7 @@ export default function StagingFinancialOperations({
         </div>
         <label className="mt-4 flex items-start gap-2 text-sm leading-6">
           <input type="checkbox" checked={copiesChecked} onChange={e=>setCopiesChecked(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]" />
-          <span>For this simulation, the duplicate-copy inspection record is available to Curia; COWL retains the physical duplicates.</span>
+          <span>The duplicate-copy inspection record is available to Curia; COWL retains the physical duplicates.</span>
         </label>
         <button type="submit" className={primary+" mt-4"} disabled={busy || !selection.length || !copiesChecked || (channel==="bank_transfer" && transferRef.trim().length<5)}>Submit COWL remittance</button>
       </form>}
@@ -554,7 +554,7 @@ export default function StagingFinancialOperations({
             </div>
             <label className="mt-3 flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1 accent-[color:var(--registry-crimson)]" checked={copyChecked} onChange={e=>setCopyChecked(e.target.checked)} />
-              <span>For this simulation, I examined the exact physical duplicate before marking it verified.</span>
+              <span>I examined the exact physical duplicate before marking it verified.</span>
             </label>
           </div>
           {!curiaFund && selectedRemittance.fund_transfer_channel==="cash_handover" && <form className="border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4" onSubmit={e=>{
@@ -573,7 +573,7 @@ export default function StagingFinancialOperations({
             </div>
             <label className="mt-3 flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1 accent-[color:var(--registry-crimson)]" checked={curiaCashCounted} onChange={e=>setCuriaCashCounted(e.target.checked)} />
-              <span>For this simulation, I received and counted the physical cash at Curia.</span>
+              <span>I received and counted the physical cash at Curia.</span>
             </label>
             <button type="submit" disabled={busy || !curiaCashCounted || centavos(curiaAmount)===null} className={primary+" mt-3"}>Record independently received cash</button>
           </form>}

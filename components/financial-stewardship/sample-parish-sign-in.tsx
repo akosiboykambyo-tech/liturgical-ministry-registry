@@ -17,5 +17,5 @@ export default function SampleParishSignIn({onVerified,records=sampleCoordinator
  {error&&<p role="alert" className="text-sm text-[#92202A]">{error}</p>}
  <button className={button} type="submit" disabled={challenge?code.length!==6:!phone.trim()}>{challenge?"Verify and sign in":"Send verification code"}<ArrowRight className="h-4 w-4"/></button>
  {challenge&&<button className="text-sm font-semibold underline" type="button" onClick={()=>{setChallenge(false);setIssuedTo("");setCode("");setError("")}}>Change mobile number</button>}
- </form><div className="mt-6 border-t pt-4 text-xs leading-5 text-[#706167]"><p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4"/>TEST-only sign-in rehearsal</p><p className="mt-1">Use fictional numbers 09000000021 or 09000000031. The system matches the sample coordinator automatically. Do not enter an actual contact number.</p></div></>;
+ </form><div className="mt-6 border-t pt-4 text-xs leading-5 text-[#706167]"><p>Sample mobile numbers: 09000000021 or 09000000031.</p></div></>;
 }

@@ -320,7 +320,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
               ? "Track registered receipt series, physical booklet custody, and individual printed serials."
               : section === "collections"
                 ? "Verify QR Ph and OTC collections, and record official receipt issuance."
-                : section === "reports" ? "Reconcile fictional collections, receipts and remittances." : section === "receipt-management" ? "Prepare a watermarked paper overlay, review the register and calibrate a draft." : "Reconcile recorded remittances and Curia treasury acknowledgment."}
+                : section === "reports" ? "Reconcile collections, receipts and remittances." : section === "receipt-management" ? "Prepare a watermarked paper overlay, review the register and calibrate a draft." : "Reconcile recorded remittances and Curia treasury acknowledgment."}
           </p>
         </div>
         {section === "custody" && (
@@ -343,12 +343,12 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           <p className={ebGaramond.className + " finance-metric-value"}>{count}</p>
         </div>)}
       </div>
-      {mode === "curia" && <section className={card}><h2 className="font-semibold">Start a fresh rehearsal</h2><p className="mt-2 text-sm text-[color:var(--registry-muted)]">Creates a new fictional 50-form booklet (10 previously issued, 2 previously voided, 38 unused) and a ₱500 unpaid quote. Earlier rehearsals remain in the audit history; no records are deleted.</p><button type="button" disabled={working} className={solid+" mt-4"} onClick={()=>void operate("fs_demo_new_rehearsal",{},"New rehearsal created. Select the new booklet and assign it to COWL.")}>Create OTC rehearsal</button> <button type="button" disabled={working} className={outline+" mt-4"} onClick={()=>void operate("fs_demo_create_qr_rehearsal",{},"QR rehearsal created. Assign its booklet to COWL; matching and mismatched synthetic credits are available in Collections.")}>Create QR rehearsal</button><p className="mt-3 text-xs text-[color:var(--registry-muted)]">QR rehearsal includes synthetic claim and bank-credit metadata, not a real account, payment QR or uploaded evidence file.</p></section>}
+      {mode === "curia" && <section className={card}><h2 className="font-semibold">Start a fresh rehearsal</h2><p className="mt-2 text-sm text-[color:var(--registry-muted)]">Creates a new fictional 50-form booklet (10 previously issued, 2 previously voided, 38 unused) and a ₱500 unpaid quote. Earlier rehearsals remain in the audit history; no records are deleted.</p><button type="button" disabled={working} className={solid+" mt-4"} onClick={()=>void operate("fs_demo_new_rehearsal",{},"New rehearsal created. Select the new booklet and assign it to COWL.")}>Create OTC rehearsal</button> <button type="button" disabled={working} className={outline+" mt-4"} onClick={()=>void operate("fs_demo_create_qr_rehearsal",{},"QR rehearsal created. Assign its booklet to COWL; matching and mismatched synthetic credits are available in Collections.")}>Create QR rehearsal</button></section>}
       {mode === "curia" && <div className="grid gap-5 xl:grid-cols-2">
         <form className={card} onSubmit={e => { e.preventDefault(); void operate("fs_curia_register_receipt_series",
           { p_issuing_entity: issuer, p_series_code: seriesCode }, "Curia series registered in the isolated test database."); }}>
           <div className="flex items-center gap-2"><Landmark className="h-5 w-5 text-[color:var(--registry-crimson)]" /><h2 className={ebGaramond.className + " text-[27px]"}>Register receipt series</h2></div>
-          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Use a fictional issuing entity and a DEMO-prefixed series.</p>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Use a DEMO-prefixed series.</p>
           <div className="mt-4 grid gap-3">
             <Field label="Curia issuing entity (as authorized)" value={issuer} setValue={setIssuer} placeholder="Enter issuing entity" />
             <Field label="Printed series identifier" value={seriesCode} setValue={setSeriesCode} placeholder="DEMO-SERIES-01" />
@@ -360,7 +360,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
             p_last_no: lastNo.trim(), p_issued:serialList(priorIssued),p_voided:serialList(priorVoided),p_missing:serialList(priorMissing),p_checked: checkedRegister },
           "Preprinted booklet recorded in the shared test database, currently held by Curia."); }}>
           <h2 className={ebGaramond.className + " text-[27px]"}>Register new or partially used demo booklet</h2>
-          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">Use fictional serials only. List each previously issued, voided or missing number, separated by commas or spaces. Leave all three fields blank for new stock. Unlisted forms remain available; earlier use does not create revenue.</p>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--registry-muted)]">List each previously issued, voided or missing number, separated by commas or spaces. Leave all three fields blank for new stock. Unlisted forms remain available; earlier use does not create revenue.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block sm:col-span-2"><span className="mb-1.5 block text-xs font-semibold text-[color:var(--registry-muted)]">Registered Curia series</span>
               <select className={control} required value={seriesId} onChange={e => setSeriesId(e.target.value)}>
@@ -375,7 +375,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
             <Field label="Missing serials" value={priorMissing} setValue={setPriorMissing} required={false} placeholder="000309"/>
           </div>
           <label className="mt-4 flex items-start gap-2 text-sm leading-6"><input type="checkbox" checked={checkedRegister} onChange={e => setCheckedRegister(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]"/>
-            <span>For this simulation, I checked this booklet's exact printed range and count.</span></label>
+            <span>I checked this booklet's exact printed range and count.</span></label>
           <button type="submit" disabled={working || !checkedRegister || !seriesId} className={solid + " mt-4"}>Register checked booklet</button>
         </form>
       </div>}
@@ -421,7 +421,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
             </select></label>
           {custodians.length===0 && <p className="mt-2 text-xs leading-5 text-[color:var(--registry-amber)]">No authorized COWL receipt custodians are provisioned in the test project yet.</p>}
           <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={checkedHandover} onChange={e=>setCheckedHandover(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]"/>
-            <span>For this simulation, I handed over the fictional booklet and verified the receiving officer.</span></label>
+            <span>I handed over the booklet and verified the receiving officer.</span></label>
           <button className={solid + " mt-3"} type="submit" disabled={working || !assignee || !checkedHandover}>Record Curia handover</button>
         </form>}
         {mode === "cowl" && selected.custody_state === "awaiting_cowl_ack" && <form className="mt-5 border border-[color:var(--registry-hairline)] bg-[color:var(--registry-page)] p-4" onSubmit={e => {
@@ -432,7 +432,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
           <p className="mt-2 text-sm text-[color:var(--registry-muted)]">Only the actual officer designated by Curia can acknowledge this physical booklet.</p>
           <label className="mt-3 flex items-start gap-2 text-sm leading-6">
             <input type="checkbox" checked={checkedAck} onChange={e=>setCheckedAck(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]"/>
-            <span>For this simulation, I counted and checked the printed receipt numbers <strong>{selected.first_printed_no}–{selected.last_printed_no}</strong>.</span>
+            <span>I counted and checked the printed receipt numbers <strong>{selected.first_printed_no}–{selected.last_printed_no}</strong>.</span>
           </label>
           <button type="submit" disabled={working || !checkedAck || selected.assigned_to!==user.id} className={solid + " mt-3"}><CheckCircle2 className="h-4 w-4" /> Acknowledge custody</button>
           {selected.assigned_to!==user.id && <p className="mt-3 text-xs text-[color:var(--registry-amber)]">This booklet is assigned to another custodian. Your account cannot acknowledge it.</p>}
@@ -459,7 +459,7 @@ export default function StagingReceiptCustody({ mode }: { mode: Mode }) {
               className="min-h-24 w-full border border-[color:var(--finance-control-border)] p-3 text-sm outline-none focus:border-[color:var(--registry-button)]" />
           </label>
           <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={checkedException} onChange={e=>setCheckedException(e.target.checked)} className="mt-1 accent-[color:var(--registry-crimson)]"/>
-            <span>For this simulation, I inspected the fictional receipt exception.</span></label>
+            <span>I inspected the receipt exception.</span></label>
           <button type="submit" disabled={working || !checkedException || !exceptionSerialId || exceptionReason.trim().length<10} className={outline + " mt-3"}>Record physical exception</button>
         </form>}
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
