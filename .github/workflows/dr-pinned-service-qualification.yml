@@ -1,0 +1,157 @@
+name: DR pinned service qualification (synthetic only)
+on:
+  push:
+    branches: [qa/dr-service-qualification-20261127]
+permissions:
+  contents: read
+jobs:
+  isolated-api-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Start exact recovery images in a disconnected network namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name cowl_dr_db --network none \
+            --tmpfs /var/lib/postgresql/data:rw,size=2g \
+            -e POSTGRES_PASSWORD=postgres supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
+          for i in $(seq 1 90); do
+            if docker exec cowl_dr_db pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker exec cowl_dr_db pg_isready -h 127.0.0.1 -U postgres
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_dr_db)" = none
+          test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_dr_db)" = '{}'
+          docker exec -i cowl_dr_db psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
+          ALTER ROLE authenticator WITH PASSWORD 'postgres';
+          CREATE TABLE public.dr_fixture (id integer PRIMARY KEY, label text NOT NULL);
+          INSERT INTO public.dr_fixture VALUES (1,'synthetic-only');
+          ALTER TABLE public.dr_fixture ENABLE ROW LEVEL SECURITY;
+          GRANT USAGE ON SCHEMA public TO anon, authenticated;
+          GRANT SELECT ON public.dr_fixture TO anon, authenticated;
+          CREATE POLICY dr_fixture_read ON public.dr_fixture FOR SELECT TO authenticated
+            USING ((SELECT auth.jwt()->>'email') = 'dr-admin@example.invalid');
+          SQL
+          # These are deliberately non-secret, disposable test-only credentials.
+          export JWT_SECRET='synthetic-only-dr-qualification-not-a-production-key-20261127'
+          node - <<'JS' >> "$GITHUB_ENV"
+          const c=require('crypto');
+          const enc=v=>Buffer.from(JSON.stringify(v)).toString('base64url');
+          const make=role=>{
+            const part=enc({alg:'HS256',typ:'JWT'})+'.'+enc({role,iss:'supabase',iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+3600});
+            return part+'.'+c.createHmac('sha256',process.env.JWT_SECRET).update(part).digest('base64url');
+          };
+          console.log('DR_JWT='+process.env.JWT_SECRET);
+          console.log('DR_ANON='+make('anon'));
+          console.log('DR_SERVICE='+make('service_role'));
+          JS
+      - name: Start Auth, PostgREST and Storage with no external connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network container:cowl_dr_db \
+            -e GOTRUE_DB_DRIVER=postgres \
+            -e GOTRUE_DB_DATABASE_URL='postgres://supabase_auth_admin:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
+            -e GOTRUE_JWT_SECRET="$DR_JWT" \
+            -e GOTRUE_SITE_URL=http://localhost:9999 -e API_EXTERNAL_URL=http://localhost:9999 \
+            -e GOTRUE_API_HOST=127.0.0.1 supabase/gotrue:v2.198.0 gotrue migrate >/dev/null 2>&1
+          docker run -d --name cowl_dr_auth --network container:cowl_dr_db \
+            -e GOTRUE_API_HOST=127.0.0.1 -e GOTRUE_API_PORT=9999 \
+            -e GOTRUE_DB_DRIVER=postgres \
+            -e GOTRUE_DB_DATABASE_URL='postgres://supabase_auth_admin:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
+            -e GOTRUE_SITE_URL=http://localhost:9999 -e API_EXTERNAL_URL=http://localhost:9999 \
+            -e GOTRUE_JWT_SECRET="$DR_JWT" -e GOTRUE_JWT_ADMIN_ROLES=service_role \
+            -e GOTRUE_JWT_AUD=authenticated -e GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated \
+            -e GOTRUE_EXTERNAL_EMAIL_ENABLED=true -e GOTRUE_MAILER_AUTOCONFIRM=true \
+            -e GOTRUE_DISABLE_SIGNUP=true -e GOTRUE_SMTP_HOST=127.0.0.1 \
+            supabase/gotrue:v2.198.0
+          docker run -d --name cowl_dr_rest --network container:cowl_dr_db \
+            -e PGRST_DB_URI='postgres://authenticator:postgres@127.0.0.1:5432/postgres' \
+            -e PGRST_DB_SCHEMAS=public -e PGRST_DB_ANON_ROLE=anon \
+            -e PGRST_JWT_SECRET="$DR_JWT" -e PGRST_SERVER_HOST=127.0.0.1 -e PGRST_SERVER_PORT=3000 \
+            public.ecr.aws/supabase/postgrest:v16.5
+          docker run -d --name cowl_dr_storage --network container:cowl_dr_db \
+            --tmpfs /var/lib/storage:rw,size=128m \
+            -e ANON_KEY="$DR_ANON" -e SERVICE_KEY="$DR_SERVICE" -e AUTH_JWT_SECRET="$DR_JWT" \
+            -e DATABASE_URL='postgres://supabase_storage_admin:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
+            -e POSTGREST_URL=http://127.0.0.1:3000 -e STORAGE_PUBLIC_URL=http://127.0.0.1:5000 \
+            -e FILE_SIZE_LIMIT=52428800 -e STORAGE_BACKEND=file \
+            -e FILE_STORAGE_BACKEND_PATH=/var/lib/storage -e GLOBAL_S3_BUCKET=synthetic-only \
+            -e TENANT_ID=synthetic-only -e REGION=local -e ENABLE_IMAGE_TRANSFORMATION=false \
+            ghcr.io/supabase/storage-api:v1.98.5
+          for i in $(seq 1 50); do
+            ready=$(docker exec cowl_dr_db psql -X -At -U postgres -d postgres -c "SELECT count(*) FROM information_schema.columns WHERE table_schema='storage' AND table_name='objects' AND column_name='is_versioned'")
+            if test "$ready" = 1; then break; fi
+            sleep 2
+          done
+          test "$ready" = 1
+          docker exec -i cowl_dr_db psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
+          CREATE POLICY dr_private_read ON storage.objects FOR SELECT TO authenticated
+            USING (bucket_id='dr-private' AND (SELECT auth.jwt()->>'email')='dr-admin@example.invalid');
+          SQL
+          for name in cowl_dr_auth cowl_dr_rest cowl_dr_storage; do
+            test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$name" | cut -d: -f1)" = container
+            test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$name")" = '{}'
+          done
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_dr_db)" = none
+      - name: Verify signed sessions, database RLS and private Storage bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i -e DR_SERVICE="$DR_SERVICE" -e DR_ANON="$DR_ANON" cowl_dr_storage node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          const auth='http://127.0.0.1:9999', rest='http://127.0.0.1:3000', storage='http://127.0.0.1:5000';
+          const service=process.env.DR_SERVICE, anon=process.env.DR_ANON;
+          const pause=ms=>new Promise(r=>setTimeout(r,ms));
+          const hdr=(token,type='application/json')=>({Authorization:'Bearer '+token,apikey:token,'Content-Type':type});
+          async function ready(url,token){
+            for(let i=0;i<60;i++){
+              try { const r=await fetch(url,{headers:hdr(token),signal:AbortSignal.timeout(3000)}); if(r.ok)return; }catch{}
+              await pause(1000);
+            }
+            throw Error('Service readiness failed: '+url);
+          }
+          async function req(url,token,method='GET',body,type='application/json'){
+            return fetch(url,{method,headers:hdr(token,type),body:body===undefined?undefined:(type==='application/json'?JSON.stringify(body):body),signal:AbortSignal.timeout(15000)});
+          }
+          async function ok(r,label){assert.ok(r.ok,label+' HTTP '+r.status);return r;}
+          await ready(auth+'/health',anon);
+          await ready(rest+'/dr_fixture?select=id',anon);
+          await ready(storage+'/bucket',service);
+          const pw='Synthetic-only-DR-20261127!';
+          async function user(email){
+            await ok(await req(auth+'/admin/users',service,'POST',{email,password:pw,email_confirm:true}),'Create synthetic user');
+            const r=await ok(await req(auth+'/token?grant_type=password',anon,'POST',{email,password:pw}),'Password login');
+            const data=await r.json();assert.ok(data.access_token&&data.refresh_token,'Missing token');
+            return data;
+          }
+          const admin=await user('dr-admin@example.invalid'), outsider=await user('dr-outsider@example.invalid');
+          const refreshed=await ok(await req(auth+'/token?grant_type=refresh_token',anon,'POST',{refresh_token:admin.refresh_token}),'Refresh');
+          const token=(await refreshed.json()).access_token;assert.ok(token);
+          const rows=async t=>await (await ok(await req(rest+'/dr_fixture?select=id,label',t),'RLS query')).json();
+          assert.deepEqual(await rows(token),[{id:1,label:'synthetic-only'}]);
+          assert.deepEqual(await rows(outsider.access_token),[]);
+          assert.deepEqual(await rows(anon),[]);
+          await ok(await req(storage+'/bucket',service,'POST',{id:'dr-private',name:'dr-private',public:false}),'Create private bucket');
+          const bytes=Buffer.from('synthetic DR fixture only');
+          const path='/object/dr-private/fixture.bin';
+          await ok(await req(storage+path,service,'POST',bytes,'application/octet-stream'),'Upload private fixture');
+          const download=storage+'/object/authenticated/dr-private/fixture.bin';
+          const result=await ok(await req(download,token),'Authorized download');
+          const hash=x=>createHash('sha256').update(x).digest('hex');
+          assert.equal(hash(Buffer.from(await result.arrayBuffer())),hash(bytes));
+          for(const t of [anon,outsider.access_token]){
+            const denied=await req(download,t);assert.ok([400,401,403,404].includes(denied.status),'Unauthorized download not denied');
+          }
+          const publicRead=await fetch(storage+'/object/public/dr-private/fixture.bin',{signal:AbortSignal.timeout(15000)});
+          assert.ok([400,401,403,404].includes(publicRead.status),'Public download not denied');
+          console.log('PASS: exact-image Auth sign-in and refresh; real PostgREST JWT/RLS; private Storage checksum and signed/anonymous denial.');
+          console.log('Scope: synthetic fixtures only. No archive restore, Kong, application, production credentials or live service tests.');
+          JS
+      - name: Destroy only this synthetic environment
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f cowl_dr_storage cowl_dr_rest cowl_dr_auth cowl_dr_db >/dev/null 2>&1 || true
