@@ -240,9 +240,9 @@ jobs:
             throw Error('Service readiness failed: '+url);
           }
           async function req(url,token,method='GET',body,type='application/json'){
-            return fetch(url,{method,headers:hdr(token,type),body:body===undefined?undefined:(type==='application/json'?JSON.stringify(body):body),signal:AbortSignal.timeout(15000)});
+            return fetch(url,{method,headers:body===undefined?{Authorization:'Bearer '+token,apikey:token===service?service:anon}:hdr(token,type),body:body===undefined?undefined:(type==='application/json'?JSON.stringify(body):body),signal:AbortSignal.timeout(15000)});
           }
-          async function ok(r,label){assert.ok(r.ok,label+' HTTP '+r.status);return r;}
+          async function ok(r,label){if(!r.ok){const body=await r.text();throw Error(label+' HTTP '+r.status+' synthetic response: '+body.slice(0,600));}return r;}
           await ready(auth+'/health',anon);
           await ready(rest+'/dr_fixture?select=id',anon);
           await ready(storage+'/bucket',service);
@@ -261,13 +261,14 @@ jobs:
           assert.deepEqual(await rows(token),[{id:1,label:'synthetic-only'}]);
           assert.deepEqual(await rows(outsider.access_token),[]);
           assert.deepEqual(await rows(anon),[]);
+          console.log('PASS: gateway key checks, real Auth sign-in and refresh, PostgREST signed/anonymous fixture access');
           await ok(await req(storage+'/bucket',service,'POST',{id:'dr-private',name:'dr-private',public:false}),'Create private bucket');
           const bytes=Buffer.from('synthetic DR fixture only');
           const path='/object/dr-private/fixture.bin';
           await ok(await req(storage+path,service,'POST',bytes,'application/octet-stream'),'Upload private fixture');
           const download=storage+'/object/authenticated/dr-private/fixture.bin';
           // Delete and re-upload the synthetic object through the real API.
-          await ok(await req(storage+path,service,'DELETE'),'Delete synthetic object');
+          await ok(await req(storage+'/object/dr-private',service,'DELETE',{prefixes:['fixture.bin']}),'Delete synthetic object via Storage remove API');
           const gone=await req(download,token);
           assert.ok([400,404].includes(gone.status),'Deleted object unexpectedly available');
           await ok(await req(storage+path,service,'POST',bytes,'application/octet-stream'),'Restore synthetic object');
@@ -297,7 +298,7 @@ jobs:
           for(const email of ['dr-admin@example.invalid','dr-outsider@example.invalid']){
             const r=await login(email);assert.ok(r.ok,'Pre-delete login failed');
             const uid=(await r.json()).user.id;assert.match(uid,/^[0-9a-f-]{36}$/i);
-            const d=await fetch(base+'/admin/users/'+uid,{method:'DELETE',headers:hdr(s),signal:AbortSignal.timeout(15000)});
+            const d=await fetch(base+'/admin/users/'+uid,{method:'DELETE',headers:{apikey:s,Authorization:'Bearer '+s},signal:AbortSignal.timeout(15000)});
             assert.ok(d.ok,'Synthetic Auth delete failed HTTP '+d.status);
             const denied=await login(email);assert.ok(!denied.ok,'Deleted account could still log in');
           }
@@ -355,6 +356,16 @@ jobs:
           console.log('PASS: actual PR #93 build/start and sign-in route using restored synthetic Auth identities, pinned gateway and role-aware fixture RLS.');
           console.log('LIMITATION: synthetic admission RPC adapters, not the archived Production lockout/role schema; no real archive, full browser workflows or Production sign-off.');
           JS
+      - name: Diagnostics for failed synthetic services only
+        if: failure()
+        shell: bash
+        run: |
+          for c in cowl_dr_auth cowl_dr_rest cowl_dr_storage cowl_dr_kong cowl_dr_app; do
+            if docker inspect "$c" >/dev/null 2>&1; then
+              echo "=== $c synthetic diagnostics ==="
+              docker logs --tail 35 "$c" 2>&1 | sed -E 's/(eyJ)[A-Za-z0-9_.-]+/[REDACTED]/g' || true
+            fi
+          done
       - name: Destroy only this synthetic environment
         if: always()
         shell: bash
