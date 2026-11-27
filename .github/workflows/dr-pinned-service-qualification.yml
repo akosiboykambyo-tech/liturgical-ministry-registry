@@ -12,6 +12,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          ref: 09f65a72993c7d59c421f03e9b6ba01759c65f58
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
@@ -33,6 +34,13 @@ jobs:
           docker exec cowl_dr_db pg_isready -h 127.0.0.1 -U postgres
           test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_dr_db)" = none
           test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_dr_db)" = '{}'
+          docker run --rm --network container:cowl_dr_db \
+            -e GOTRUE_DB_DRIVER=postgres \
+            -e GOTRUE_DB_DATABASE_URL='postgres://supabase_auth_admin:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
+            -e GOTRUE_JWT_SECRET="synthetic-only-dr-qualification-not-a-production-key-20261127" \
+            -e GOTRUE_SITE_URL=http://localhost:9999 -e API_EXTERNAL_URL=http://localhost:9999 \
+            -e GOTRUE_API_HOST=127.0.0.1 supabase/gotrue:v2.198.0 gotrue migrate
+          docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT to_regprocedure('auth.jwt()') IS NOT NULL" | grep -qx t
           # Reserved roles must be configured by the image's local superuser.
           # This is a newly created disposable database, never a hosted project.
           docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT rolsuper FROM pg_roles WHERE rolname=current_user" | grep -qx t
@@ -70,16 +78,55 @@ jobs:
           console.log('DR_ANON='+make('anon'));
           console.log('DR_SERVICE='+make('service_role'));
           JS
+      - name: Rehearse exact audit-policy candidate and rollback on synthetic fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No archived policy values or real users. Use the exact candidate from PR #93.
+          test "$(git rev-parse HEAD)" = 09f65a72993c7d59c421f03e9b6ba01759c65f58
+          docker exec -i cowl_dr_db psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres <<'SQL'
+          CREATE TABLE public.audit_logs(id integer PRIMARY KEY, label text);
+          INSERT INTO public.audit_logs VALUES (1,'synthetic history');
+          ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+          GRANT SELECT, INSERT, UPDATE, DELETE ON public.audit_logs TO authenticated;
+          CREATE FUNCTION public.registration_is_admin() RETURNS boolean LANGUAGE sql STABLE
+            AS $$ SELECT coalesce((SELECT auth.jwt()->>'email') = 'dr-admin@example.invalid',false) $$;
+          CREATE POLICY "Allow admin log management" ON public.audit_logs FOR ALL TO authenticated
+            USING ((SELECT auth.jwt()->>'email')='dr-admin@example.invalid')
+            WITH CHECK ((SELECT auth.jwt()->>'email')='dr-admin@example.invalid');
+          CREATE POLICY "admin_full_access_audit_logs" ON public.audit_logs FOR ALL TO authenticated
+            USING ((SELECT auth.jwt()->>'email')='dr-admin@example.invalid')
+            WITH CHECK ((SELECT auth.jwt()->>'email')='dr-admin@example.invalid');
+          SQL
+          # Save the original policy definitions and direct grant options in RAM.
+          # No real policy text or audit rows are exported.
+          docker exec cowl_dr_db sh -c 'umask 077; pg_dump -U supabase_admin -d postgres --schema-only --table=public.audit_logs > /restore-input/audit-baseline.sql'
+          before=$(docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT md5(string_agg(jsonb_build_array(policyname,permissive,roles,cmd,qual,with_check)::text,E'\\n' ORDER BY policyname)) FROM pg_policies WHERE schemaname='public' AND tablename='audit_logs'")
+          docker exec -i cowl_dr_db sh -c 'umask 077; cat > /restore-input/audit-candidate.sql' < docs/sql/rc1-audit-log-allowlist-hardening.REVIEW-ONLY.sql
+          docker exec cowl_dr_db psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /restore-input/audit-candidate.sql
+          docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT (NOT has_table_privilege('authenticated','public.audit_logs','UPDATE')) AND (NOT has_table_privilege('authenticated','public.audit_logs','DELETE')) AND (SELECT count(*) FROM public.audit_logs)=1" | grep -qx t
+          # Reverse only the changed policies/grants. No table drop or data replay.
+          docker exec -i cowl_dr_db psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres <<'SQL'
+          BEGIN;
+          DROP POLICY rc1_registry_admin_audit_select ON public.audit_logs;
+          DROP POLICY rc1_registry_admin_audit_insert ON public.audit_logs;
+          CREATE POLICY "Allow admin log management" ON public.audit_logs FOR ALL TO authenticated
+            USING ((SELECT auth.jwt()->>'email')='dr-admin@example.invalid')
+            WITH CHECK ((SELECT auth.jwt()->>'email')='dr-admin@example.invalid');
+          CREATE POLICY "admin_full_access_audit_logs" ON public.audit_logs FOR ALL TO authenticated
+            USING ((SELECT auth.jwt()->>'email')='dr-admin@example.invalid')
+            WITH CHECK ((SELECT auth.jwt()->>'email')='dr-admin@example.invalid');
+          GRANT UPDATE, DELETE ON public.audit_logs TO authenticated;
+          COMMIT;
+          SQL
+          after=$(docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT md5(string_agg(jsonb_build_array(policyname,permissive,roles,cmd,qual,with_check)::text,E'\\n' ORDER BY policyname)) FROM pg_policies WHERE schemaname='public' AND tablename='audit_logs'")
+          test "$before" = "$after"
+          docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT has_table_privilege('authenticated','public.audit_logs','UPDATE') AND has_table_privilege('authenticated','public.audit_logs','DELETE') AND (SELECT count(*) FROM public.audit_logs WHERE id=1 AND label='synthetic history')=1" | grep -qx t
+          echo 'PASS: exact audit candidate applied and reversed on synthetic fixture; policy fingerprint and original history preserved. Real archived policies/grants and triggers remain separate.'
       - name: Start Auth, PostgREST, Storage and Kong with no external connectivity
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm --network container:cowl_dr_db \
-            -e GOTRUE_DB_DRIVER=postgres \
-            -e GOTRUE_DB_DATABASE_URL='postgres://supabase_auth_admin:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
-            -e GOTRUE_JWT_SECRET="$DR_JWT" \
-            -e GOTRUE_SITE_URL=http://localhost:9999 -e API_EXTERNAL_URL=http://localhost:9999 \
-            -e GOTRUE_API_HOST=127.0.0.1 supabase/gotrue:v2.198.0 gotrue migrate >/dev/null 2>&1
           docker run -d --name cowl_dr_auth --network container:cowl_dr_db \
             -e GOTRUE_API_HOST=127.0.0.1 -e GOTRUE_API_PORT=9999 \
             -e GOTRUE_DB_DRIVER=postgres \
@@ -305,7 +352,7 @@ jobs:
             assert.ok(q.ok,'Post-recovery application token rejected');
             assert.deepEqual(await q.json(),want);
           }
-          console.log('PASS: actual RC1 build/start and sign-in route using restored synthetic Auth identities, pinned gateway and role-aware fixture RLS.');
+          console.log('PASS: actual PR #93 build/start and sign-in route using restored synthetic Auth identities, pinned gateway and role-aware fixture RLS.');
           console.log('LIMITATION: synthetic admission RPC adapters, not the archived Production lockout/role schema; no real archive, full browser workflows or Production sign-off.');
           JS
       - name: Destroy only this synthetic environment
