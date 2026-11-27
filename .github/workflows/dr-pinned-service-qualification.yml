@@ -306,7 +306,7 @@ jobs:
           docker exec cowl_dr_db psql -X --single-transaction -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /restore-input/users.sql -f /restore-input/identities.sql >/dev/null
           docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT count(*) FROM auth.users WHERE email IN ('dr-admin@example.invalid','dr-outsider@example.invalid')" | grep -qx 2
           docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT count(*) FROM auth.identities i JOIN auth.users u ON u.id=i.user_id WHERE u.email IN ('dr-admin@example.invalid','dr-outsider@example.invalid')" | grep -qx 2
-      - name: Build actual RC1 source and start application inside the disconnected namespace
+      - name: Build source without real credentials; run application inside disconnected namespace
         shell: bash
         run: |
           set -euo pipefail
@@ -323,7 +323,12 @@ jobs:
             -e NEXT_PUBLIC_SUPABASE_URL -e NEXT_PUBLIC_SUPABASE_ANON_KEY
             -e SUPABASE_SERVICE_ROLE_KEY -e ADMIN_LOCKOUT_HMAC_SECRET
             -e RESEND_API_KEY -e NEXT_TELEMETRY_DISABLED)
-          docker run --rm --name cowl_dr_build "${app_args[@]}" node:22-bookworm-slim npm run build
+          # Build is a separate source-only phase: Next/font must fetch public fonts.
+          # Never attach the build process to the restored DB namespace or provide real credentials.
+          env -i PATH="$PATH" HOME="$HOME" CI=true NEXT_TELEMETRY_DISABLED=1 \
+            NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" NEXT_PUBLIC_SUPABASE_ANON_KEY="$DR_ANON" \
+            SUPABASE_SERVICE_ROLE_KEY="$DR_SERVICE" ADMIN_LOCKOUT_HMAC_SECRET="$ADMIN_LOCKOUT_HMAC_SECRET" \
+            RESEND_API_KEY=DISABLED_NO_REMOTE_MAIL npm run build
           docker run -d --name cowl_dr_app "${app_args[@]}" node:22-bookworm-slim \
             node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3499
           test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_dr_app | cut -d: -f1)" = container
