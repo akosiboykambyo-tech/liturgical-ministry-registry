@@ -7,14 +7,24 @@ permissions:
 jobs:
   isolated-api-smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked application dependencies without remote credentials
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Start exact recovery images in a disconnected network namespace
         shell: bash
         run: |
           set -euo pipefail
           docker run -d --name cowl_dr_db --network none \
             --tmpfs /var/lib/postgresql/data:rw,size=2g \
+            --tmpfs /restore-input:rw,size=128m \
             -e POSTGRES_PASSWORD=postgres supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
           for i in $(seq 1 90); do
             if docker exec cowl_dr_db pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then break; fi
@@ -23,7 +33,10 @@ jobs:
           docker exec cowl_dr_db pg_isready -h 127.0.0.1 -U postgres
           test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_dr_db)" = none
           test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_dr_db)" = '{}'
-          docker exec -i cowl_dr_db psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
+          # Reserved roles must be configured by the image's local superuser.
+          # This is a newly created disposable database, never a hosted project.
+          docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT rolsuper FROM pg_roles WHERE rolname=current_user" | grep -qx t
+          docker exec -i cowl_dr_db psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres <<'SQL'
           ALTER ROLE authenticator WITH PASSWORD 'postgres';
           CREATE TABLE public.dr_fixture (id integer PRIMARY KEY, label text NOT NULL);
           INSERT INTO public.dr_fixture VALUES (1,'synthetic-only');
@@ -32,7 +45,18 @@ jobs:
           GRANT SELECT ON public.dr_fixture TO anon, authenticated;
           CREATE POLICY dr_fixture_read ON public.dr_fixture FOR SELECT TO authenticated
             USING ((SELECT auth.jwt()->>'email') = 'dr-admin@example.invalid');
+          -- Minimal synthetic admission adapters for the application smoke only.
+          -- These are NOT the Production rate-limit functions.
+          CREATE FUNCTION public.admin_login_begin(p_identifier text,p_token uuid)
+          RETURNS jsonb LANGUAGE sql AS $$ SELECT jsonb_build_object('allowed',true) $$;
+          CREATE FUNCTION public.admin_login_finish(p_identifier text,p_token uuid,p_success boolean)
+          RETURNS jsonb LANGUAGE sql AS $$ SELECT jsonb_build_object('locked',false) $$;
+          REVOKE ALL ON FUNCTION public.admin_login_begin(text,uuid) FROM PUBLIC,anon,authenticated;
+          REVOKE ALL ON FUNCTION public.admin_login_finish(text,uuid,boolean) FROM PUBLIC,anon,authenticated;
+          GRANT EXECUTE ON FUNCTION public.admin_login_begin(text,uuid) TO service_role;
+          GRANT EXECUTE ON FUNCTION public.admin_login_finish(text,uuid,boolean) TO service_role;
           SQL
+          docker exec -e PGPASSWORD=postgres cowl_dr_db psql -X -h 127.0.0.1 -U authenticator -d postgres -At -c 'SELECT 1' | grep -qx 1
           # These are deliberately non-secret, disposable test-only credentials.
           export JWT_SECRET='synthetic-only-dr-qualification-not-a-production-key-20261127'
           node - <<'JS' >> "$GITHUB_ENV"
@@ -46,7 +70,7 @@ jobs:
           console.log('DR_ANON='+make('anon'));
           console.log('DR_SERVICE='+make('service_role'));
           JS
-      - name: Start Auth, PostgREST and Storage with no external connectivity
+      - name: Start Auth, PostgREST, Storage and Kong with no external connectivity
         shell: bash
         run: |
           set -euo pipefail
@@ -86,11 +110,65 @@ jobs:
             sleep 2
           done
           test "$ready" = 1
-          docker exec -i cowl_dr_db psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
+          docker exec -i cowl_dr_db psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres <<'SQL'
           CREATE POLICY dr_private_read ON storage.objects FOR SELECT TO authenticated
             USING (bucket_id='dr-private' AND (SELECT auth.jwt()->>'email')='dr-admin@example.invalid');
           SQL
-          for name in cowl_dr_auth cowl_dr_rest cowl_dr_storage; do
+          # DB-less gateway config contains synthetic keys only.
+          cat > "$RUNNER_TEMP/dr-kong.yml" <<YAML
+          _format_version: "2.1"
+          _transform: true
+          consumers:
+            - username: dr-anon
+              keyauth_credentials:
+                - key: "$DR_ANON"
+            - username: dr-service
+              keyauth_credentials:
+                - key: "$DR_SERVICE"
+          services:
+            - name: auth
+              url: http://127.0.0.1:9999
+              routes:
+                - name: auth-v1
+                  paths: [/auth/v1]
+                  strip_path: true
+              plugins:
+                - name: key-auth
+                  config:
+                    key_names: [apikey]
+                    hide_credentials: false
+            - name: rest
+              url: http://127.0.0.1:3000
+              routes:
+                - name: rest-v1
+                  paths: [/rest/v1]
+                  strip_path: true
+              plugins:
+                - name: key-auth
+                  config:
+                    key_names: [apikey]
+                    hide_credentials: false
+            - name: storage
+              url: http://127.0.0.1:5000
+              routes:
+                - name: storage-v1
+                  paths: [/storage/v1]
+                  strip_path: true
+              plugins:
+                - name: key-auth
+                  config:
+                    key_names: [apikey]
+                    hide_credentials: false
+          YAML
+          chmod 644 "$RUNNER_TEMP/dr-kong.yml"
+          docker run -d --name cowl_dr_kong --network container:cowl_dr_db \
+            -e KONG_DATABASE=off -e KONG_DECLARATIVE_CONFIG=/dr-kong.yml \
+            -e KONG_PROXY_LISTEN=127.0.0.1:8000 -e KONG_ADMIN_LISTEN=off \
+            -e KONG_STATUS_LISTEN=off -e KONG_PROXY_ACCESS_LOG=/dev/null \
+            -e KONG_PLUGINS=bundled \
+            --mount "type=bind,source=$RUNNER_TEMP/dr-kong.yml,target=/dr-kong.yml,readonly" \
+            public.ecr.aws/supabase/kong:2.8.1
+          for name in cowl_dr_auth cowl_dr_rest cowl_dr_storage cowl_dr_kong; do
             test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$name" | cut -d: -f1)" = container
             test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$name")" = '{}'
           done
@@ -102,10 +180,11 @@ jobs:
           docker exec -i -e DR_SERVICE="$DR_SERVICE" -e DR_ANON="$DR_ANON" cowl_dr_storage node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
           import {createHash} from 'node:crypto';
-          const auth='http://127.0.0.1:9999', rest='http://127.0.0.1:3000', storage='http://127.0.0.1:5000';
+          const base='http://127.0.0.1:8000';
+          const auth=base+'/auth/v1', rest=base+'/rest/v1', storage=base+'/storage/v1';
           const service=process.env.DR_SERVICE, anon=process.env.DR_ANON;
           const pause=ms=>new Promise(r=>setTimeout(r,ms));
-          const hdr=(token,type='application/json')=>({Authorization:'Bearer '+token,apikey:token,'Content-Type':type});
+          const hdr=(token,type='application/json')=>({Authorization:'Bearer '+token,apikey:token===service?service:anon,'Content-Type':type});
           async function ready(url,token){
             for(let i=0;i<60;i++){
               try { const r=await fetch(url,{headers:hdr(token),signal:AbortSignal.timeout(3000)}); if(r.ok)return; }catch{}
@@ -120,6 +199,7 @@ jobs:
           await ready(auth+'/health',anon);
           await ready(rest+'/dr_fixture?select=id',anon);
           await ready(storage+'/bucket',service);
+          assert.equal((await fetch(rest+'/dr_fixture?select=id',{signal:AbortSignal.timeout(15000)})).status,401,'Gateway accepted missing API key');
           const pw='Synthetic-only-DR-20261127!';
           async function user(email){
             await ok(await req(auth+'/admin/users',service,'POST',{email,password:pw,email_confirm:true}),'Create synthetic user');
@@ -139,19 +219,101 @@ jobs:
           const path='/object/dr-private/fixture.bin';
           await ok(await req(storage+path,service,'POST',bytes,'application/octet-stream'),'Upload private fixture');
           const download=storage+'/object/authenticated/dr-private/fixture.bin';
-          const result=await ok(await req(download,token),'Authorized download');
+          // Delete and re-upload the synthetic object through the real API.
+          await ok(await req(storage+path,service,'DELETE'),'Delete synthetic object');
+          const gone=await req(download,token);
+          assert.ok([400,404].includes(gone.status),'Deleted object unexpectedly available');
+          await ok(await req(storage+path,service,'POST',bytes,'application/octet-stream'),'Restore synthetic object');
+          const result=await ok(await req(download,token),'Authorized download after restore');
           const hash=x=>createHash('sha256').update(x).digest('hex');
           assert.equal(hash(Buffer.from(await result.arrayBuffer())),hash(bytes));
           for(const t of [anon,outsider.access_token]){
             const denied=await req(download,t);assert.ok([400,401,403,404].includes(denied.status),'Unauthorized download not denied');
           }
-          const publicRead=await fetch(storage+'/object/public/dr-private/fixture.bin',{signal:AbortSignal.timeout(15000)});
+          const publicRead=await req(storage+'/object/public/dr-private/fixture.bin',anon);
           assert.ok([400,401,403,404].includes(publicRead.status),'Public download not denied');
-          console.log('PASS: exact-image Auth sign-in and refresh; real PostgREST JWT/RLS; private Storage checksum and signed/anonymous denial.');
-          console.log('Scope: synthetic fixtures only. No archive restore, Kong, application, production credentials or live service tests.');
+          console.log('PASS: Kong routing/key authentication; exact-image Auth sign-in/refresh; PostgREST JWT/RLS; private object delete/restore, checksum and access denial.');
+          console.log('Scope: synthetic fixtures only; no Production archive or live credentials.');
+          JS
+      - name: Backup delete and restore synthetic Auth users and identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec cowl_dr_db sh -c 'umask 077; pg_dump -U supabase_admin -d postgres --data-only --column-inserts --no-owner --no-privileges --table=auth.users > /restore-input/users.sql'
+          docker exec cowl_dr_db sh -c 'umask 077; pg_dump -U supabase_admin -d postgres --data-only --column-inserts --no-owner --no-privileges --table=auth.identities > /restore-input/identities.sql'
+          docker exec -i -e DR_SERVICE="$DR_SERVICE" -e DR_ANON="$DR_ANON" cowl_dr_storage node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const base='http://127.0.0.1:8000/auth/v1';
+          const s=process.env.DR_SERVICE,a=process.env.DR_ANON,pw='Synthetic-only-DR-20261127!';
+          const hdr=key=>({apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json'});
+          const login=email=>fetch(base+'/token?grant_type=password',{method:'POST',headers:hdr(a),body:JSON.stringify({email,password:pw}),signal:AbortSignal.timeout(15000)});
+          for(const email of ['dr-admin@example.invalid','dr-outsider@example.invalid']){
+            const r=await login(email);assert.ok(r.ok,'Pre-delete login failed');
+            const uid=(await r.json()).user.id;assert.match(uid,/^[0-9a-f-]{36}$/i);
+            const d=await fetch(base+'/admin/users/'+uid,{method:'DELETE',headers:hdr(s),signal:AbortSignal.timeout(15000)});
+            assert.ok(d.ok,'Synthetic Auth delete failed HTTP '+d.status);
+            const denied=await login(email);assert.ok(!denied.ok,'Deleted account could still log in');
+          }
+          JS
+          docker exec cowl_dr_db psql -X --single-transaction -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /restore-input/users.sql -f /restore-input/identities.sql >/dev/null
+          docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT count(*) FROM auth.users WHERE email IN ('dr-admin@example.invalid','dr-outsider@example.invalid')" | grep -qx 2
+          docker exec cowl_dr_db psql -X -At -U supabase_admin -d postgres -c "SELECT count(*) FROM auth.identities i JOIN auth.users u ON u.id=i.user_id WHERE u.email IN ('dr-admin@example.invalid','dr-outsider@example.invalid')" | grep -qx 2
+      - name: Build actual RC1 source and start application inside the disconnected namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Application build and runtime receive only local synthetic credentials.
+          # Docker pulls the runtime image before the disconnected application starts.
+          docker pull node:22-bookworm-slim
+          export NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:8000
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$DR_ANON"
+          export SUPABASE_SERVICE_ROLE_KEY="$DR_SERVICE"
+          export ADMIN_LOCKOUT_HMAC_SECRET=DR_SYNTHETIC_ONLY_LOCKOUT_SECRET_20261127
+          export RESEND_API_KEY=DISABLED_NO_REMOTE_MAIL
+          export NEXT_TELEMETRY_DISABLED=1
+          app_args=(--network container:cowl_dr_db -v "$GITHUB_WORKSPACE:/app" -w /app
+            -e NEXT_PUBLIC_SUPABASE_URL -e NEXT_PUBLIC_SUPABASE_ANON_KEY
+            -e SUPABASE_SERVICE_ROLE_KEY -e ADMIN_LOCKOUT_HMAC_SECRET
+            -e RESEND_API_KEY -e NEXT_TELEMETRY_DISABLED)
+          docker run --rm --name cowl_dr_build "${app_args[@]}" node:22-bookworm-slim npm run build
+          docker run -d --name cowl_dr_app "${app_args[@]}" node:22-bookworm-slim \
+            node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3499
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' cowl_dr_app | cut -d: -f1)" = container
+          test "$(docker inspect --format '{{json .HostConfig.PortBindings}}' cowl_dr_app)" = '{}'
+      - name: Verify real application sign-in after synthetic Auth restoration
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i -e DR_ANON="$DR_ANON" cowl_dr_storage node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const app='http://127.0.0.1:3499',api='http://127.0.0.1:8000',anon=process.env.DR_ANON;
+          let ready=false;
+          for(let i=0;i<90;i++){
+            try{if((await fetch(app+'/admin',{signal:AbortSignal.timeout(3000)})).ok){ready=true;break;}}catch{}
+            await new Promise(r=>setTimeout(r,1000));
+          }
+          assert.ok(ready,'Application startup did not become healthy');
+          assert.ok((await fetch(app+'/',{signal:AbortSignal.timeout(15000)})).ok,'Homepage failed');
+          const login=(email,password)=>fetch(app+'/api/admin/sign-in',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:AbortSignal.timeout(20000)});
+          assert.equal((await login('bad-email','')).status,400,'Malformed credentials were not denied');
+          assert.equal((await login('dr-admin@example.invalid','incorrect-synthetic-password')).status,401,'Invalid password was not denied');
+          for(const [email,want] of [['dr-admin@example.invalid',[{id:1,label:'synthetic-only'}]],['dr-outsider@example.invalid',[]]]){
+            const r=await login(email,'Synthetic-only-DR-20261127!');
+            assert.ok(r.ok,'Restored synthetic account login through actual RC1 app failed HTTP '+r.status);
+            const t=await r.json();assert.ok(t.access_token&&t.refresh_token,'Application login missing tokens');
+            const q=await fetch(api+'/rest/v1/dr_fixture?select=id,label',{headers:{apikey:anon,Authorization:'Bearer '+t.access_token},signal:AbortSignal.timeout(15000)});
+            assert.ok(q.ok,'Post-recovery application token rejected');
+            assert.deepEqual(await q.json(),want);
+          }
+          console.log('PASS: actual RC1 build/start and sign-in route using restored synthetic Auth identities, pinned gateway and role-aware fixture RLS.');
+          console.log('LIMITATION: synthetic admission RPC adapters, not the archived Production lockout/role schema; no real archive, full browser workflows or Production sign-off.');
           JS
       - name: Destroy only this synthetic environment
         if: always()
         shell: bash
         run: |
-          docker rm -f cowl_dr_storage cowl_dr_rest cowl_dr_auth cowl_dr_db >/dev/null 2>&1 || true
+          for c in cowl_dr_app cowl_dr_build cowl_dr_kong cowl_dr_storage cowl_dr_rest cowl_dr_auth cowl_dr_db; do
+            if docker inspect "$c" >/dev/null 2>&1; then docker rm -f "$c" >/dev/null; fi
+          done
+          rm -f "$RUNNER_TEMP/dr-kong.yml"
+          test -z "$(docker ps -a --format '{{.Names}}' | grep '^cowl_dr_' || true)"
